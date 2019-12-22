@@ -1,0 +1,98 @@
+{
+    "common": {
+        "name": "digitalstrom",
+        "version": "0.0.1",
+        "news": {
+            "0.0.1": {
+                "en": "initial release",
+                "de": "Erstveröffentlichung",
+                "ru": "Начальная версия",
+                "pt": "lançamento inicial",
+                "nl": "Eerste uitgave",
+                "fr": "Première version",
+                "it": "Versione iniziale",
+                "es": "Versión inicial",
+                "pl": "Pierwsze wydanie",
+                "zh-cn": "首次出版"
+            }
+        },
+        "title": "Digitalstrom",
+        "titleLang": {
+            "en": "Digitalstrom",
+            "de": "Digitalstrom",
+            "ru": "Digitalstrom",
+            "pt": "Digitalstrom",
+            "nl": "Digitalstrom",
+            "fr": "Digitalstrom",
+            "it": "Digitalstrom",
+            "es": "Digitalstrom",
+            "pl": "Digitalstrom",
+            "zh-cn": "Digitalstrom"
+        },
+        "desc": {
+            "en": "Support for Digitalstrom devices vis DSS",
+            "de": "Unterstützung für Digitalstrom-Geräte gegenüber DSS",
+            "ru": "Поддержка устройств Digitalstrom в DSS",
+            "pt": "Suporte para dispositivos Digitalstrom vis DSS",
+            "nl": "Ondersteuning voor Digitalstrom-apparaten vis DSS",
+            "fr": "Prise en charge des appareils Digitalstrom vis DSS",
+            "it": "Supporto per dispositivi Digitalstrom con DSS",
+            "es": "Soporte para dispositivos Digitalstrom vis DSS",
+            "pl": "Obsługa urządzeń Digitalstrom w stosunku do DSS",
+            "zh-cn": "通过DSS支持Digitalstrom设备"
+        },
+        "authors": [
+            "Apollon77 <iobroker@fischer-ka.de>"
+        ],
+        "keywords": [
+            "digitalstrom",
+            "iot",
+            "iobroker"
+        ],
+        "license": "MIT",
+        "platform": "Javascript/Node.js",
+        "main": "main.js",
+        "icon": "digitalstrom.png",
+        "enabled": true,
+        "extIcon": "https://raw.githubusercontent.com/Apollon77/ioBroker.digitalstrom/master/admin/digitalstrom.png",
+        "readme": "https://github.com/Apollon77/ioBroker.digitalstrom/blob/master/README.md",
+        "loglevel": "info",
+        "mode": "daemon",
+        "type": "logic",
+        "compact": true,
+        "materialize": true,
+        "dependencies": [
+            {
+                "js-controller": ">=1.4.2"
+            }
+        ]
+    },
+    "native": {
+        "option1": true,
+        "option2": "42"
+    },
+    "objects": [],
+    "instanceObjects": [
+        {
+            "_id": "info",
+            "type": "channel",
+            "common": {
+                "name": "Information"
+            },
+            "native": {}
+        },
+        {
+            "_id": "info.connection",
+            "type": "state",
+            "common": {
+                "role": "indicator.connected",
+                "name": "Device or service connected",
+                "type": "boolean",
+                "read": true,
+                "write": false,
+                "def": false
+            },
+            "native": {}
+        }
+    ]
+}
