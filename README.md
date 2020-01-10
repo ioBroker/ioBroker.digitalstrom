@@ -12,12 +12,11 @@
 
 **Tests:**: [![Travis-CI](http://img.shields.io/travis/Apollon77/ioBroker.digitalstrom/master.svg)](https://travis-ci.org/Apollon77/ioBroker.digitalstrom)
 
-## digitalstrom adapter for ioBroker
+**This adapter uses the service [Sentry.io](https://sentry.io) to automatically report exceptions and code errors and new device schemas to me as the developer.** More details see below!
 
-Support for Digitalstrom devices vis DSS
+## Digitalstrom adapter for ioBroker
 
-## Developer manual
-This section is intended for the developer. It can be deleted later
+Support for Digitalstrom devices via DSS
 
 ### Getting started
 
@@ -83,7 +82,7 @@ For later updates, the above procedure is not necessary. Just do the following:
 ## License
 MIT License
 
-Copyright (c) 2019 Apollon77 <iobroker@fischer-ka.de>
+Copyright (c) 2020 Apollon77 <iobroker@fischer-ka.de>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

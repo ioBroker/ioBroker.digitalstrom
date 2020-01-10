@@ -54,11 +54,11 @@
         "main": "main.js",
         "icon": "digitalstrom.png",
         "enabled": true,
-        "extIcon": "https://raw.githubusercontent.com/Apollon77/ioBroker.digitalstrom/master/admin/digitalstrom.png",
-        "readme": "https://github.com/Apollon77/ioBroker.digitalstrom/blob/master/README.md",
-        "loglevel": "info",
+        "extIcon": "https://raw.githubusercontent.com/ioBroker/ioBroker.digitalstrom/master/admin/digitalstrom.png",
+        "readme": "https://github.com/ioBroker/ioBroker.digitalstrom/blob/master/README.md",
+        "loglevel": "debug",
         "mode": "daemon",
-        "type": "logic",
+        "type": "iot-systems",
         "compact": true,
         "materialize": true,
         "dependencies": [
@@ -68,8 +68,9 @@
         ]
     },
     "native": {
-        "option1": true,
-        "option2": "42"
+        "host": "",
+        "appToken": "",
+        "dataPollInterval": 60
     },
     "objects": [],
     "instanceObjects": [

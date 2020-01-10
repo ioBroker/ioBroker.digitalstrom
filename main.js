@@ -1,15 +1,34 @@
 'use strict';
 
 /*
- * Created with @iobroker/create-adapter v1.18.0
+ * Digitalstrom ioBroker Adapter
  */
 
-// The adapter-core module gives you access to the core ioBroker functions
-// you need to create an adapter
-const utils = require('@iobroker/adapter-core');
+/*
+Rule 5 When applications send a scene command to a set of digitalSTROM-Devices with more than one target device they have to use scene calls directed to a group, splitting into multiple calls to single devices has to be avoided due to latency and statemachine consistency issues.
 
-// Load your modules here, e.g.:
-// const fs = require("fs");
+Rule 8 Application processes that do automatic cyclic reads or writes of device parameters are subject to a request limit: at maximum one request per minute and circuit is allowed.
+
+Rule 9 Application processes that do automatic cyclic reads of measured values are subject to a request limit: at maximum one request per minute and circuit is allowed.
+
+Rule 10 The action command ”Set Output Value” must not be used for other than device configuration purposes.
+
+Rule 13 Applications that automatically generate Call Scene action commands (see 6.1.1) must not execute the action commands at a rate faster than one request per second.
+ */
+
+
+const utils = require('@iobroker/adapter-core');
+const ObjectHelper = require('@apollon/iobroker-tools'); // Get common adapter utils
+
+const DSS = require('./lib/dss');
+const DSSQueue = require('./lib/dssQueue');
+const DSSStructure = require('./lib/dssStructure');
+const dssConstants = require('./lib/constants');
+
+const Sentry = require('@sentry/node');
+const SentryIntegrations = require('@sentry/integrations');
+const packageJson = require('./package.json');
+
 
 class Digitalstrom extends utils.Adapter {
 
@@ -24,64 +43,101 @@ class Digitalstrom extends utils.Adapter {
         this.on('ready', this.onReady.bind(this));
         this.on('objectChange', this.onObjectChange.bind(this));
         this.on('stateChange', this.onStateChange.bind(this));
-        // this.on('message', this.onMessage.bind(this));
+        this.on('message', this.onMessage.bind(this));
         this.on('unload', this.onUnload.bind(this));
+
+        this.objectHelper = ObjectHelper.objectHelper;
+        this.objectHelper.init(this);
+        this.connected = null;
+
+        this.dss = null;
+        this.dssQueue = null;
+        this.dssStruct = null;
+
+        this.dataPollInterval = 60000;
+        this.dataPollTimeout = null;
+
+        process.on('SIGINT', () => {
+            this.stopAdapter();
+        });
+
+        process.on('uncaughtException', (err) => {
+            console.log('Exception: ' + err + '/' + err.toString());
+            this.log && this.log.warn('Exception: ' + err);
+
+            this.stopAdapter();
+        });
     }
 
     /**
      * Is called when databases are connected and adapter received configuration.
      */
     async onReady() {
-        // Initialize your adapter here
-
-        // Reset the connection indicator during startup
-        this.setState('info.connection', false, true);
-
-        // The adapters config (in the instance object everything under the attribute "native") is accessible via
-        // this.config:
-        this.log.info('config option1: ' + this.config.option1);
-        this.log.info('config option2: ' + this.config.option2);
-
-        /*
-        For every state in the system there has to be also an object of type state
-        Here a simple template for a boolean variable named "testVariable"
-        Because every adapter instance uses its own unique namespace variable names can't collide with other adapters variables
-        */
-        await this.setObjectAsync('testVariable', {
-            type: 'state',
-            common: {
-                name: 'testVariable',
-                type: 'boolean',
-                role: 'indicator',
-                read: true,
-                write: true,
-            },
-            native: {},
+        const sentryPathWhitelist = ['digitalstrom', '@apollon'];
+        const sentryErrorBlacklist = ['SyntaxError'];
+        Sentry.init({
+            release: packageJson.name + '@' + packageJson.version,
+            dsn: 'https://396d59d81cef46d58cc3a65ecf2a02f7@sentry.io/1877914',
+            integrations: [
+                new SentryIntegrations.Dedupe()
+            ]
         });
+        Sentry.configureScope(scope => {
+            scope.setTag('version', this.common.installedVersion || this.common.version);
+            if (this.common.installedFrom) {
+                scope.setTag('installedFrom', this.common.installedFrom);
+            }
+            else {
+                scope.setTag('installedFrom', this.common.installedVersion || this.common.version);
+            }
+            scope.addEventProcessor(function(event, hint) {
+                // Try to filter out some events
+                if (event && event.metadata) {
+                    if (event.metadata.function && event.metadata.function.startsWith('Module.')) {
+                        return null;
+                    }
+                    if (event.metadata.type && sentryErrorBlacklist.includes(event.metadata.type)) {
+                        return null;
+                    }
+                    if (event.metadata.filename && sentryPathWhitelist.find(path => !event.metadata.filename.includes(path))) {
+                        return null;
+                    }
+                    if (event.exception && event.exception.values && event.exception.values[0] && event.exception.values[0].stacktrace && event.exception.values[0].stacktrace.frames) {
+                        for (let i = 0; i < (event.exception.values[0].stacktrace.frames.length > 5 ? 5 : event.exception.values[0].stacktrace.frames.length); i++) {
+                            let foundWhitelisted = false;
+                            if (event.exception.values[0].stacktrace.frames[i].filename && sentryPathWhitelist.find(path => event.exception.values[0].stacktrace.frames[i].filename.includes(path))) {
+                                foundWhitelisted = true;
+                                break;
+                            }
+                            if (!foundWhitelisted) {
+                                return null;
+                            }
+                        }
+                    }
+                }
 
-        // in this template all states changes inside the adapters namespace are subscribed
-        this.subscribeStates('*');
+                return event;
+            });
 
-        /*
-        setState examples
-        you will notice that each setState will cause the stateChange event to fire (because of above subscribeStates cmd)
-        */
-        // the variable testVariable is set to true as command (ack=false)
-        await this.setStateAsync('testVariable', true);
-
-        // same thing, but the value is flagged "ack"
-        // ack should be always set to true if the value is received from or acknowledged from the target system
-        await this.setStateAsync('testVariable', { val: true, ack: true });
-
-        // same thing, but the state is deleted after 30s (getState will return null afterwards)
-        await this.setStateAsync('testVariable', { val: true, ack: true, expire: 30 });
-
-        // examples for the checkPassword/checkGroup functions
-        let result = await this.checkPasswordAsync('admin', 'iobroker');
-        this.log.info('check user admin pw ioboker: ' + result);
-
-        result = await this.checkGroupAsync('admin', 'admin');
-        this.log.info('check group user admin group admin: ' + result);
+            this.getForeignObject('system.config', (err, obj) => {
+                if (obj && obj.common && obj.common.diag) {
+                    this.getForeignObject('system.meta.uuid', (err, obj) => {
+                        // create uuid
+                        if (!err  && obj) {
+                            Sentry.configureScope(scope => {
+                                scope.setUser({
+                                    id: obj.native.uuid
+                                });
+                            });
+                        }
+                        this.main();
+                    });
+                }
+                else {
+                    this.main();
+                }
+            });
+        });
     }
 
     /**
@@ -90,8 +146,7 @@ class Digitalstrom extends utils.Adapter {
      */
     onUnload(callback) {
         try {
-            this.log.info('cleaned everything up...');
-            callback();
+            this.stopAdapter(callback);
         } catch (e) {
             callback();
         }
@@ -105,10 +160,10 @@ class Digitalstrom extends utils.Adapter {
     onObjectChange(id, obj) {
         if (obj) {
             // The object was changed
-            this.log.info(`object ${id} changed: ${JSON.stringify(obj)}`);
+            this.log.debug(`object ${id} changed: ${JSON.stringify(obj)}`);
         } else {
             // The object was deleted
-            this.log.info(`object ${id} deleted`);
+            this.log.debug(`object ${id} deleted`);
         }
     }
 
@@ -120,30 +175,350 @@ class Digitalstrom extends utils.Adapter {
     onStateChange(id, state) {
         if (state) {
             // The state was changed
-            this.log.info(`state ${id} changed: ${state.val} (ack = ${state.ack})`);
+            this.log.debug(`state ${id} changed: ${state.val} (ack = ${state.ack})`);
+
+            this.objectHelper.handleStateChange(id, state);
         } else {
             // The state was deleted
-            this.log.info(`state ${id} deleted`);
+            this.log.debug(`state ${id} deleted`);
         }
     }
 
-    // /**
-    //  * Some message was sent to this instance over message box. Used by email, pushover, text2speech, ...
-    //  * Using this method requires "common.message" property to be set to true in io-package.json
-    //  * @param {ioBroker.Message} obj
-    //  */
-    // onMessage(obj) {
-    // 	if (typeof obj === 'object' && obj.message) {
-    // 		if (obj.command === 'send') {
-    // 			// e.g. send email or pushover or whatever
-    // 			this.log.info('send command');
+    /**
+     * Some message was sent to this instance over message box. Used by email, pushover, text2speech, ...
+     * Using this method requires "common.message" property to be set to true in io-package.json
+     * @param {ioBroker.Message} obj
+     */
+    onMessage(obj) {
+    	if (typeof obj === 'object' && obj.message) {
+    		if (obj.command === 'createAppToken') {
+    		    if (!obj.callback) return;
+    			// e.g. send email or pushover or whatever
+                this.log.info('Try to retrieve AppToken for username ' + obj.message.username);
 
-    // 			// Send response in callback if required
-    // 			if (obj.callback) this.sendTo(obj.from, obj.command, 'Message received', obj.callback);
-    // 		}
-    // 	}
-    // }
+                this.dss.createAppTokenAsync(obj.message.username, obj.message.password).then((token) => {
+                    this.log.info('Return AppToken for username ' + obj.message.username + ': ' + token);
+                    this.sendTo(obj.from, obj.command, {token}, obj.callback);
+                }, (error) => {
+                    this.log.warn('Error while retrieving AppToken for username ' + obj.message.username + ': ' + error);
+                    this.sendTo(obj.from, obj.command, {error}, obj.callback);
+                });
+    		}
+    	}
+    }
 
+    stopAdapter(callback) {
+        this.setConnected(false);
+
+        if (this.dataPollTimeout) {
+            clearTimeout(this.dataPollTimeout);
+            this.dataPollTimeout = null;
+        }
+
+        // remove all queue entries and end timers
+        this.dssQueue && this.dssQueue.clearQueues();
+
+        // unsubscribe to all events
+        this.dss && this.dss.unsubscribeAllEvents((time) => {
+            this.log && this.log.info('cleaned everything up... ' + time);
+            callback();
+        });
+    }
+
+    setConnected(isConnected) {
+        if (this.connected !== isConnected) {
+            this.connected = isConnected;
+            this.setState('info.connection', this.connected, true);
+        }
+    }
+
+    main() {
+        // Reset the connection indicator during startup
+        this.setConnected(false);
+
+        if (!this.config.host || !this.config.appToken) {
+            this.log.warn('Please open Admin page for this adapter to set the host and create an App Token.');
+            return;
+        }
+        this.dss = new DSS({
+            host: this.config.host,
+            appToken: this.config.appToken
+        });
+        this.dssQueue = new DSSQueue({
+            dss: this.dss
+        });
+        this.dssStruct = new DSSStructure({
+            dss: this.dss,
+            dssQueue: this.dssQueue,
+            adapter: this
+        });
+
+        this.dataPollInterval = (this.config.dataPollInterval * 1000) || this.dataPollInterval;
+
+        this.objectHelper.loadExistingObjects(() => {
+
+            this.initializeDSSData(err => {
+                if (err) {
+                    this.log.warn('Error while initializing Data: ' + err);
+                    return;
+                }
+
+                this.objectHelper.processObjectQueue(() => {
+
+                    this.initializeSubscriptions(() => {
+                        this.subscribeStates('*');
+                        this.setConnected(true);
+                        this.log.info('Subscribed to states ...');
+
+                        this.startDataPolling();
+
+                        this.clearAdditionalObjects();
+                    });
+                });
+
+            });
+        });
+    }
+
+    initializeDSSData(callback) {
+        this.dss.requestAsync('apartment', 'getName').then((dssName) => {
+            this.log.debug('getName: ' + JSON.stringify(dssName));
+
+            this.dss.requestAsync('system', 'version').then((dssVersion) => {
+                this.log.debug('version: ' + JSON.stringify(dssVersion));
+
+                this.dssStruct.init((err) => {
+                    if (err) {
+                        this.log.warn('Error while initializing Structure: ' + err);
+                        return;
+                    }
+
+                    callback && callback(null);
+                });
+
+            }, (err) => {
+                this.log.error('Err:' + JSON.stringify(err));
+                callback && callback(err);
+            });
+
+        }, (err) => {
+            this.log.error('Err:' + JSON.stringify(err));
+            callback && callback(err);
+        });
+    }
+
+    startDataPolling(fromTimeout) {
+        if (this.dataPollTimeout) {
+            !fromTimeout && clearTimeout(this.dataPollTimeout);
+            this.dataPollTimeout = null;
+        }
+        this.dssStruct.updateMeterData(() => {
+            this.dataPollTimeout = setTimeout(() => this.startDataPolling(true), this.dataPollInterval);
+        });
+    }
+
+    initializeSubscriptions(callback) {
+        const eventNames = Object.keys(dssConstants.availableEvents).filter(name => dssConstants.availableEvents[name]);
+
+        this.dss && this.dss.subscribeEvents(eventNames, errs => {
+            if (errs) {
+                this.log.warn('Error to subscribe to ' + errs.length + 'Events. See the following log lines.');
+                errs.forEach((err, idx) => this.log.warn(idx + ': ' + err));
+            }
+            else {
+                this.log.debug('Successfully subscribed to ' + eventNames.length + ' Events');
+            }
+
+            this.dss.on('deviceSensorValue', data => {
+                this.eventLog(data.name, data, true);
+                if (!data.source || !data.source.isDevice || data.properties.sensorValueFloat === undefined) {
+                    this.log.info('--INVALID ' + JSON.stringify(data));
+                    return;
+                }
+                const sourceDeviceId = this.dssStruct.stateMap[data.source.dSUID + '.sensors.' + data.properties.sensorIndex];
+                if (!sourceDeviceId) {
+                    this.log.info('INVALID Device Sensor update');
+                    return;
+                }
+                this.setState(sourceDeviceId, data.properties.sensorValueFloat, true);
+            });
+
+            this.dss.on('deviceBinaryInputEvent', data => {
+                this.eventLog(data.name, data, true);
+                if (!data.source || !data.source.isDevice || data.properties.inpupType === undefined) {
+                    this.log.info('--INVALID ' + JSON.stringify(data));
+                    return;
+                }
+                const sourceDeviceId = this.dssStruct.stateMap[data.source.dSUID + '.binaryInputs.' + data.properties.inputIndex];
+                if (!sourceDeviceId) {
+                    this.log.info('INVALID Device Binary input event');
+                    return;
+                }
+                this.setState(sourceDeviceId, data.properties.inputState, true);
+            });
+
+            const handleStateChange = (data) => {
+                this.eventLog(data.name, data, true);
+                if (!data.properties || !data.properties.statename) {
+                    this.log.info('--INVALID ' + JSON.stringify(data));
+                    return;
+                }
+                const sourceDeviceId = this.dssStruct.stateMap[data.properties.statename];
+                if (!sourceDeviceId) {
+                    this.log.info('Unhandled State Change: ' + data.properties.statename);
+                    return;
+                }
+                let stateValue = data.properties.value;
+                if (this.dssStruct.dssObjects[sourceDeviceId] && this.dssStruct.dssObjects[sourceDeviceId].native) {
+                    if (this.dssStruct.dssObjects[sourceDeviceId].native.valueTrue !== undefined && stateValue === this.dssStruct.dssObjects[sourceDeviceId].native.valueTrue) {
+                        stateValue = true;
+                    }
+                    else if (this.dssStruct.dssObjects[sourceDeviceId].native.valueFalse !== undefined && stateValue === this.dssStruct.dssObjects[sourceDeviceId].native.valueFalse) {
+                        stateValue = false;
+                    }
+                }
+                this.setState(sourceDeviceId, stateValue, true);
+            }
+            this.dss.on('stateChange', handleStateChange);
+            this.dss.on('addonStateChange', handleStateChange);
+
+            this.dss.on('buttonClick', data => {
+                this.eventLog(data.name, data, true);
+                if (!data.source || !data.source.isDevice) {
+                    this.log.info('--INVALID ' + JSON.stringify(data));
+                    return;
+                }
+                if (!this.dssStruct.stateMap[data.source.dSUID + '.' + data.properties.buttonIndex + '.button']) {
+                    this.log.info('INVALID Button click');
+                    return;
+                }
+                this.setState(dssStruct.stateMap[data.source.dSUID + '.' + data.properties.buttonIndex + '.button'], true, true);
+                this.setState(dssStruct.stateMap[data.source.dSUID + '.' + data.properties.buttonIndex + '.buttonClickType'], data.properties.clickType || -1, true);
+                this.setState(dssStruct.stateMap[data.source.dSUID + '.' + data.properties.buttonIndex + '.buttonHoldCount'], data.properties.holdCount || 0, true);
+            });
+
+            this.dss.on('zoneSensorValue', data => {
+                this.eventLog(data.name, data, true);
+                if (!data.source || !data.properties || !data.properties.sensorType || data.properties.sensorValueFloat === undefined) {
+                    this.log.info('--INVALID ' + JSON.stringify(data));
+                    return;
+                }
+                const sourceDeviceId = this.dssStruct.stateMap[data.source.zoneID + '.sensors.' + data.properties.sensorType];
+                if (!sourceDeviceId) {
+                    this.log.info('INVALID Zone Sensor update: ' + data.source.zoneID + '.sensors.' + data.properties.sensorType);
+                    return;
+                }
+                this.setState(sourceDeviceId, data.properties.sensorValueFloat, true);
+            });
+
+            const handleScene = (data, value) => {
+                this.eventLog(data.name, data, true);
+                if (!data.source) {
+                    this.log.info('--INVALID ' + JSON.stringify(data));
+                    return;
+                }
+                let sourceDeviceId;
+
+                if (data.source.isDevice) {
+                    sourceDeviceId = this.dssStruct.stateMap[data.source.dSUID + '.scenes.' + data.properties.sceneID];
+                    dss.emit(data.source.dSUID, data);
+                }
+                else if (data.source.isGroup && (data.properties.zoneID !== '0' || data.properties.groupID !== '0')) {
+                    sourceDeviceId = this.dssStruct.stateMap[data.properties.zoneID + '.' + data.properties.groupID + '.scenes.' + data.properties.sceneID];
+                    if (this.dssStruct.zoneDevices[data.properties.zoneID] && this.dssStruct.zoneDevices[data.properties.zoneID][data.properties.groupID]) {
+                        this.dssStruct.zoneDevices[data.properties.zoneID][data.properties.groupID].forEach(dSUID => this.dss.emit(dSUID, data));
+                    }
+                }
+                else if (data.source.isApartment || (data.source.isGroup && data.properties.zoneID === '0' && data.properties.groupID === '0')) {
+                    sourceDeviceId = this.dssStruct.stateMap['0.0.scenes.' + data.properties.sceneID];
+                    Object.keys(this.dssStruct.zoneDevices).forEach(zoneId => {
+                        Object.keys(this.dssStruct.zoneDevices[zoneId]).forEach(groupId => {
+                            this.dssStruct.zoneDevices[zoneId][groupId].forEach(dSUID => this.dss.emit(dSUID, data));
+                        });
+                    });
+                }
+
+                if (!sourceDeviceId) {
+                    this.log.info('INVALID scenecall');
+                    return;
+                }
+                this.setState(sourceDeviceId, value, true);
+
+                if (data.properties.originDSUID && data.properties.callOrigin === '9' && dssStruct.stateMap[data.properties.originDSUID + '.0.button']) {
+                    this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.button'], true, true);
+                    this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonClickType'], 0, true);
+                    this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonHoldCount'], 0, true);
+                }
+            };
+
+            this.dss.on('callScene', data => handleScene(data, true));
+            this.dss.on('undoScene', data => handleScene(data, false));
+
+            // Log unhandled Events to see what happens so at all
+            eventNames.forEach(eventName => this.dss.listenerCount(eventName) === 0 && this.dss.on(eventName, data => this.eventLog(eventName, data, false)));
+
+            callback && callback(null);
+        });
+    }
+
+    eventLog(eventName, event, handled) {
+        this.log.debug((handled ? '' : 'UNHANDLED ') + 'EVENT: ' + eventName + ': ' + JSON.stringify(event));
+    }
+
+    createObjects(device, baseId, objs) {
+        for (const key in objs) {
+            if (!objs.hasOwnProperty(key)) continue;
+            let onChange = null;
+            const initValue = objs[key].value;
+            const native = objs[key].native;
+            delete objs[key].value;
+            delete objs[key].native;
+            if (objs[key].write) {
+                onChange = (value) => {
+                    value = Mapper.mapValueForWrite(key, value, native);
+                    this.log.debug('onStateChange Device ' + device.ip + ': ' + JSON.stringify(value));
+                    this.devices[device.ip].comm.setDeviceParams(value, (err, status, data) => {
+                        if (err) {
+                            this.log.error(err);
+                        }
+                        if (status !== 'ok') {
+                            this.log.error('set Device Parameter Error for device ' + device.ip + ': ' + status);
+                        }
+                        this.setState(device.id + '.lastStatus', status || 'Error', true);
+                    });
+                }
+            }
+
+            this.log.debug('Create ' + baseId + key + ': ' + JSON.stringify(objs[key]) + ' / ' + JSON.stringify(native) + ' / ' + !!onChange + ' / Value = ' + initValue);
+            this.objectHelper.setOrUpdateObject(baseId + key, {
+                type: 'state',
+                common: objs[key],
+                native: native
+            }, ['name'], initValue, onChange);
+        }
+    }
+
+    clearAdditionalObjects(delIds, callback) {
+        if (typeof delIds === 'function') {
+            callback = delIds;
+            delIds = null;
+        }
+        if (!delIds) {
+            delIds = Object.keys(this.objectHelper.existingStates);
+            delIds.length && this.log.info('Deleting the following states: ' + JSON.stringify(delIds));
+        }
+        if (!delIds.length) {
+            return void callback && callback();
+        }
+        const del = delIds.shift();
+        this.delObject(del, err => {
+            if (err) {
+                this.log.info(' Could not delete ' + del + ': ' + err);
+            }
+            delete this.objectHelper[del];
+            setImmediate(() => this.clearAdditionalObjects(delIds, callback));
+        });
+    }
 }
 
 // @ts-ignore parent is a valid property on module

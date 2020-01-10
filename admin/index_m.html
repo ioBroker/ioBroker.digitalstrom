@@ -17,11 +17,22 @@
     <link rel="stylesheet" type="text/css" href="style.css" />
     <script type="text/javascript" src="words.js"></script>
 
+    <style>
+        #startProxy:hover {
+            cursor: pointer;
+        }
+
+    </style>
+
     <script type="text/javascript">
+        var active = false;
+
         // This will be called by the admin adapter when the settings page loads
         function load(settings, onChange) {
             // example: select elements with id=key and class=value and insert value
             if (!settings) return;
+            settings.username = '';
+            settings.password = '';
             $('.value').each(function () {
                 var $key = $(this);
                 var id = $key.attr('id');
@@ -38,6 +49,38 @@
                         ;
                 }
             });
+
+            $('#createAppToken').click(function () {
+                if (!active) {
+                    showMessage(_('You have to start the adapter before you can retrieve the DSS App-Token'), 'Warning');
+                    return;
+                }
+                sendTo(null, 'createAppToken', {
+                    username: $('#username').val(),
+                    password: $('#password').val(),
+                }, function (response) {
+                    if (response.error) {
+                        showMessage(_('Error while retrieving DSS App-Token') + ': ' + response.error, 'Warning');
+                        return;
+                    }
+                    if (response.appToken) {
+                        $('#appToken').val(response.appToken);
+                        $('#username').val('');
+                        $('#password').val('');
+                        onChange(true);
+                        if (M) M.updateTextFields();
+
+                        showMessage(_('Successfully retrieved DSS App-Token') + ': ' + response.appToken, 'Info');
+                    }
+                });
+            });
+
+            getIsAdapterAlive(function (isAlive) {
+                if (isAlive || common.enabled) {
+                    active = true;
+                }
+            });
+
             onChange(false);
             // reinitialize all the Materialize labels on the page if you are dynamically adding inputs:
             if (M) M.updateTextFields();
@@ -55,6 +98,8 @@
                     obj[$this.attr('id')] = $this.val();
                 }
             });
+            delete obj.username;
+            delete obj.password;
             callback(obj);
         }
     </script>
@@ -76,14 +121,41 @@
         <!-- For example columns with settings: -->
         <div class="row">
             <div class="col s6 input-field">
-                <input type="checkbox" class="value" id="option1" />
-                <label for="option1" class="translate">option1</label>
+                <input type="checkbox" class="value" id="host" />
+                <label for="host" class="translate">DSS Host</label>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col s6 input-field">
+                <input type="text" class="value" id="appToken" />
+                <label for="appToken" class="translate">DSS App-Token</label>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col s6 translate">... or provide Login data to automatically retrieve a DSS App-Token ...</div>
+        </div>
+        <div class="row">
+            <div class="col s6 input-field">
+                <input type="text" class="value" id="username" />
+                <label for="username" class="translate">DSS Username</label>
+            </div>
+            <div class="col s6 input-field">
+                <input type="text" class="value" id="password" />
+                <label for="password" class="translate">DSS Password</label>
+            </div>
+        </div>
+        <div class="row">
+            <div class="input-field col s6">
+                <i id="createAppToken" class="material-icons prefix">play_circle_filled</i>
+                <label class="translate">Create DSS App Token</label>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col s6">
+                <input class="value" id="dataPollInterval" type="number" />
+                <label for="dataPollInterval" class="translate">Data Polling Interval</label>
             </div>
 
-            <div class="col s6 input-field">
-                <input type="text" class="value" id="option2" />
-                <label for="option2" class="translate">option2</label>
-            </div>
         </div>
 
     </div>
