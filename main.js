@@ -282,7 +282,9 @@ class Digitalstrom extends utils.Adapter {
             adapter: this
         });
 
-        this.dataPollInterval = (this.config.dataPollInterval * 1000) || this.dataPollInterval;
+        if (this.dataPollInterval !== 0) {
+            this.dataPollInterval = (this.config.dataPollInterval * 1000) || this.dataPollInterval;
+        }
 
         this.objectHelper.loadExistingObjects(() => {
 
@@ -340,6 +342,10 @@ class Digitalstrom extends utils.Adapter {
         if (this.dataPollTimeout) {
             !fromTimeout && clearTimeout(this.dataPollTimeout);
             this.dataPollTimeout = null;
+        }
+        if (this.dataPollInterval === 0) {
+            this.log.info('Data polling deactivated.');
+            return;
         }
         this.dssStruct.updateMeterData(() => {
             this.dataPollTimeout = setTimeout(() => this.startDataPolling(true), this.dataPollInterval);
@@ -464,7 +470,7 @@ class Digitalstrom extends utils.Adapter {
                     Object.keys(this.dssStruct.zoneDevices).forEach(zoneId => {
                         Object.keys(this.dssStruct.zoneDevices[zoneId]).forEach(groupId => {
                             this.dssStruct.zoneDevices[zoneId][groupId].forEach(dSUID => {
-console.log('Check handled device: ' + dSUID + ' : ' + handledDevices[dSUID]);
+//console.log('Check handled device: ' + dSUID + ' : ' + handledDevices[dSUID]);
                                 if (!handledDevices[dSUID]) {
                                     this.dss.emit(dSUID, data);
                                     handledDevices[dSUID] = true;
@@ -480,7 +486,7 @@ console.log('Check handled device: ' + dSUID + ' : ' + handledDevices[dSUID]);
                 }
                 this.setState(sourceDeviceId, value, true);
 
-console.log('Check Button: ' + this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']);
+//console.log('Check Button: ' + this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']);
                 if (data.properties.originDSUID && data.properties.callOrigin === '9' && this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']) {
                     this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.button'], true, true);
                     this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonClickType'], 0, true);
