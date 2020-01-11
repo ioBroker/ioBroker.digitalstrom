@@ -242,9 +242,11 @@ class Digitalstrom extends utils.Adapter {
         }
         this.dss = new DSS({
             host: this.config.host,
-            appToken: this.config.appToken
+            appToken: this.config.appToken,
+            logger: this.log.debug.bind(this)
         });
         this.dssQueue = new DSSQueue({
+            logger: this.log.debug.bind(this),
             dss: this.dss
         });
         this.dssStruct = new DSSStructure({
