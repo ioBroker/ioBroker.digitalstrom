@@ -52,8 +52,9 @@
                 $(this).addClass('disabled');
 
                 sendTo(null, 'createAppToken', {
+                    host: $('#host').val(),
                     username: $('#username').val(),
-                    password: $('#password').val(),
+                    password: $('#password').val()
                 }, function (response) {
                     $('#createAppToken').removeClass('disabled');
                     if (response.error) {
@@ -64,6 +65,7 @@
                         $('#appToken').val(response.appToken);
                         $('#username').val('');
                         $('#password').val('');
+                        $('#tokenPresent').val('true').trigger('change').select();
                         onChange(true);
                         M && M.updateTextFields();
 
@@ -78,7 +80,7 @@
                 }
             });
 
-            if (settings.host) {
+            if (settings.appToken) {
                 $('#tokenPresent').select().val('true');
                 $('.token-no').hide();
             } else {
@@ -89,7 +91,6 @@
                if ($(this).val() === 'true') {
                    $('.token-no').hide();
                    $('.token-yes').show();
-                   $('#host').val('');
                } else {
                    $('.token-yes').hide();
                    $('.token-no').show();
@@ -132,6 +133,13 @@
         </div>
 
         <div class="row">
+            <div class="col s6 m4 input-field">
+                <input type="text" class="value" id="host" />
+                <label for="host" class="translate">DSS Host</label>
+            </div>
+        </div>
+
+        <div class="row">
             <div class="col s6 input-field">
                 <select type="text" id="tokenPresent">
                     <option value="false" class="translate">I have no App token</option>
@@ -141,12 +149,7 @@
         </div>
 
 
-        <!-- For example columns with settings: -->
         <div class="row token-yes">
-            <div class="col s6 m4 input-field">
-                <input type="text" class="value" id="host" />
-                <label for="host" class="translate">DSS Host</label>
-            </div>
             <div class="col s6 m8 input-field">
                 <input type="text" class="value" id="appToken" />
                 <label for="appToken" class="translate">DSS App-Token</label>

@@ -194,13 +194,24 @@ class Digitalstrom extends utils.Adapter {
     		if (obj.command === 'createAppToken') {
     		    if (!obj.callback) return;
     			// e.g. send email or pushover or whatever
-                this.log.info('Try to retrieve AppToken for username ' + obj.message.username);
+                this.log.info('Try to retrieve AppToken for host ' + obj.message.host + ' and username ' + obj.message.username);
 
-                this.dss.createAppTokenAsync(obj.message.username, obj.message.password).then((token) => {
-                    this.log.info('Return AppToken for username ' + obj.message.username + ': ' + token);
-                    this.sendTo(obj.from, obj.command, {token}, obj.callback);
+                const tokenConnection = new DSS({
+                    host: obj.message.host,
+                    logger: {
+                        silly: this.log.silly.bind(this),
+                        debug: this.log.debug.bind(this),
+                        info: this.log.info.bind(this),
+                        warn: this.log.warn.bind(this),
+                        error: this.log.error.bind(this)
+                    }
+                });
+
+                tokenConnection.createAppTokenAsync(obj.message.username, obj.message.password).then((appToken) => {
+                    this.log.info('Return AppToken for host ' + obj.message.host + ' and username ' + obj.message.username + ': ' + appToken);
+                    this.sendTo(obj.from, obj.command, {appToken}, obj.callback);
                 }, (error) => {
-                    this.log.warn('Error while retrieving AppToken for username ' + obj.message.username + ': ' + error);
+                    this.log.warn('Error while retrieving AppToken for host ' + obj.message.host + ' and username ' + obj.message.username + ': ' + error);
                     this.sendTo(obj.from, obj.command, {error}, obj.callback);
                 });
     		}
@@ -314,12 +325,12 @@ class Digitalstrom extends utils.Adapter {
                 });
 
             }, (err) => {
-                this.log.error('Err:' + JSON.stringify(err));
+                this.log.error('Err getVersion:' + JSON.stringify(err));
                 callback && callback(err);
             });
 
         }, (err) => {
-            this.log.error('Err:' + JSON.stringify(err));
+            this.log.error('Err getName:' + JSON.stringify(err));
             callback && callback(err);
         });
     }
