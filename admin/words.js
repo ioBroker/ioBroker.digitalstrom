@@ -38,17 +38,17 @@ systemDictionary = {
         "pl": "Token aplikacji DSS",
         "zh-cn": "DSS应用令牌"
     },
-    "... or provide Login data to automatically retrieve a DSS App-Token ...": {
-        "en": "... or provide Login data to automatically retrieve a DSS App-Token ...",
-        "de": "... oder Anmeldedaten eingeben, um ein DSS-App-Token automatisch abzurufen ...",
-        "ru": "... или предоставьте данные для входа в систему для автоматического получения токена приложения DSS ...",
-        "pt": "... ou forneça dados de login para recuperar automaticamente um DSS App-Token ...",
-        "nl": "... of verstrek inloggegevens om automatisch een DSS app-token op te halen ...",
-        "fr": "... ou fournissez des données de connexion pour récupérer automatiquement un jeton d'application DSS ...",
-        "it": "... o fornisci i dati di accesso per recuperare automaticamente un token app DSS ...",
-        "es": "... o proporcione datos de inicio de sesión para recuperar automáticamente un token de aplicación DSS ...",
-        "pl": "... lub podaj dane logowania, aby automatycznie pobrać token aplikacji DSS ...",
-        "zh-cn": "...或提供登录数据以自动检索DSS应用程序令牌..."
+    "Provide Login data to automatically retrieve a DSS App-Token": {
+        "en": "Provide Login data to automatically retrieve a DSS App-Token",
+        "de": "Geben Sie Anmeldedaten ein, um ein DSS-App-Token automatisch abzurufen",
+        "ru": "Укажите данные для входа в систему для автоматического получения токена приложения DSS.",
+        "pt": "Forneça dados de login para recuperar automaticamente um DSS App-Token",
+        "nl": "Verstrek inloggegevens om automatisch een DSS app-token op te halen",
+        "fr": "Fournir des données de connexion pour récupérer automatiquement un jeton d'application DSS",
+        "it": "Fornire i dati di accesso per recuperare automaticamente un token app DSS",
+        "es": "Proporcione datos de inicio de sesión para recuperar automáticamente un token de aplicación DSS",
+        "pl": "Podaj dane logowania, aby automatycznie pobrać token aplikacji DSS",
+        "zh-cn": "提供登录数据以自动检索DSS应用令牌"
     },
     "DSS Username": {
         "en": "DSS Username",
@@ -145,6 +145,29 @@ systemDictionary = {
         "es": "Usar valores preestablecidos de escena",
         "pl": "Użyj wstępnie ustawionych wartości scen",
         "zh-cn": "使用场景预设值"
+    },
+    "I have no App token": {
+        "en": "I have no App token",
+        "de": "Ich habe kein App-Token",
+        "ru": "У меня нет приложения токен",
+        "pt": "Não tenho token de aplicativo",
+        "nl": "Ik heb geen app-token",
+        "fr": "Je n'ai pas de jeton d'application",
+        "it": "Non ho un token app",
+        "es": "No tengo token de aplicación",
+        "pl": "Nie mam tokena aplikacji",
+        "zh-cn": "我没有应用令牌"
+    },
+    "I have App token": {
+        "en": "I have App token",
+        "de": "Ich habe ein App-Token",
+        "ru": "У меня есть токен приложения",
+        "pt": "Eu tenho token de aplicativo",
+        "nl": "Ik heb een app-token",
+        "fr": "J'ai un jeton d'application",
+        "it": "Ho un token app",
+        "es": "Tengo token de aplicación",
+        "pl": "Mam token aplikacji",
+        "zh-cn": "我有应用令牌"
     }
-
 };

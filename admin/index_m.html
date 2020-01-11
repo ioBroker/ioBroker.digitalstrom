@@ -54,10 +54,14 @@
                     showMessage(_('You have to start the adapter before you can retrieve the DSS App-Token'), 'Warning');
                     return;
                 }
+
+                $(this).addClass('disabled');
+
                 sendTo(null, 'createAppToken', {
                     username: $('#username').val(),
                     password: $('#password').val(),
                 }, function (response) {
+                    $('#createAppToken').removeClass('disabled');
                     if (response.error) {
                         showMessage(_('Error while retrieving DSS App-Token') + ': ' + response.error, 'Warning');
                         return;
@@ -67,7 +71,7 @@
                         $('#username').val('');
                         $('#password').val('');
                         onChange(true);
-                        if (M) M.updateTextFields();
+                        M && M.updateTextFields();
 
                         showMessage(_('Successfully retrieved DSS App-Token') + ': ' + response.appToken, 'Info');
                     }
@@ -80,9 +84,27 @@
                 }
             });
 
+            if (settings.host) {
+                $('#tokenPresent').select().val('true');
+                $('.token-no').hide();
+            } else {
+                $('#tokenPresent').select().val('false');
+                $('.token-yes').hide();
+            }
+            $('#tokenPresent').on('change', function () {
+               if ($(this).val() === 'true') {
+                   $('.token-no').hide();
+                   $('.token-yes').show();
+                   $('#host').val('');
+               } else {
+                   $('.token-yes').hide();
+                   $('.token-no').show();
+               }
+            });
+
             onChange(false);
             // reinitialize all the Materialize labels on the page if you are dynamically adding inputs:
-            if (M) M.updateTextFields();
+            M && M.updateTextFields();
         }
 
         // This will be called by the admin adapter when the user presses the save button
@@ -111,46 +133,54 @@
 
         <div class="row">
             <div class="col s12 m4 l2">
-                <img src="digitalstrom.jpg" class="logo">
+                <img src="digitalstrom.png" class="logo">
             </div>
         </div>
 
-        <!-- Put your content here -->
-
-        <!-- For example columns with settings: -->
         <div class="row">
             <div class="col s6 input-field">
+                <select type="text" id="tokenPresent">
+                    <option value="false" class="translate">I have no App token</option>
+                    <option value="true"  class="translate">I have App token</option>
+                </select>
+            </div>
+        </div>
+
+
+        <!-- For example columns with settings: -->
+        <div class="row token-yes">
+            <div class="col s6 m4 input-field">
                 <input type="text" class="value" id="host" />
                 <label for="host" class="translate">DSS Host</label>
             </div>
-        </div>
-        <div class="row">
-            <div class="col s6 input-field">
+            <div class="col s6 m8 input-field">
                 <input type="text" class="value" id="appToken" />
                 <label for="appToken" class="translate">DSS App-Token</label>
             </div>
         </div>
-        <div class="row">
-            <div class="col s6 translate">... or provide Login data to automatically retrieve a DSS App-Token ...</div>
+        <div class="row token-no">
+            <div class="col s6 translate">Provide Login data to automatically retrieve a DSS App-Token</div>
         </div>
-        <div class="row">
-            <div class="col s6 input-field">
+        <div class="row token-no" style="margin-bottom: 0;">
+            <div class="col s6 m3 l2 input-field">
                 <input type="text" class="value" id="username" />
                 <label for="username" class="translate">DSS Username</label>
             </div>
-            <div class="col s6 input-field">
+            <div class="col s6 m3 l2 input-field">
                 <input type="text" class="value" id="password" />
                 <label for="password" class="translate">DSS Password</label>
             </div>
         </div>
-        <div class="row">
-            <div class="input-field col s6">
-                <i id="createAppToken" class="material-icons prefix">play_circle_filled</i>
-                <label class="translate">Create DSS App Token</label>
+        <div class="row token-no">
+            <div class="col s6 m3 l2 ">
+                <a class="waves-effect waves-light btn" id="createAppToken">
+                    <i class="material-icons left">play_circle_filled</i>
+                    <span class="translate">Create DSS App Token</span>
+                </a>
             </div>
         </div>
         <div class="row">
-            <div class="col s6">
+            <div class="col s6 m3 l2 ">
                 <input class="value" id="dataPollInterval" type="number" />
                 <label for="dataPollInterval" class="translate">Data Polling Interval</label>
             </div>

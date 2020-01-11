@@ -1,4 +1,4 @@
-![Logo](admin/digitalstrom.jpg)
+![Logo](admin/digitalstrom.png)
 # ioBroker.digitalstrom
 
 [![NPM version](http://img.shields.io/npm/v/iobroker.digitalstrom.svg)](https://www.npmjs.com/package/iobroker.digitalstrom)
