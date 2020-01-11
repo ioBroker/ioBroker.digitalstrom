@@ -460,24 +460,26 @@ class Digitalstrom extends utils.Adapter {
                 }
                 else if (data.source.isGroup && (data.properties.zoneID !== '0' || data.properties.groupID !== '0')) {
                     sourceDeviceId = this.dssStruct.stateMap[data.properties.zoneID + '.' + data.properties.groupID + '.scenes.' + data.properties.sceneID];
-                    if (this.dssStruct.zoneDevices[data.properties.zoneID] && this.dssStruct.zoneDevices[data.properties.zoneID][data.properties.groupID]) {
+                    if (this.config.initializeOutputValues && this.dssStruct.zoneDevices[data.properties.zoneID] && this.dssStruct.zoneDevices[data.properties.zoneID][data.properties.groupID]) {
                         this.dssStruct.zoneDevices[data.properties.zoneID][data.properties.groupID].forEach(dSUID => this.dss.emit(dSUID, data));
                     }
                 }
                 else if (data.source.isApartment || (data.source.isGroup && data.properties.zoneID === '0' && data.properties.groupID === '0')) {
                     sourceDeviceId = this.dssStruct.stateMap['0.0.scenes.' + data.properties.sceneID];
-                    const handledDevices = {};
-                    Object.keys(this.dssStruct.zoneDevices).forEach(zoneId => {
-                        Object.keys(this.dssStruct.zoneDevices[zoneId]).forEach(groupId => {
-                            this.dssStruct.zoneDevices[zoneId][groupId].forEach(dSUID => {
-//console.log('Check handled device: ' + dSUID + ' : ' + handledDevices[dSUID]);
-                                if (!handledDevices[dSUID]) {
-                                    this.dss.emit(dSUID, data);
-                                    handledDevices[dSUID] = true;
-                                }
+                    if (this.config.initializeOutputValues) {
+                        const handledDevices = {};
+                        Object.keys(this.dssStruct.zoneDevices).forEach(zoneId => {
+                            Object.keys(this.dssStruct.zoneDevices[zoneId]).forEach(groupId => {
+                                this.dssStruct.zoneDevices[zoneId][groupId].forEach(dSUID => {
+                                    //console.log('Check handled device: ' + dSUID + ' : ' + handledDevices[dSUID]);
+                                    if (!handledDevices[dSUID]) {
+                                        this.dss.emit(dSUID, data);
+                                        handledDevices[dSUID] = true;
+                                    }
+                                });
                             });
                         });
-                    });
+                    }
                 }
 
                 if (!sourceDeviceId) {

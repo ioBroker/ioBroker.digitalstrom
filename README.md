@@ -62,16 +62,47 @@ In the structures several "types" of data are included:
 
 For the Apartment a structure with "floor"."zone" is created with the following substructures inside this:
 * per device group a sub folder is created including the available group scenes
-* 
+* scenes for this zone
+* states for this zone
+* sensor values for this zone
+
+On Apartment level all device groups are available with it's scenes.
+
+On Apartment level also Sensors (also outdoor values), States and user states are included.
 
 ### Devices objects and states
 ![Devices Objects](img/dss-devices.png)
 
+The devices are structured with "circuit/dSM"."deviceID" and the subsctructure inside includes:
+* Device Scenes, will be triggered for this device only
+* Device Sensors, when reported from the system. So values might be empty
+* Output values (e.g. state/brightness for Lights and position/angle for Shades/Blinds) are located directly below the device. Only Lights and Shades/Blinds will have a defined functionality for now.
+* Buttons and Binary Inputs will also be represented by states and are read only
+
+## Known Issues / System design effects
+* The DSS system mainly works using scenes and not via real device values and also getting the real values is very slow because needs to be fetched via the bus. 
+* Values might be empty when they were not reported by the system
+* Binary inputs were implemented "Blind" right know because I do not have such a devices. So I'm happy to get some logs/reports with binary input devices :-)
+* Meaningful output value reading and writing is only implemented for Ligh (Yellow) and Shade/Blind (Gray) devices.
+* I had no chance so far checking how the system behaves with vDCs. So I need logs and details here to add it
+* Ventilation and Temperature management/devices are also not fully implemented ... what makes sense here?
+
+## How to report issues and feature requests
+
+Please use GitHub issues for this.
+
+Best is to set the adapter to Debug log mode (Instances -> Expert mode -> Column Log level). Then please get the logfile from disk (subdirectory "log" in ioBroker installation directory and not from Admin because Admin cuts the lines). If you do not like providing it in GitHub issue you can also send it to me via email (iobroker@fischer-ka.de). Please add a refernce to the relevant GitHub issue AND also describe what I see in the log at which time.
+
+## What is Sentry.io and what is reported to the servers of that company?
+Sentry.io is a service for developers to get an overview about errors from their applications. And exactly this is implemented in this adapter.
+
+When the adapter crashes or an other Code error happens, this error message that also appears in the ioBroker log is submitted to Sentry. When you allowed iobroker GmbH to collect diagnostic data then also your installation ID (this is just a unique ID **without** any additional infos about you, email, name or such) is included. This allows Sentry to group errors and show how many unique users are affected by such an error. All of this helps me to provide error free adapters that basically never crashs.  
+
 
 ## Changelog
 
-### 0.0.1
-* (Apollon77) initial release
+### 0.1.x
+* (Apollon77) initial release and finalization
 
 ## License
 MIT License

@@ -169,5 +169,17 @@ systemDictionary = {
         "es": "Tengo token de aplicación",
         "pl": "Mam token aplikacji",
         "zh-cn": "我有应用令牌"
+    },
+    "Request Device Output values actively": {
+        "en": "Request Device Output values actively",
+        "de": "Geräteausgangswerte aktiv abfragen",
+        "ru": "Активно запрашивать выходные данные устройства",
+        "pt": "Solicitar valores de saída do dispositivo ativamente",
+        "nl": "Verzoek Device Output-waarden actief",
+        "fr": "Demander activement les valeurs de sortie de périphérique",
+        "it": "Richiedere attivamente i valori di output del dispositivo",
+        "es": "Solicitar valores de salida del dispositivo activamente",
+        "pl": "Aktywnie żądaj wartości wyjściowych urządzenia",
+        "zh-cn": "主动请求设备输出值"
     }
 };
