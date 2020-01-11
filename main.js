@@ -240,13 +240,28 @@ class Digitalstrom extends utils.Adapter {
             this.log.warn('Please open Admin page for this adapter to set the host and create an App Token.');
             return;
         }
+        if (this.config.usePresetValues === undefined) {
+            this.config.usePresetValues = true;
+        }
         this.dss = new DSS({
             host: this.config.host,
             appToken: this.config.appToken,
-            logger: this.log.debug.bind(this)
+            logger: {
+                silly: this.log.silly.bind(this),
+                debug: this.log.debug.bind(this),
+                info: this.log.info.bind(this),
+                warn: this.log.warn.bind(this),
+                error: this.log.error.bind(this)
+            }
         });
         this.dssQueue = new DSSQueue({
-            logger: this.log.debug.bind(this),
+            logger: {
+                silly: this.log.silly.bind(this),
+                debug: this.log.debug.bind(this),
+                info: this.log.info.bind(this),
+                warn: this.log.warn.bind(this),
+                error: this.log.error.bind(this)
+            },
             dss: this.dss
         });
         this.dssStruct = new DSSStructure({
@@ -267,7 +282,6 @@ class Digitalstrom extends utils.Adapter {
 
                 this.registerObjects();
                 this.objectHelper.processObjectQueue(() => {
-
                     this.initializeSubscriptions(() => {
                         this.subscribeStates('*');
                         this.setConnected(true);
@@ -424,7 +438,7 @@ class Digitalstrom extends utils.Adapter {
 
                 if (data.source.isDevice) {
                     sourceDeviceId = this.dssStruct.stateMap[data.source.dSUID + '.scenes.' + data.properties.sceneID];
-                    dss.emit(data.source.dSUID, data);
+                    this.dss.emit(data.source.dSUID, data);
                 }
                 else if (data.source.isGroup && (data.properties.zoneID !== '0' || data.properties.groupID !== '0')) {
                     sourceDeviceId = this.dssStruct.stateMap[data.properties.zoneID + '.' + data.properties.groupID + '.scenes.' + data.properties.sceneID];
@@ -434,9 +448,15 @@ class Digitalstrom extends utils.Adapter {
                 }
                 else if (data.source.isApartment || (data.source.isGroup && data.properties.zoneID === '0' && data.properties.groupID === '0')) {
                     sourceDeviceId = this.dssStruct.stateMap['0.0.scenes.' + data.properties.sceneID];
+                    const handledDevices = {};
                     Object.keys(this.dssStruct.zoneDevices).forEach(zoneId => {
                         Object.keys(this.dssStruct.zoneDevices[zoneId]).forEach(groupId => {
-                            this.dssStruct.zoneDevices[zoneId][groupId].forEach(dSUID => this.dss.emit(dSUID, data));
+                            this.dssStruct.zoneDevices[zoneId][groupId].forEach(dSUID => {
+                                if (!handledDevices[dSUID]) {
+                                    this.dss.emit(dSUID, data);
+                                    handledDevices[dSUID] = true;
+                                }
+                            });
                         });
                     });
                 }
@@ -469,18 +489,16 @@ class Digitalstrom extends utils.Adapter {
     }
 
     registerObjects() {
-        Object.keys(this.dssStruct.dssObjects).forEach(id => {
-            const obj = JSON.parse(JSON.stringify(this.dssStruct.dssObjects[id]));
+        const objNames = Object.keys(this.dssStruct.dssObjects);
+        this.log.info('Create ' + objNames.length + ' objects ...');
+        objNames.forEach(id => {
+            const obj = this.dssStruct.dssObjects[id];
             const initValue = obj.value;
-            const native = obj.native;
+            const onChange = obj.onChange;
             delete obj.value;
-            delete obj.native;
+            delete obj.onChange;
 
-            this.objectHelper.setOrUpdateObject(id, {
-                type: 'state',
-                common: obj,
-                native: native
-            }, ['name'], initValue, obj.onChange);
+            this.objectHelper.setOrUpdateObject(id, obj, ['name'], initValue, onChange);
         });
     }
 
@@ -489,11 +507,11 @@ class Digitalstrom extends utils.Adapter {
             callback = delIds;
             delIds = null;
         }
-        if (!delIds) {
+        if (!delIds && this.objectHelper.existingStates) {
             delIds = Object.keys(this.objectHelper.existingStates);
             delIds.length && this.log.info('Deleting the following states: ' + JSON.stringify(delIds));
         }
-        if (!delIds.length) {
+        if (!delIds || !delIds.length) {
             return void callback && callback();
         }
         const del = delIds.shift();
