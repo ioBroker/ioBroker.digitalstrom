@@ -54,7 +54,7 @@
         "main": "main.js",
         "icon": "digitalstrom.png",
         "enabled": true,
-        "extIcon": "https://raw.githubusercontent.com/ioBroker/ioBroker.digitalstrom/master/admin/digitalstrom.png",
+        "extIcon": "https://raw.githubusercontent.com/ioBroker/ioBroker.digitalstrom/master/admin/digitalstrom.jpg",
         "readme": "https://github.com/ioBroker/ioBroker.digitalstrom/blob/master/README.md",
         "loglevel": "debug",
         "mode": "daemon",

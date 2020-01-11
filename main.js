@@ -263,6 +263,7 @@ class Digitalstrom extends utils.Adapter {
                     return;
                 }
 
+                this.registerObjects();
                 this.objectHelper.processObjectQueue(() => {
 
                     this.initializeSubscriptions(() => {
@@ -465,37 +466,20 @@ class Digitalstrom extends utils.Adapter {
         this.log.debug((handled ? '' : 'UNHANDLED ') + 'EVENT: ' + eventName + ': ' + JSON.stringify(event));
     }
 
-    createObjects(device, baseId, objs) {
-        for (const key in objs) {
-            if (!objs.hasOwnProperty(key)) continue;
-            let onChange = null;
-            const initValue = objs[key].value;
-            const native = objs[key].native;
-            delete objs[key].value;
-            delete objs[key].native;
-            if (objs[key].write) {
-                onChange = (value) => {
-                    value = Mapper.mapValueForWrite(key, value, native);
-                    this.log.debug('onStateChange Device ' + device.ip + ': ' + JSON.stringify(value));
-                    this.devices[device.ip].comm.setDeviceParams(value, (err, status, data) => {
-                        if (err) {
-                            this.log.error(err);
-                        }
-                        if (status !== 'ok') {
-                            this.log.error('set Device Parameter Error for device ' + device.ip + ': ' + status);
-                        }
-                        this.setState(device.id + '.lastStatus', status || 'Error', true);
-                    });
-                }
-            }
+    registerObjects() {
+        Object.keys(this.dssStruct.dssObjects).forEach(id => {
+            const obj = JSON.parse(JSON.stringify(this.dssStruct.dssObjects[id]));
+            const initValue = obj.value;
+            const native = obj.native;
+            delete obj.value;
+            delete obj.native;
 
-            this.log.debug('Create ' + baseId + key + ': ' + JSON.stringify(objs[key]) + ' / ' + JSON.stringify(native) + ' / ' + !!onChange + ' / Value = ' + initValue);
-            this.objectHelper.setOrUpdateObject(baseId + key, {
+            this.objectHelper.setOrUpdateObject(id, {
                 type: 'state',
-                common: objs[key],
+                common: obj,
                 native: native
-            }, ['name'], initValue, onChange);
-        }
+            }, ['name'], initValue, obj.onChange);
+        });
     }
 
     clearAdditionalObjects(delIds, callback) {
