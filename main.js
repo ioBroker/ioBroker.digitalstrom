@@ -219,6 +219,7 @@ class Digitalstrom extends utils.Adapter {
     }
 
     stopAdapter(callback) {
+        this.log && this.log.info('stopping ... ' + Date.now());
         this.setConnected(false);
 
         if (this.dataPollTimeout) {
@@ -232,7 +233,7 @@ class Digitalstrom extends utils.Adapter {
         // unsubscribe to all events
         this.dss && this.dss.unsubscribeAllEvents((time) => {
             this.log && this.log.info('cleaned everything up... ' + time);
-            callback();
+            callback && callback();
         });
     }
 
