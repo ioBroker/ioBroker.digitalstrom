@@ -409,9 +409,9 @@ class Digitalstrom extends utils.Adapter {
                     this.log.info('INVALID Button click');
                     return;
                 }
-                this.setState(dssStruct.stateMap[data.source.dSUID + '.' + data.properties.buttonIndex + '.button'], true, true);
-                this.setState(dssStruct.stateMap[data.source.dSUID + '.' + data.properties.buttonIndex + '.buttonClickType'], data.properties.clickType || -1, true);
-                this.setState(dssStruct.stateMap[data.source.dSUID + '.' + data.properties.buttonIndex + '.buttonHoldCount'], data.properties.holdCount || 0, true);
+                this.setState(this.dssStruct.stateMap[data.source.dSUID + '.' + data.properties.buttonIndex + '.button'], true, true);
+                this.setState(this.dssStruct.stateMap[data.source.dSUID + '.' + data.properties.buttonIndex + '.buttonClickType'], data.properties.clickType || -1, true);
+                this.setState(this.dssStruct.stateMap[data.source.dSUID + '.' + data.properties.buttonIndex + '.buttonHoldCount'], data.properties.holdCount || 0, true);
             });
 
             this.dss.on('zoneSensorValue', data => {
@@ -452,6 +452,7 @@ class Digitalstrom extends utils.Adapter {
                     Object.keys(this.dssStruct.zoneDevices).forEach(zoneId => {
                         Object.keys(this.dssStruct.zoneDevices[zoneId]).forEach(groupId => {
                             this.dssStruct.zoneDevices[zoneId][groupId].forEach(dSUID => {
+console.log('Check handled device: ' + dSUID + ' : ' + handledDevices[dSUID]);
                                 if (!handledDevices[dSUID]) {
                                     this.dss.emit(dSUID, data);
                                     handledDevices[dSUID] = true;
@@ -467,7 +468,8 @@ class Digitalstrom extends utils.Adapter {
                 }
                 this.setState(sourceDeviceId, value, true);
 
-                if (data.properties.originDSUID && data.properties.callOrigin === '9' && dssStruct.stateMap[data.properties.originDSUID + '.0.button']) {
+console.log('Check Button: ' + this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']);
+                if (data.properties.originDSUID && data.properties.callOrigin === '9' && this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']) {
                     this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.button'], true, true);
                     this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonClickType'], 0, true);
                     this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonHoldCount'], 0, true);

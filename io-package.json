@@ -61,6 +61,7 @@
         "type": "iot-systems",
         "compact": true,
         "materialize": true,
+        "messagebox": true,
         "dependencies": [
             {
                 "js-controller": ">=1.4.2"
