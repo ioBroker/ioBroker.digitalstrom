@@ -70,7 +70,8 @@
     "native": {
         "host": "",
         "appToken": "",
-        "dataPollInterval": 60
+        "dataPollInterval": 60,
+        "usePresetValues": true
     },
     "objects": [],
     "instanceObjects": [

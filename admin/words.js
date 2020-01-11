@@ -133,6 +133,18 @@ systemDictionary = {
         "es": "Token de aplicación DSS recuperado con éxito",
         "pl": "Pomyślnie odzyskano token aplikacji DSS",
         "zh-cn": "成功检索DSS应用令牌"
+    },
+    "Use Scene Preset Values": {
+        "en": "Use Scene Preset Values",
+        "de": "Verwenden Sie Szenenvoreinstellungswerte",
+        "ru": "Использовать предустановленные значения сцены",
+        "pt": "Usar valores predefinidos de cena",
+        "nl": "Gebruik vooraf ingestelde scènewaarden",
+        "fr": "Utiliser les valeurs prédéfinies de scène",
+        "it": "Usa valori preimpostati scena",
+        "es": "Usar valores preestablecidos de escena",
+        "pl": "Użyj wstępnie ustawionych wartości scen",
+        "zh-cn": "使用场景预设值"
     }
 
 };
