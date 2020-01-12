@@ -35,6 +35,7 @@ If you do not have an App-Token simply enter your Username and Password to retri
 Additionally to the Authentication settings (see above) you can edit the following settings to your needs:
 * **Data Polling Interval**: This is the interval the "Energy Meter" data are requested from your DSM devices. Default 60s. You can set 0 if you do not want to poll the Engerymeter data.
 * **Use Scene Preset Values**: The Digitalstrom system is not really designed to have the real output values of the devices available all the time and works most with Scenes. For Light and Shader/Blinds some output values are defined for many of the available Scenes. The adapter knows them and when this setting is active the adapter will try to lookup these values when a scene gets triggered and set those values to the states directly. The real values are requested with a delay. This method might deliver wrong values when local priorities are set/used!
+* **Request Device Output values actively**: The adapter initializes all device output values on start and also after scenes that are effective for a device. There are delay but in fact all those messages will go over the Digitalstrom bus. If this is problematic for you you can try to deactivate this feature. 
 
 After providing an App token and saving the settings the adapter will restart automatically.
 
@@ -100,6 +101,9 @@ When the adapter crashes or an other Code error happens, this error message that
 
 
 ## Changelog
+
+### 0.2.0 (202-01-12)
+* (Apollon77) initial official testing release (still GitHub)
 
 ### 0.1.x
 * (Apollon77) initial release and finalization

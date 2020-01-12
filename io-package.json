@@ -1,9 +1,9 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "0.1.3",
+        "version": "0.2.0",
         "news": {
-            "0.1.3": {
+            "0.2.0": {
                 "en": "initial release",
                 "de": "Erstveröffentlichung",
                 "ru": "Начальная версия",
@@ -31,7 +31,7 @@
         },
         "desc": {
             "en": "Support for Digitalstrom devices vis DSS",
-            "de": "Unterstützung für Digitalstrom-Geräte gegenüber DSS",
+            "de": "Unterstützung für Digitalstrom-Geräte über den DSS",
             "ru": "Поддержка устройств Digitalstrom в DSS",
             "pt": "Suporte para dispositivos Digitalstrom vis DSS",
             "nl": "Ondersteuning voor Digitalstrom-apparaten vis DSS",

@@ -53,6 +53,7 @@ class Digitalstrom extends utils.Adapter {
         this.dss = null;
         this.dssQueue = null;
         this.dssStruct = null;
+        this.lastScenes = {};
 
         this.dataPollInterval = 60000;
         this.dataPollTimeout = null;
@@ -453,19 +454,50 @@ class Digitalstrom extends utils.Adapter {
                     return;
                 }
                 let sourceDeviceId;
+                let lastSourceDeviceId;
 
                 if (data.source.isDevice) {
                     sourceDeviceId = this.dssStruct.stateMap[data.source.dSUID + '.scenes.' + data.properties.sceneID];
+                    if (this.lastScenes[data.source.dSUID] !== undefined) {
+                        lastSourceDeviceId = this.dssStruct.stateMap[data.source.dSUID + '.scenes.' + this.lastScenes[data.source.dSUID]];
+                    }
+                    if (value) {
+                        this.lastScenes[data.source.dSUID] = data.properties.sceneID;
+                    }
+                    else {
+                        this.lastScenes[data.source.dSUID] = undefined;
+                    }
+
                     this.dss.emit(data.source.dSUID, data);
                 }
                 else if (data.source.isGroup && (data.properties.zoneID !== '0' || data.properties.groupID !== '0')) {
                     sourceDeviceId = this.dssStruct.stateMap[data.properties.zoneID + '.' + data.properties.groupID + '.scenes.' + data.properties.sceneID];
+                    if (this.lastScenes[data.properties.zoneID + '.' + data.properties.groupID] !== undefined) {
+                        lastSourceDeviceId = this.dssStruct.stateMap[data.properties.zoneID + '.' + data.properties.groupID + '.scenes.' + this.lastScenes[data.properties.zoneID + '.' + data.properties.groupID]];
+                    }
+                    if (value) {
+                        this.lastScenes[data.properties.zoneID + '.' + data.properties.groupID] = data.properties.sceneID;
+                    }
+                    else {
+                        this.lastScenes[data.source.dSUID] = undefined;
+                    }
+
                     if (this.config.initializeOutputValues && this.dssStruct.zoneDevices[data.properties.zoneID] && this.dssStruct.zoneDevices[data.properties.zoneID][data.properties.groupID]) {
                         this.dssStruct.zoneDevices[data.properties.zoneID][data.properties.groupID].forEach(dSUID => this.dss.emit(dSUID, data));
                     }
                 }
                 else if (data.source.isApartment || (data.source.isGroup && data.properties.zoneID === '0' && data.properties.groupID === '0')) {
                     sourceDeviceId = this.dssStruct.stateMap['0.0.scenes.' + data.properties.sceneID];
+                    if (this.lastScenes['0.0'] !== undefined) {
+                        lastSourceDeviceId = this.dssStruct.stateMap['0.0.scenes.' + this.lastScenes['0.0']];
+                    }
+                    if (value) {
+                        this.lastScenes['0.0'] = data.properties.sceneID;
+                    }
+                    else {
+                        this.lastScenes['0.0'] = undefined;
+                    }
+
                     if (this.config.initializeOutputValues) {
                         const handledDevices = {};
                         Object.keys(this.dssStruct.zoneDevices).forEach(zoneId => {
@@ -487,6 +519,7 @@ class Digitalstrom extends utils.Adapter {
                     return;
                 }
                 this.setState(sourceDeviceId, value, true);
+                lastSourceDeviceId && value && this.setState(lastSourceDeviceId, false, true);
 
 //console.log('Check Button: ' + this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']);
                 if (data.properties.originDSUID && data.properties.callOrigin === '9' && this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']) {
