@@ -102,6 +102,10 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 0.2.1 (202-01-13)
+* (Apollon77) optimize brightness handling
+* (Apollon77) optimize error and reconnection handling
+
 ### 0.2.0 (202-01-12)
 * (Apollon77) initial official testing release (still GitHub)
 

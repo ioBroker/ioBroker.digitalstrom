@@ -58,6 +58,8 @@ class Digitalstrom extends utils.Adapter {
         this.dataPollInterval = 60000;
         this.dataPollTimeout = null;
 
+        this.restartTimeout = null;
+
         process.on('SIGINT', () => {
             this.stopAdapter();
         });
@@ -238,6 +240,13 @@ class Digitalstrom extends utils.Adapter {
         });
     }
 
+    restartAdapter(timeout) {
+        if (this.restartTimeout) return;
+        this.restartTimeout = setTimeout(() => {
+            this.terminate ? this.terminate(-100) : proces.exit(-100);
+        }, timeout || 1000);
+    }
+
     setConnected(isConnected) {
         if (this.connected !== isConnected) {
             this.connected = isConnected;
@@ -287,54 +296,54 @@ class Digitalstrom extends utils.Adapter {
             this.dataPollInterval = (this.config.dataPollInterval * 1000) || this.dataPollInterval;
         }
 
-        this.objectHelper.loadExistingObjects(() => {
+        this.dss.requestAsync('apartment', 'getName').then((dssName) => {
+            this.log.debug('getName: ' + JSON.stringify(dssName));
 
-            this.initializeDSSData(err => {
-                if (err) {
-                    this.log.warn('Error while initializing Data: ' + err);
-                    return;
-                }
+            this.objectHelper.loadExistingObjects(() => {
 
-                this.registerObjects();
-                this.objectHelper.processObjectQueue(() => {
-                    this.initializeSubscriptions(() => {
-                        this.subscribeStates('*');
-                        this.setConnected(true);
-                        this.log.info('Subscribed to states ...');
+                this.initializeDSSData(err => {
+                    if (err) {
+                        this.log.warn('Error while initializing Data: ' + err);
+                        this.restartAdapter(60000);
+                        return;
+                    }
 
-                        this.startDataPolling();
+                    this.registerObjects();
+                    this.objectHelper.processObjectQueue(() => {
+                        this.initializeSubscriptions(() => {
+                            this.subscribeStates('*');
+                            this.setConnected(true);
+                            this.log.info('Subscribed to states ...');
 
-                        this.clearAdditionalObjects();
+                            this.startDataPolling();
+
+                            this.clearAdditionalObjects();
+                        });
                     });
-                });
 
+                });
             });
+        }, (err) => {
+            this.log.error('Error while checking DSS connection (getName):' + JSON.stringify(err));
+            this.log.error('Please check the host and that the host is reachable and check the settings please! Adapter restarts in 5 minutes');
+            this.restartAdapter(300000);
         });
     }
 
     initializeDSSData(callback) {
-        this.dss.requestAsync('apartment', 'getName').then((dssName) => {
-            this.log.debug('getName: ' + JSON.stringify(dssName));
+        this.dss.requestAsync('system', 'version').then((dssVersion) => {
+            this.log.debug('version: ' + JSON.stringify(dssVersion));
 
-            this.dss.requestAsync('system', 'version').then((dssVersion) => {
-                this.log.debug('version: ' + JSON.stringify(dssVersion));
+            this.dssStruct.init((err) => {
+                if (err) {
+                    return void callback && callback(err);
+                }
 
-                this.dssStruct.init((err) => {
-                    if (err) {
-                        this.log.warn('Error while initializing Structure: ' + err);
-                        return;
-                    }
-
-                    callback && callback(null);
-                });
-
-            }, (err) => {
-                this.log.error('Err getVersion:' + JSON.stringify(err));
-                callback && callback(err);
+                callback && callback(null);
             });
 
         }, (err) => {
-            this.log.error('Err getName:' + JSON.stringify(err));
+            this.log.error('Error getVersion:' + JSON.stringify(err));
             callback && callback(err);
         });
     }
@@ -360,6 +369,7 @@ class Digitalstrom extends utils.Adapter {
             if (errs) {
                 this.log.warn('Error to subscribe to ' + errs.length + 'Events. See the following log lines.');
                 errs.forEach((err, idx) => this.log.warn(idx + ': ' + err));
+                this.restartAdapter(30000);
             }
             else {
                 this.log.debug('Successfully subscribed to ' + eventNames.length + ' Events');
@@ -439,7 +449,10 @@ class Digitalstrom extends utils.Adapter {
                     this.log.info('--INVALID ' + JSON.stringify(data));
                     return;
                 }
-                const sourceDeviceId = this.dssStruct.stateMap[data.source.zoneID + '.sensors.' + data.properties.sensorType];
+                let sourceDeviceId = this.dssStruct.stateMap[data.source.zoneID + '.sensors.' + data.properties.sensorType];
+                if (!sourceDeviceId && data.properties.sensorType === 60) {
+                    sourceDeviceId = this.dssStruct.stateMap['0.sensors.60'];
+                }
                 if (!sourceDeviceId) {
                     this.log.info('INVALID Zone Sensor update: ' + data.source.zoneID + '.sensors.' + data.properties.sensorType);
                     return;
@@ -532,6 +545,10 @@ class Digitalstrom extends utils.Adapter {
             this.dss.on('callScene', data => handleScene(data, true));
             this.dss.on('undoScene', data => handleScene(data, false));
 
+            this.dss.on('eventError', (eventName, errorCount, err) => {
+                this.log.warn('Too many event polling errors, restarting adapter');
+                if (errorCount > 20) this.restartAdapter();
+            });
             // Log unhandled Events to see what happens so at all
             eventNames.forEach(eventName => this.dss.listenerCount(eventName) === 0 && this.dss.on(eventName, data => this.eventLog(eventName, data, false)));
 
