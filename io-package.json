@@ -62,7 +62,7 @@
         "compact": true,
         "materialize": true,
         "messagebox": true,
-        "stopTimeout": 30000,
+        "stopTimeout": 10000,
         "dependencies": [
             {
                 "js-controller": ">=1.4.2"
