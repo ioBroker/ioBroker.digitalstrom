@@ -59,6 +59,7 @@ class Digitalstrom extends utils.Adapter {
         this.dataPollTimeout = null;
 
         this.restartTimeout = null;
+        this.stopping = false;
 
         process.on('SIGINT', () => {
             this.stopAdapter();
@@ -222,6 +223,8 @@ class Digitalstrom extends utils.Adapter {
     }
 
     stopAdapter(callback) {
+        if (this.stopping) return;
+        this.stopping = true;
         this.log && this.log.info('stopping ... ' + Date.now());
         this.setConnected(false);
 
@@ -547,7 +550,7 @@ class Digitalstrom extends utils.Adapter {
 
             this.dss.on('eventError', (eventName, errorCount, err) => {
                 this.log.warn('Too many event polling errors, restarting adapter');
-                if (errorCount > 20) this.restartAdapter();
+                this.restartAdapter();
             });
             // Log unhandled Events to see what happens so at all
             eventNames.forEach(eventName => this.dss.listenerCount(eventName) === 0 && this.dss.on(eventName, data => this.eventLog(eventName, data, false)));

@@ -102,6 +102,9 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 0.2.2 (202-01-13)
+* (Apollon77) optimize event subscription logic and timeouts (should prevent "error 500 cases", now tries to resubscribe)
+
 ### 0.2.1 (202-01-13)
 * (Apollon77) optimize brightness handling
 * (Apollon77) optimize error and reconnection handling
