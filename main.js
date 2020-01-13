@@ -313,14 +313,16 @@ class Digitalstrom extends utils.Adapter {
 
                     this.registerObjects();
                     this.objectHelper.processObjectQueue(() => {
-                        this.initializeSubscriptions(() => {
-                            this.subscribeStates('*');
-                            this.setConnected(true);
-                            this.log.info('Subscribed to states ...');
+                        this.setInitialValues(() => {
+                            this.initializeSubscriptions(() => {
+                                this.subscribeStates('*');
+                                this.setConnected(true);
+                                this.log.info('Subscribed to states ...');
 
-                            this.startDataPolling();
+                                this.startDataPolling();
 
-                            this.clearAdditionalObjects();
+                                this.clearAdditionalObjects();
+                            });
                         });
                     });
 
@@ -367,7 +369,6 @@ class Digitalstrom extends utils.Adapter {
 
     initializeSubscriptions(callback) {
         const eventNames = Object.keys(dssConstants.availableEvents).filter(name => dssConstants.availableEvents[name]);
-
         this.dss && this.dss.subscribeEvents(eventNames, errs => {
             if (errs) {
                 this.log.warn('Error to subscribe to ' + errs.length + 'Events. See the following log lines.');
@@ -394,7 +395,7 @@ class Digitalstrom extends utils.Adapter {
 
             this.dss.on('deviceBinaryInputEvent', data => {
                 this.eventLog(data.name, data, true);
-                if (!data.source || !data.source.isDevice || data.properties.inpupType === undefined) {
+                if (!data.source || !data.source.isDevice || data.properties.inputType === undefined) {
                     this.log.info('--INVALID ' + JSON.stringify(data));
                     return;
                 }
@@ -536,6 +537,15 @@ class Digitalstrom extends utils.Adapter {
                 }
                 this.setState(sourceDeviceId, value, true);
                 lastSourceDeviceId && value && this.setState(lastSourceDeviceId, false, true);
+                const idArr = sourceDeviceId.split('.');
+                idArr[idArr.length - 1] = 'sceneId';
+                const sceneIdState = idArr.join('.');
+                if (value) {
+                    this.setState(sceneIdState, data.properties.sceneID, true);
+                }
+                else {
+                    this.setState(sceneIdState, null, true);
+                }
 
 //console.log('Check Button: ' + this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']);
                 if (data.properties.originDSUID && data.properties.callOrigin === '9' && this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']) {
@@ -575,6 +585,18 @@ class Digitalstrom extends utils.Adapter {
 
             this.objectHelper.setOrUpdateObject(id, obj, ['name'], initValue, onChange);
         });
+    }
+
+    setInitialValues(callback, list) {
+        if (list === undefined) {
+            list = Object.keys(this.dssStruct.initialObjectValues);
+        }
+        if (list && !list.length) {
+            return callback && callback();
+        }
+        const id = list.shift();
+        //console.log('SET INITIAL: ' + id + ' = ' + this.dssStruct.initialObjectValues[id] + ', obj = ' + JSON.stringify(this.dssStruct.dssObjects[id]));
+        this.setState(id, this.dssStruct.initialObjectValues[id], true, () => this.setInitialValues(callback, list));
     }
 
     clearAdditionalObjects(delIds, callback) {

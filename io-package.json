@@ -1,9 +1,9 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "0.2.2",
+        "version": "0.3.0",
         "news": {
-            "0.2.2": {
+            "0.3.0": {
                 "en": "initial release",
                 "de": "Erstveröffentlichung",
                 "ru": "Начальная версия",
@@ -62,7 +62,7 @@
         "compact": true,
         "materialize": true,
         "messagebox": true,
-        "stopTimeout": 10000,
+        "stopTimeout": 5000,
         "dependencies": [
             {
                 "js-controller": ">=1.4.2"
