@@ -39,7 +39,7 @@ Additionally to the Authentication settings (see above) you can edit the followi
 
 After providing an App token and saving the settings the adapter will restart automatically.
 
-When data are correct the adapter read out the apartment and devices structure and create them as ioBroker Objects. This can take some time (depending on the number of devices and floors/zones/groups and the performance of your system several seconds). Please be patient.
+When data are correct the adapter read out the apartment and devices structure and create them as ioBroker Objects. This can take some time (depending on the number of devices and floors/zones/groups and the performance of your system several seconds). Please be patient. And I really mean it that way ... Several thousand objects are easy to reach here! Give the adapter time please!
 
 After this the adapter subscribes to several DSS Events to get notified about actions in the system.
 
