@@ -314,6 +314,7 @@ class Digitalstrom extends utils.Adapter {
                     this.registerObjects();
                     this.objectHelper.processObjectQueue(() => {
                         this.setInitialValues(() => {
+                            this.lastScenes = this.dssStruct.initialScenes;
                             this.initializeSubscriptions(() => {
                                 this.subscribeStates('*');
                                 this.setConnected(true);
@@ -341,7 +342,7 @@ class Digitalstrom extends utils.Adapter {
 
             this.dssStruct.init((err) => {
                 if (err) {
-                    return void callback && callback(err);
+                    return void (callback && callback(err));
                 }
 
                 callback && callback(null);
@@ -609,7 +610,7 @@ class Digitalstrom extends utils.Adapter {
             delIds.length && this.log.info('Deleting the following states: ' + JSON.stringify(delIds));
         }
         if (!delIds || !delIds.length) {
-            return void callback && callback();
+            return void (callback && callback());
         }
         const del = delIds.shift();
         this.delObject(del, err => {

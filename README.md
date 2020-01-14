@@ -102,7 +102,7 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
-### 0.3.0 (202-01-14)
+### 0.3.0 (2020-01-14)
 * (Apollon77) further optimize (lower) delays and timeouts, please give feedback!
 * (Apollon77) add "stateId" State for each scenes folder with the scene number. This is updated with the scenes and also controllable.
 * (Apollon77) scenes will not be cleared at the beginning and initialized with the "lastSceneId" returned from DSS; initialization may take some seconds longer!
@@ -110,14 +110,14 @@ When the adapter crashes or an other Code error happens, this error message that
 * (Apollon77) increase loglevel of some "invalid cases" to warn to better see if they happen
 * (Apollon77) fix handling of binaryInput events
 
-### 0.2.2 (202-01-13)
+### 0.2.2 (2020-01-13)
 * (Apollon77) optimize event subscription logic and timeouts (should prevent "error 500 cases", now tries to resubscribe)
 
-### 0.2.1 (202-01-13)
+### 0.2.1 (2020-01-13)
 * (Apollon77) optimize brightness handling
 * (Apollon77) optimize error and reconnection handling
 
-### 0.2.0 (202-01-12)
+### 0.2.0 (2020-01-12)
 * (Apollon77) initial official testing release (still GitHub)
 
 ### 0.1.x
