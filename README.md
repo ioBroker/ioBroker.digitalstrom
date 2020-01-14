@@ -102,6 +102,9 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 0.3.2 (2020-01-14)
+* (Apollon77) fixes for adapter start
+
 ### 0.3.1 (2020-01-14)
 * (Apollon77) fixes
 * (Apollon77) make sure to initialize scenes, states and sensors really on startup - values will be overwritten if delivered with ack=true!
