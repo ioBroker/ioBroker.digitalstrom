@@ -102,6 +102,13 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 0.3.1 (2020-01-14)
+* (Apollon77) fixes
+* (Apollon77) make sure to initialize scenes, states and sensors really on startup - values will be overwritten if delivered with ack=true!
+* (Apollon77) add all Presets (0-44) to Room/Zone and Group states 
+* (Apollon77) also for unknown device types try to initialize output value IF only one is there (assuming it is offset/index 0!) Please check and report back!
+* (Apollon77) make some initial processing async to block eventLoop less
+
 ### 0.3.0 (2020-01-14)
 * (Apollon77) further optimize (lower) delays and timeouts, please give feedback!
 * (Apollon77) add "stateId" State for each scenes folder with the scene number. This is updated with the scenes and also controllable.
