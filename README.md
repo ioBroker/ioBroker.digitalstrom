@@ -102,6 +102,10 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 0.3.3 (2020-01-15)
+* (Apollon77) fixes for scene lists
+* (Apollon77) add some special szenes to more groups 
+
 ### 0.3.2 (2020-01-14)
 * (Apollon77) fixes for adapter start
 
