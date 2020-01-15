@@ -102,6 +102,9 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 0.4.0 (2020-01-15)
+* (Apollon77) add userActions as states and allow to trigger the actions
+
 ### 0.3.3 (2020-01-15)
 * (Apollon77) fixes for scene lists
 * (Apollon77) add some special szenes to more groups 
