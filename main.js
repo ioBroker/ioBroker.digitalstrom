@@ -465,8 +465,8 @@ class Digitalstrom extends utils.Adapter {
                 this.setState(sourceDeviceId, data.properties.sensorValueFloat, true);
             });
 
-            const handleScene = (data, value) => {
-                this.eventLog(data.name, data, true);
+            const handleScene = (data, value, forwarded) => {
+                this.eventLog(data.name + (forwarded ? ' (forwarded)' : ''), data, true);
                 if (!data.source) {
                     this.log.info('--INVALID ' + JSON.stringify(data));
                     return;
@@ -500,7 +500,7 @@ class Digitalstrom extends utils.Adapter {
                         this.lastScenes[data.source.dSUID] = undefined;
                     }
 
-                    if (this.config.initializeOutputValues && this.dssStruct.zoneDevices[data.properties.zoneID] && this.dssStruct.zoneDevices[data.properties.zoneID][data.properties.groupID]) {
+                    if (this.config.initializeOutputValues && !forwarded && this.dssStruct.zoneDevices[data.properties.zoneID] && this.dssStruct.zoneDevices[data.properties.zoneID][data.properties.groupID]) {
                         this.dssStruct.zoneDevices[data.properties.zoneID][data.properties.groupID].forEach(dSUID => this.dss.emit(dSUID, data));
                     }
                 }
@@ -516,7 +516,7 @@ class Digitalstrom extends utils.Adapter {
                         this.lastScenes['0.0'] = undefined;
                     }
 
-                    if (this.config.initializeOutputValues) {
+                    if (this.config.initializeOutputValues && !forwarded) {
                         const handledDevices = {};
                         Object.keys(this.dssStruct.zoneDevices).forEach(zoneId => {
                             Object.keys(this.dssStruct.zoneDevices[zoneId]).forEach(groupId => {
@@ -533,11 +533,11 @@ class Digitalstrom extends utils.Adapter {
                 }
 
                 if (!sourceDeviceId) {
-                    this.log.info('INVALID scenecall');
+                    !forwarded && this.log.info('INVALID scenecall');
                     return;
                 }
                 this.setState(sourceDeviceId, value, true);
-                lastSourceDeviceId && value && this.setState(lastSourceDeviceId, false, true);
+                lastSourceDeviceId && lastSourceDeviceId !== sourceDeviceId && value && this.setState(lastSourceDeviceId, false, true);
                 const idArr = sourceDeviceId.split('.');
                 idArr[idArr.length - 1] = 'sceneId';
                 const sceneIdState = idArr.join('.');
@@ -548,8 +548,26 @@ class Digitalstrom extends utils.Adapter {
                     this.setState(sceneIdState, null, true);
                 }
 
+                // When Scene is called on zone level we also update all groups in that zone
+                if (data.source.isGroup && data.properties.zoneID !== '0' && data.properties.groupID === '0') {
+                    Object.keys(this.dssStruct.zoneDevices[data.properties.zoneID]).forEach(group => {
+                        data.properties.groupID = group.toString();
+                        handleScene(data, value, true);
+                    });
+                }
+                else if (data.source.isGroup && data.properties.zoneID === '0' && data.properties.groupID === '0') {
+                    this.dssStruct.apartmentStructure.zones.forEach(zone => {
+                        if (!this.dssStruct.zoneDevices[zone.id]) return;
+                        data.properties.zoneID = zone.id.toString();
+                        Object.keys(this.dssStruct.zoneDevices[zone.id]).forEach(group => {
+                            data.properties.groupID = group.toString();
+                            handleScene(data, value, true);
+                        });
+                    })
+                }
+
 //console.log('Check Button: ' + this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']);
-                if (data.properties.originDSUID && data.properties.callOrigin === '9' && this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']) {
+                if (!forwarded && data.properties.originDSUID && data.properties.callOrigin === '9' && this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']) {
                     this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.button'], true, true);
                     this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonClickType'], 0, true);
                     this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonHoldCount'], 0, true);
