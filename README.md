@@ -102,6 +102,9 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 0.4.4 (2020-01-17)
+* (Apollon77) fix error (Sentry IOBROKER-DIGITALSTROM-7)
+
 ### 0.4.2 (2020-01-16)
 * (Apollon77) fix wrong scene state updates if same scene is triggered twice
 * (Apollon77) also trigger scene update for all groups if scene was called on zone or to all zones and groups when done on apartment
