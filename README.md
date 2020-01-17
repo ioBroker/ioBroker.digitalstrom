@@ -102,6 +102,9 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 0.4.7 (2020-01-17)
+* (Apollon77) fix error when writing vdc output values
+
 ### 0.4.6 (2020-01-17)
 * (Apollon77) fix missing datatypes for some states (mainly sensors and output values)
 

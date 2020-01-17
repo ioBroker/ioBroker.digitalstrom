@@ -1,8 +1,20 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "0.4.6",
+        "version": "0.4.7",
         "news": {
+            "0.4.7": {
+                "en": "fix error when writing vdc output values",
+                "de": "Fehler beim Schreiben von VDC-Ausgabewerten behoben",
+                "ru": "исправить ошибку при записи выходных значений vdc",
+                "pt": "corrigir erro ao gravar valores de saída vdc",
+                "nl": "fout verholpen bij het schrijven van vdc-uitvoerwaarden",
+                "fr": "correction d'une erreur lors de l'écriture des valeurs de sortie vdc",
+                "it": "correggere l'errore durante la scrittura di valori di output VDC",
+                "es": "corrige el error al escribir valores de salida vdc",
+                "pl": "napraw błąd podczas zapisywania wartości wyjściowych VDC",
+                "zh-cn": "写入vdc输出值时修复错误"
+            },
             "0.4.6": {
                 "en": "missing datatypes added for sensors and output values",
                 "de": "Fehlende Datentypen für Sensoren und Ausgabewerte hinzugefügt",
