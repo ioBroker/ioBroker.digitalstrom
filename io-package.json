@@ -1,8 +1,20 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "0.4.5",
+        "version": "0.4.6",
         "news": {
+            "0.4.6": {
+                "en": "missing datatypes added for sensors and output values",
+                "de": "Fehlende Datentypen für Sensoren und Ausgabewerte hinzugefügt",
+                "ru": "добавлены недостающие типы данных для датчиков и выходных значений",
+                "pt": "tipos de dados ausentes adicionados para sensores e valores de saída",
+                "nl": "ontbrekende gegevenstypen toegevoegd voor sensoren en uitvoerwaarden",
+                "fr": "types de données manquants ajoutés pour les capteurs et les valeurs de sortie",
+                "it": "Aggiunti tipi di dati mancanti per sensori e valori di uscita",
+                "es": "faltan tipos de datos agregados para sensores y valores de salida",
+                "pl": "dodano brakujące typy danych dla czujników i wartości wyjściowych",
+                "zh-cn": "为传感器和输出值添加了缺少的数据类型"
+            },
             "0.4.5": {
                 "en": "initial release",
                 "de": "Erstveröffentlichung",
