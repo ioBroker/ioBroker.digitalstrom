@@ -102,6 +102,9 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 0.4.5 (2020-01-17)
+* (Apollon77) fix error in sentry reporting
+
 ### 0.4.4 (2020-01-17)
 * (Apollon77) fix error (Sentry IOBROKER-DIGITALSTROM-7)
 

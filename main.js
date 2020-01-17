@@ -103,7 +103,7 @@ class Digitalstrom extends utils.Adapter {
                     if (event.metadata.type && sentryErrorBlacklist.includes(event.metadata.type)) {
                         return null;
                     }
-                    if (event.metadata.filename && sentryPathWhitelist.find(path => !event.metadata.filename.includes(path))) {
+                    if (event.metadata.filename && !sentryPathWhitelist.find(path => event.metadata.filename.includes(path))) {
                         return null;
                     }
                     if (event.exception && event.exception.values && event.exception.values[0] && event.exception.values[0].stacktrace && event.exception.values[0].stacktrace.frames) {
