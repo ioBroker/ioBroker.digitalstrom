@@ -1,7 +1,7 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "0.4.7",
+        "version": "0.4.8",
         "news": {
             "0.4.7": {
                 "en": "fix error when writing vdc output values",

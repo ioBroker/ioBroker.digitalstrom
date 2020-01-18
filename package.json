@@ -1,6 +1,6 @@
 {
   "name": "iobroker.digitalstrom",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "description": "Support for Digitalstrom devices vis DSS",
   "author": {
     "name": "Apollon77",

@@ -102,6 +102,11 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 0.4.8 (2020-01-18)
+* (Apollon77) add unknown weather sensor "windgust"
+* (Apollon77) change handling of Input types
+* (Apollon77) Fix controlling of shaders 
+
 ### 0.4.7 (2020-01-17)
 * (Apollon77) fix error when writing vdc output values
 
