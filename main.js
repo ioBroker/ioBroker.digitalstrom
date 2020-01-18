@@ -419,7 +419,7 @@ class Digitalstrom extends utils.Adapter {
                     this.log.info('Unhandled State Change: ' + data.properties.statename);
                     return;
                 }
-                let stateValue = data.properties.value;
+                let stateValue = data.properties.state;
                 if (this.dssStruct.dssObjects[sourceDeviceId] && this.dssStruct.dssObjects[sourceDeviceId].native) {
                     if (this.dssStruct.dssObjects[sourceDeviceId].native.valueTrue !== undefined && stateValue === this.dssStruct.dssObjects[sourceDeviceId].native.valueTrue) {
                         stateValue = true;

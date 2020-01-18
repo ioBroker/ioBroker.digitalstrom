@@ -102,7 +102,11 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
-### 0.4.8 (2020-01-18)
+### 0.4.10 (2020-01-19)
+* (Apollon77) state changes added
+* (Apollon77) Fixed shade position control
+
+### 0.4.9 (2020-01-18)
 * (Apollon77) add unknown weather sensor "windgust"
 * (Apollon77) change handling of Input types
 * (Apollon77) Fix controlling of shaders 

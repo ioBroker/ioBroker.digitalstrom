@@ -1,8 +1,20 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "0.4.9",
+        "version": "0.4.10",
         "news": {
+            "0.4.10": {
+                "en": "shade position control fixed and state changes added",
+                "de": "Behobene Rollopositionskontrolle und Zustandsänderungen hinzugefügt",
+                "ru": "Исправлено управление положением шторы и добавлены изменения состояния",
+                "pt": "controle de posição de sombra corrigido e alterações de estado adicionadas",
+                "nl": "schaduwpositieregeling vast en statuswijzigingen toegevoegd",
+                "fr": "correction de la position de l'ombre et changements d'état ajoutés",
+                "it": "controllo della posizione dell'ombra fisso e cambiamenti di stato aggiunti",
+                "es": "control de posición de sombra fijo y cambios de estado agregados",
+                "pl": "Poprawiono kontrolę pozycji cienia i dodano zmiany stanu",
+                "zh-cn": "固定阴影位置控制并添加状态更改"
+            },
             "0.4.9": {
                 "en": "binary input type handling optimized, controlling shaders fixed",
                 "de": "Die Behandlung von Binäreingaben wurde optimiert, die Steuerung von Shadern wurde behoben",
