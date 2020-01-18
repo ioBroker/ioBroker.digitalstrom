@@ -1,8 +1,20 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "0.4.8",
+        "version": "0.4.9",
         "news": {
+            "0.4.9": {
+                "en": "binary input type handling optimized, controlling shaders fixed",
+                "de": "Die Behandlung von Binäreingaben wurde optimiert, die Steuerung von Shadern wurde behoben",
+                "ru": "Оптимизирована обработка двоичного типа ввода, исправлено управление шейдерами",
+                "pt": "manipulação de tipo de entrada binária otimizada, controlando shaders corrigidos",
+                "nl": "binaire input type handling geoptimaliseerd, controlerende shaders vast",
+                "fr": "gestion des types d'entrées binaires optimisée, contrôle des shaders fixes",
+                "it": "ottimizzazione del tipo di input binario, controllo degli shader fissi",
+                "es": "manejo de tipo de entrada binaria optimizado, control de sombreadores fijos",
+                "pl": "zoptymalizowano obsługę typu wejścia binarnego, naprawiono sterowanie shaderem",
+                "zh-cn": "优化了二进制输入类型的处理，固定了着色器"
+            },
             "0.4.7": {
                 "en": "fix error when writing vdc output values",
                 "de": "Fehler beim Schreiben von VDC-Ausgabewerten behoben",
