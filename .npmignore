@@ -30,3 +30,4 @@ maintenance/**
 .github
 test.js
 tsconfig.json
+main.test.js

@@ -102,6 +102,9 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 0.5.0 (2020-01-19)
+* (Apollon77) add buttons for more device types (also vDC) and try to detect button triggers
+
 ### 0.4.10 (2020-01-19)
 * (Apollon77) state changes added
 * (Apollon77) Fixed shade position control

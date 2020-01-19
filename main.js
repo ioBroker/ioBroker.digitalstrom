@@ -371,7 +371,7 @@ class Digitalstrom extends utils.Adapter {
     initializeSubscriptions(callback) {
         const eventNames = Object.keys(dssConstants.availableEvents).filter(name => dssConstants.availableEvents[name]);
         this.dss && this.dss.subscribeEvents(eventNames, errs => {
-            if (errs) {
+            if (errs && Array.isArray(errs)) {
                 this.log.warn('Error to subscribe to ' + errs.length + 'Events. See the following log lines.');
                 errs.forEach((err, idx) => this.log.warn(idx + ': ' + err));
                 this.restartAdapter(30000);
@@ -567,10 +567,17 @@ class Digitalstrom extends utils.Adapter {
                 }
 
 //console.log('Check Button: ' + this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']);
-                if (!forwarded && data.properties.originDSUID && data.properties.callOrigin === '9' && this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']) {
-                    this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.button'], true, true);
-                    this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonClickType'], 0, true);
-                    this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonHoldCount'], 0, true);
+                if (!forwarded && data.properties.callOrigin === '9') {
+                    if (data.properties.originDSUID && this.dssStruct.stateMap[data.properties.originDSUID + '.0.button']) {
+                        this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.button'], true, true);
+                        this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonClickType'] && this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonClickType'], 0, true);
+                        this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonHoldCount'] && this.setState(this.dssStruct.stateMap[data.properties.originDSUID + '.0.buttonHoldCount'], 0, true);
+                    }
+                    else if (data.source.dSUID && this.dssStruct.stateMap[data.source.dSUID + '.0.button']) {
+                        this.setState(this.dssStruct.stateMap[data.source.dSUID + '.0.button'], true, true);
+                        this.dssStruct.stateMap[data.source.dSUID + '.0.buttonClickType'] && this.setState(this.dssStruct.stateMap[data.source.dSUID + '.0.buttonClickType'], 0, true);
+                        this.dssStruct.stateMap[data.source.dSUID + '.0.buttonHoldCount'] && this.setState(this.dssStruct.stateMap[data.source.dSUID + '.0.buttonHoldCount'], 0, true);
+                    }
                 }
             };
 
