@@ -4,16 +4,16 @@
         "version": "0.5.0",
         "news": {
             "0.5.0": {
-                "en": "shade position control fixed and state changes added",
-                "de": "Behobene Rollopositionskontrolle und Zustandsänderungen hinzugefügt",
-                "ru": "Исправлено управление положением шторы и добавлены изменения состояния",
-                "pt": "controle de posição de sombra corrigido e alterações de estado adicionadas",
-                "nl": "schaduwpositieregeling vast en statuswijzigingen toegevoegd",
-                "fr": "correction de la position de l'ombre et changements d'état ajoutés",
-                "it": "controllo della posizione dell'ombra fisso e cambiamenti di stato aggiunti",
-                "es": "control de posición de sombra fijo y cambios de estado agregados",
-                "pl": "Poprawiono kontrolę pozycji cienia i dodano zmiany stanu",
-                "zh-cn": "固定阴影位置控制并添加状态更改"
+                "en": "buttons are supported for more device types",
+                "de": "Schaltflächen werden für weitere Gerätetypen unterstützt",
+                "ru": "кнопки поддерживаются для большего количества типов устройств",
+                "pt": "botões são suportados para mais tipos de dispositivos",
+                "nl": "knoppen worden ondersteund voor meer apparaattypen",
+                "fr": "les boutons sont pris en charge pour plus de types d'appareils",
+                "it": "i pulsanti sono supportati per più tipi di dispositivi",
+                "es": "los botones son compatibles con más tipos de dispositivos",
+                "pl": "przyciski są obsługiwane dla większej liczby typów urządzeń",
+                "zh-cn": "支持更多设备类型的按钮"
             },
             "0.4.10": {
                 "en": "shade position control fixed and state changes added",
