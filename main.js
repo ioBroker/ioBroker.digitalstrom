@@ -237,10 +237,15 @@ class Digitalstrom extends utils.Adapter {
         this.dssQueue && this.dssQueue.clearQueues();
 
         // unsubscribe to all events
-        this.dss && this.dss.unsubscribeAllEvents((time) => {
-            this.log && this.log.info('cleaned everything up... ' + time);
+        if (this.dss) {
+            this.dss.unsubscribeAllEvents((time) => {
+                this.log && this.log.info('cleaned everything up... ' + time);
+                callback && callback();
+            });
+        }
+        else {
             callback && callback();
-        });
+        }
     }
 
     restartAdapter(timeout) {
