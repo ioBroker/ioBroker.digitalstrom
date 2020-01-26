@@ -102,7 +102,7 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
-### 0.5.3 (2020-01-26)
+### 0.5.4 (2020-01-26)
 * (Apollon77) fix smaller errors
 * (Apollon77) send Sentry reports to own server
 
