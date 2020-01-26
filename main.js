@@ -81,7 +81,7 @@ class Digitalstrom extends utils.Adapter {
         const sentryErrorBlacklist = ['SyntaxError'];
         Sentry.init({
             release: packageJson.name + '@' + packageJson.version,
-            dsn: 'https://d1da9ebead4d4ec693b489c8ea02bc6e@home.fischer-ka.de:5900/2',
+            dsn: 'https://d1da9ebead4d4ec693b489c8ea02bc6e@sentry.iobroker.net:5900/2',
             integrations: [
                 new SentryIntegrations.Dedupe()
             ]

@@ -1,9 +1,9 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "0.5.2",
+        "version": "0.5.3",
         "news": {
-            "0.5.2": {
+            "0.5.3": {
                 "en": "bugfixes, change Sentry that my own server is used",
                 "de": "Bugfixes, ändern Sie Sentry, dass mein eigener Server verwendet wird",
                 "ru": "исправления, поменяйте Sentry, что используется мой собственный сервер",
