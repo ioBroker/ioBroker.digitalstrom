@@ -81,7 +81,7 @@ class Digitalstrom extends utils.Adapter {
         const sentryErrorBlacklist = ['SyntaxError'];
         Sentry.init({
             release: packageJson.name + '@' + packageJson.version,
-            dsn: 'https://396d59d81cef46d58cc3a65ecf2a02f7@sentry.io/1877914',
+            dsn: 'https://d1da9ebead4d4ec693b489c8ea02bc6e@home.fischer-ka.de:5900/2',
             integrations: [
                 new SentryIntegrations.Dedupe()
             ]
@@ -315,15 +315,17 @@ class Digitalstrom extends utils.Adapter {
                     this.objectHelper.processObjectQueue(() => {
                         this.setInitialValues(() => {
                             this.lastScenes = this.dssStruct.initialScenes;
-                            this.initializeSubscriptions(() => {
-                                this.subscribeStates('*');
-                                this.setConnected(true);
-                                this.log.info('Subscribed to states ...');
+                            setTimeout(() => {
+                                this.initializeSubscriptions(() => {
+                                    this.subscribeStates('*');
+                                    this.setConnected(true);
+                                    this.log.info('Subscribed to states ...');
 
-                                this.startDataPolling();
+                                    this.startDataPolling();
 
-                                this.clearAdditionalObjects();
-                            });
+                                    this.clearAdditionalObjects();
+                                });
+                            }, 2000);
                         });
                     });
 

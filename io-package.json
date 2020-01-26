@@ -1,8 +1,20 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "0.5.0",
+        "version": "0.5.1",
         "news": {
+            "0.5.1": {
+                "en": "bugfixes, change Sentry that my own server is used",
+                "de": "Bugfixes, ändern Sie Sentry, dass mein eigener Server verwendet wird",
+                "ru": "исправления, поменяйте Sentry, что используется мой собственный сервер",
+                "pt": "correções, mudança Sentry que meu próprio servidor é usado",
+                "nl": "bugfixes, verander Sentry dat mijn eigen server wordt gebruikt",
+                "fr": "corrections de bugs, changez Sentry que mon propre serveur est utilisé",
+                "it": "bugfixes, cambia Sentry che viene utilizzato il mio server",
+                "es": "correcciones de errores, cambio de Centinela que se utiliza mi propio servidor",
+                "pl": "poprawki błędów, zmień Sentry, że mój własny serwer jest używany",
+                "zh-cn": "错误修正，更改使用我自己的服务器的哨兵"
+            },
             "0.5.0": {
                 "en": "buttons are supported for more device types",
                 "de": "Schaltflächen werden für weitere Gerätetypen unterstützt",
