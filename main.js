@@ -163,7 +163,12 @@ class Digitalstrom extends utils.Adapter {
      * Is called when databases are connected and adapter received configuration.
      */
     async onReady() {
-        this.initSentry(() => this.main());
+        if (this.supportsFeature && !this.supportsFeature('ADAPTER_SENTRY_INTEGRATED')) {
+            this.initSentry(() => this.main());
+        }
+        else {
+            this.main()
+        }
     }
 
     /**
@@ -287,7 +292,6 @@ class Digitalstrom extends utils.Adapter {
     main() {
         // Reset the connection indicator during startup
         this.setConnected(false);
-        setTimeout(heyhey, 3000);
 
         if (!this.config.host || !this.config.appToken) {
             this.log.warn('Please open Admin page for this adapter to set the host and create an App Token.');
