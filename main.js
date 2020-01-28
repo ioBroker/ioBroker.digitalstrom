@@ -27,8 +27,6 @@ const dssConstants = require('./lib/constants');
 
 const Sentry = require('@sentry/node');
 const SentryIntegrations = require('@sentry/integrations');
-const packageJson = require('./package.json');
-
 
 class Digitalstrom extends utils.Adapter {
 
@@ -73,15 +71,32 @@ class Digitalstrom extends utils.Adapter {
         });
     }
 
-    /**
-     * Is called when databases are connected and adapter received configuration.
-     */
-    async onReady() {
-        const sentryPathWhitelist = ['digitalstrom', '@apollon'];
-        const sentryErrorBlacklist = ['SyntaxError'];
+    initSentry(callback) {
+        if (!this.ioPack || !this.ioPack.common || !this.ioPack.common.sentry) {
+            return callback && callback();
+        }
+        if (!this.ioPack.common.sentry.dns) {
+            this.log.error('Invalid Sentry definition, no dsn provided. Disable error reporting');
+            return callback && callback();
+        }
+        let sentryPathWhitelist = [];
+        if (this.ioPack.common.sentry.pathWhitelist && Array.isArray(this.ioPack.common.sentry.pathWhitelist)) {
+            sentryPathWhitelist = this.ioPack.common.sentry.pathWhitelist;
+        }
+        if (!sentryPathWhitelist.includes(this.pack.name)) {
+            sentryPathWhitelist.push(this.pack.name);
+        }
+        let sentryErrorBlacklist = [];
+        if (this.ioPack.common.sentry.errorBlacklist && Array.isArray(this.ioPack.common.sentry.errorBlacklist)) {
+            sentryErrorBlacklist = this.ioPack.common.sentry.errorBlacklist;
+        }
+        if (!sentryErrorBlacklist.includes('SyntaxError')) {
+            sentryErrorBlacklist.push('SyntaxError');
+        }
+
         Sentry.init({
-            release: packageJson.name + '@' + packageJson.version,
-            dsn: 'https://d1da9ebead4d4ec693b489c8ea02bc6e@sentry.iobroker.net/2',
+            release: this.pack.name + '@' + this.pack.version,
+            dsn: this.ioPack.common.sentry.dns,
             integrations: [
                 new SentryIntegrations.Dedupe()
             ]
@@ -134,14 +149,21 @@ class Digitalstrom extends utils.Adapter {
                                 });
                             });
                         }
-                        this.main();
+                        callback && callback();
                     });
                 }
                 else {
-                    this.main();
+                    callback && callback();
                 }
             });
         });
+    }
+
+    /**
+     * Is called when databases are connected and adapter received configuration.
+     */
+    async onReady() {
+        this.initSentry(() => this.main());
     }
 
     /**
@@ -265,6 +287,7 @@ class Digitalstrom extends utils.Adapter {
     main() {
         // Reset the connection indicator during startup
         this.setConnected(false);
+        setTimeout(heyhey, 3000);
 
         if (!this.config.host || !this.config.appToken) {
             this.log.warn('Please open Admin page for this adapter to set the host and create an App Token.');

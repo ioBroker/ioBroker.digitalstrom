@@ -1,9 +1,9 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "0.5.4",
+        "version": "0.5.5",
         "news": {
-            "0.5.4": {
+            "0.5.5": {
                 "en": "bugfixes, change Sentry that my own server is used",
                 "de": "Bugfixes, ändern Sie Sentry, dass mein eigener Server verwendet wird",
                 "ru": "исправления, поменяйте Sentry, что используется мой собственный сервер",
@@ -139,7 +139,12 @@
             {
                 "js-controller": ">=1.4.2"
             }
-        ]
+        ],
+        "sentry": {
+            "dns": "https://d1ac0b5cf6c24ee8b7ce11c686a14888@sentry.iobroker.net/2",
+            "pathWhitelist": ["@apollon"],
+            "errorBlacklist": ["SyntaxError"]
+        }
     },
     "native": {
         "host": "",
