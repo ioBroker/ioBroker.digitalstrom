@@ -25,8 +25,8 @@ const DSSQueue = require('./lib/dssQueue');
 const DSSStructure = require('./lib/dssStructure');
 const dssConstants = require('./lib/constants');
 
-const Sentry = require('@sentry/node');
-const SentryIntegrations = require('@sentry/integrations');
+let Sentry;
+let SentryIntegrations;
 
 class Digitalstrom extends utils.Adapter {
 
@@ -72,23 +72,31 @@ class Digitalstrom extends utils.Adapter {
     }
 
     initSentry(callback) {
-        if (!this.ioPack || !this.ioPack.common || !this.ioPack.common.sentry) {
+        if (!this.ioPack.common || !this.ioPack.common.integrations || !this.ioPack.common.integrations.sentry) {
             return callback && callback();
         }
-        if (!this.ioPack.common.sentry.dns) {
-            this.log.error('Invalid Sentry definition, no dsn provided. Disable error reporting');
+        const sentryConfig = this.ioPack.common.integrations.sentry;
+        if (!sentryConfig.dsn) {
+            this.log.warn('Invalid Sentry definition, no dsn provided. Disable error reporting');
             return callback && callback();
         }
+        // Require needed tooling
+        Sentry = require('@sentry/node');
+        SentryIntegrations = require('@sentry/integrations');
+        // By installing source map support, we get the original source
+        // locations in error messages
+        require('source-map-support').install();
+
         let sentryPathWhitelist = [];
-        if (this.ioPack.common.sentry.pathWhitelist && Array.isArray(this.ioPack.common.sentry.pathWhitelist)) {
-            sentryPathWhitelist = this.ioPack.common.sentry.pathWhitelist;
+        if (sentryConfig.pathWhitelist && Array.isArray(sentryConfig.pathWhitelist)) {
+            sentryPathWhitelist = sentryConfig.pathWhitelist;
         }
         if (!sentryPathWhitelist.includes(this.pack.name)) {
             sentryPathWhitelist.push(this.pack.name);
         }
         let sentryErrorBlacklist = [];
-        if (this.ioPack.common.sentry.errorBlacklist && Array.isArray(this.ioPack.common.sentry.errorBlacklist)) {
-            sentryErrorBlacklist = this.ioPack.common.sentry.errorBlacklist;
+        if (sentryConfig.errorBlacklist && Array.isArray(sentryConfig.errorBlacklist)) {
+            sentryErrorBlacklist = sentryConfig.errorBlacklist;
         }
         if (!sentryErrorBlacklist.includes('SyntaxError')) {
             sentryErrorBlacklist.push('SyntaxError');
@@ -96,7 +104,7 @@ class Digitalstrom extends utils.Adapter {
 
         Sentry.init({
             release: this.pack.name + '@' + this.pack.version,
-            dsn: this.ioPack.common.sentry.dns,
+            dsn: sentryConfig.dsn,
             integrations: [
                 new SentryIntegrations.Dedupe()
             ]
@@ -163,7 +171,7 @@ class Digitalstrom extends utils.Adapter {
      * Is called when databases are connected and adapter received configuration.
      */
     async onReady() {
-        if (this.supportsFeature && !this.supportsFeature('ADAPTER_SENTRY_INTEGRATED')) {
+        if (this.supportsFeature && !this.supportsFeature('ADAPTER_INTEGRATIONS_SENTRY')) {
             this.initSentry(() => this.main());
         }
         else {

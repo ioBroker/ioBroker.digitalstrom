@@ -140,10 +140,12 @@
                 "js-controller": ">=1.4.2"
             }
         ],
-        "sentry": {
-            "dns": "https://d1ac0b5cf6c24ee8b7ce11c686a14888@sentry.iobroker.net/2",
-            "pathWhitelist": ["@apollon"],
-            "errorBlacklist": ["SyntaxError"]
+        "integrations": {
+            "sentry": {
+                "dsn": "https://d1ac0b5cf6c24ee8b7ce11c686a14888@sentry.iobroker.net/2",
+                "pathWhitelist": ["@apollon"],
+                "errorBlacklist": ["SyntaxError"]
+            }
         }
     },
     "native": {
