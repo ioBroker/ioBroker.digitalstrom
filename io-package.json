@@ -1,8 +1,20 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "0.5.5",
+        "version": "1.0.0",
         "news": {
+            "1.0.0": {
+                "en": "version increased because adapter seems stable, dependecies updated, default loglevel is set to \"info\" now",
+                "de": "Die Version wurde erhöht, da der Adapter stabil zu sein scheint. Die Abhängigkeiten wurden aktualisiert. Die Standardeinstellung für loglevel ist jetzt \"info\"",
+                "ru": "Версия увеличена, потому что адаптер кажется стабильным, зависимости обновлены, уровень логирования по умолчанию теперь установлен в «info»",
+                "pt": "versão aumentada porque o adaptador parece estável, as dependências atualizadas, o nível de log padrão está definido como \"info\" agora",
+                "nl": "versie verhoogd omdat adapter stabiel lijkt, afhankelijkheden bijgewerkt, standaard loglevel is nu ingesteld op \"info\"",
+                "fr": "la version a été augmentée car l'adaptateur semble stable, les dépendances ont été mises à jour, le niveau de journalisation par défaut est maintenant réglé sur \"info\"",
+                "it": "versione aumentata perché l'adattatore sembra stabile, dipendenze aggiornate, il livello predefinito di Google è impostato su \"info\" ora",
+                "es": "la versión aumentó porque el adaptador parece estable, las dependencias actualizadas, el nivel de registro predeterminado ahora está configurado en \"información\"",
+                "pl": "wersja została zwiększona, ponieważ adapter wydaje się stabilny, zależności zależne zaktualizowane, domyślna loglevel jest teraz ustawiona na „info”",
+                "zh-cn": "由于适配器似乎稳定，更新了相关性，因此版本已增加，默认日志级别现在设置为“ info”"
+            },
             "0.5.5": {
                 "en": "bugfixes, change Sentry that my own server is used",
                 "de": "Bugfixes, ändern Sie Sentry, dass mein eigener Server verwendet wird",
@@ -128,7 +140,7 @@
         "enabled": true,
         "extIcon": "https://raw.githubusercontent.com/ioBroker/ioBroker.digitalstrom/master/admin/digitalstrom.png",
         "readme": "https://github.com/ioBroker/ioBroker.digitalstrom/blob/master/README.md",
-        "loglevel": "debug",
+        "loglevel": "info",
         "mode": "daemon",
         "type": "iot-systems",
         "compact": true,

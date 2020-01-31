@@ -102,6 +102,11 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
+### 1.0.0 (2020-01-31)
+* (Apollon77) bump version to 1.0.0
+* (Apollon77) update dependecies
+* (Apollon77) change default loglevel to info
+
 ### 0.5.5 (2020-01-29)
 * (Apollon77) fix smaller errors
 * (Apollon77) send Sentry reports to own server
