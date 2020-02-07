@@ -1,6 +1,6 @@
 {
   "name": "iobroker.digitalstrom",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Support for Digitalstrom devices vis DSS",
   "author": {
     "name": "Apollon77",
@@ -21,17 +21,17 @@
     "@iobroker/adapter-core": "^2.2.1",
     "ds-wrapper": "^1.0.1",
     "@apollon/iobroker-tools": "^0.2.0",
-    "@sentry/node": "^5.11.2",
-    "@sentry/integrations": "^5.11.1",
+    "@sentry/node": "^5.12.3",
+    "@sentry/integrations": "^5.12.0",
     "source-map-support": "^0.5.16"
   },
   "devDependencies": {
-    "@iobroker/testing": "^2.0.1",
+    "@iobroker/testing": "^2.0.2",
     "@types/chai": "^4.2.8",
     "@types/chai-as-promised": "^7.1.2",
     "@types/gulp": "^4.0.6",
     "@types/mocha": "^7.0.1",
-    "@types/node": "^13.5.3",
+    "@types/node": "^13.7.0",
     "@types/proxyquire": "^1.3.28",
     "@types/sinon": "^7.5.1",
     "@types/sinon-chai": "^3.2.3",

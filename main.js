@@ -72,10 +72,10 @@ class Digitalstrom extends utils.Adapter {
     }
 
     initSentry(callback) {
-        if (!this.ioPack.common || !this.ioPack.common.integrations || !this.ioPack.common.integrations.sentry) {
+        if (!this.ioPack.common || !this.ioPack.common.plugins || !this.ioPack.common.plugins.sentry) {
             return callback && callback();
         }
-        const sentryConfig = this.ioPack.common.integrations.sentry;
+        const sentryConfig = this.ioPack.common.plugins.sentry;
         if (!sentryConfig.dsn) {
             this.log.warn('Invalid Sentry definition, no dsn provided. Disable error reporting');
             return callback && callback();
@@ -171,11 +171,11 @@ class Digitalstrom extends utils.Adapter {
      * Is called when databases are connected and adapter received configuration.
      */
     async onReady() {
-        if (this.supportsFeature && !this.supportsFeature('ADAPTER_INTEGRATIONS_SENTRY')) {
-            this.initSentry(() => this.main());
+        if (this.supportsFeature && this.supportsFeature('PLUGINS')) {
+            this.main();
         }
         else {
-            this.main()
+            this.initSentry(() => this.main());
         }
     }
 
@@ -574,20 +574,21 @@ class Digitalstrom extends utils.Adapter {
                     }
                 }
 
-                if (!sourceDeviceId) {
-                    !forwarded && this.log.info('INVALID scenecall');
-                    return;
-                }
-                this.setState(sourceDeviceId, value, true);
-                lastSourceDeviceId && lastSourceDeviceId !== sourceDeviceId && value && this.setState(lastSourceDeviceId, false, true);
-                const idArr = sourceDeviceId.split('.');
-                idArr[idArr.length - 1] = 'sceneId';
-                const sceneIdState = idArr.join('.');
-                if (value) {
-                    this.setState(sceneIdState, data.properties.sceneID, true);
+                if (sourceDeviceId) {
+                    this.setState(sourceDeviceId, value, true);
+                    lastSourceDeviceId && lastSourceDeviceId !== sourceDeviceId && value && this.setState(lastSourceDeviceId, false, true);
+                    const idArr = sourceDeviceId.split('.');
+                    idArr[idArr.length - 1] = 'sceneId';
+                    const sceneIdState = idArr.join('.');
+                    if (value) {
+                        this.setState(sceneIdState, data.properties.sceneID, true);
+                    }
+                    else {
+                        this.setState(sceneIdState, null, true);
+                    }
                 }
                 else {
-                    this.setState(sceneIdState, null, true);
+                    !forwarded && this.log.info('INVALID scenecall');
                 }
 
                 // When Scene is called on zone level we also update all groups in that zone

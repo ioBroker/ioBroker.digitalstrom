@@ -1,7 +1,7 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "news": {
             "1.0.0": {
                 "en": "version increased because adapter seems stable, dependecies updated, default loglevel is set to \"info\" now",
@@ -114,15 +114,15 @@
             "zh-cn": "Digitalstrom"
         },
         "desc": {
-            "en": "Support for Digitalstrom devices vis DSS",
-            "de": "Unterstützung für Digitalstrom-Geräte über den DSS",
-            "ru": "Поддержка устройств Digitalstrom в DSS",
-            "pt": "Suporte para dispositivos Digitalstrom vis DSS",
-            "nl": "Ondersteuning voor Digitalstrom-apparaten vis DSS",
-            "fr": "Prise en charge des appareils Digitalstrom vis DSS",
-            "it": "Supporto per dispositivi Digitalstrom con DSS",
-            "es": "Soporte para dispositivos Digitalstrom vis DSS",
-            "pl": "Obsługa urządzeń Digitalstrom w stosunku do DSS",
+            "en": "Support for Digitalstrom devices via DSS",
+            "de": "Unterstützung für Digitalstrom-Geräte über DSS",
+            "ru": "Поддержка устройств Digitalstrom через DSS",
+            "pt": "Suporte para dispositivos Digitalstrom via DSS",
+            "nl": "Ondersteuning voor Digitalstrom-apparaten via DSS",
+            "fr": "Prise en charge des appareils Digitalstrom via DSS",
+            "it": "Supporto per dispositivi Digitalstrom tramite DSS",
+            "es": "Soporte para dispositivos Digitalstrom a través de DSS",
+            "pl": "Obsługa urządzeń Digitalstrom za pośrednictwem DSS",
             "zh-cn": "通过DSS支持Digitalstrom设备"
         },
         "authors": [
@@ -152,7 +152,7 @@
                 "js-controller": ">=1.4.2"
             }
         ],
-        "integrations": {
+        "plugins": {
             "sentry": {
                 "dsn": "https://d1ac0b5cf6c24ee8b7ce11c686a14888@sentry.iobroker.net/2",
                 "pathWhitelist": ["@apollon"],
