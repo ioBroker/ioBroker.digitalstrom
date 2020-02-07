@@ -101,7 +101,7 @@ When the adapter crashes or an other Code error happens, this error message that
 
 ## Changelog
 
-### 1.0.1 (2020-02-0x)
+### 1.0.1 (2020-02-08)
 * (Apollon77) trigger buttons on scene calls also if scene is normally not allowed but came from the device
 * (Apollon77) also add sensor type 255, but without name and unit because unknown
 * (Apollon77) Switch Sentry to iobroker own instance hosted in germany
