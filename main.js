@@ -481,13 +481,14 @@ class Digitalstrom extends utils.Adapter {
                     this.log.info('--INVALID ' + JSON.stringify(data));
                     return;
                 }
-                if (!this.dssStruct.stateMap[data.source.dSUID + '.0.button']) {
+                const buttonIndex = data.properties.buttonIndex ? data.properties.buttonIndex - 1 : 0;
+                if (!this.dssStruct.stateMap[data.source.dSUID + '.' + buttonIndex + '.button']) {
                     this.log.info('INVALID Button click');
                     return;
                 }
-                this.setState(this.dssStruct.stateMap[data.source.dSUID + '.0.button'], true, true);
-                this.setState(this.dssStruct.stateMap[data.source.dSUID + '.0.buttonClickType'], data.properties.clickType || -1, true);
-                this.setState(this.dssStruct.stateMap[data.source.dSUID + '.0.buttonHoldCount'], data.properties.holdCount || 0, true);
+                this.setState(this.dssStruct.stateMap[data.source.dSUID + '.' + buttonIndex + '.button'], true, true);
+                this.setState(this.dssStruct.stateMap[data.source.dSUID + '.' + buttonIndex + '.buttonClickType'], data.properties.clickType || -1, true);
+                this.setState(this.dssStruct.stateMap[data.source.dSUID + '.' + buttonIndex + '.buttonHoldCount'], data.properties.holdCount || 0, true);
             });
 
             this.dss.on('zoneSensorValue', data => {
