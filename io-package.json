@@ -3,6 +3,18 @@
         "name": "digitalstrom",
         "version": "1.0.2",
         "news": {
+            "1.0.2": {
+                "en": "optimized several special cases with buttons and added missing button states, user-states are now optional, other fixes and optimizations",
+                "de": "Mehrere Sonderfälle mit Schaltflächen optimiert und fehlende Schaltflächenzustände hinzugefügt. Benutzerzustände sind jetzt optional. Weitere Korrekturen und Optimierungen",
+                "ru": "оптимизировано несколько особых случаев с кнопками и добавлены отсутствующие состояния кнопок, пользовательские состояния теперь являются необязательными, другие исправления и оптимизации",
+                "pt": "otimizados vários casos especiais com botões e adicionados estados de botões ausentes, os estados do usuário agora são opcionais, outras correções e otimizações",
+                "nl": "verschillende speciale gevallen met knoppen geoptimaliseerd en ontbrekende knopstatussen toegevoegd, gebruikersstatussen zijn nu optioneel, andere fixes en optimalisaties",
+                "fr": "optimisé plusieurs cas spéciaux avec des boutons et ajouté des états de bouton manquants, les états utilisateur sont désormais facultatifs, d'autres correctifs et optimisations",
+                "it": "ottimizzato diversi casi speciali con pulsanti e stati di pulsanti mancanti aggiunti, gli stati utente sono ora opzionali, altre correzioni e ottimizzazioni",
+                "es": "optimizado varios casos especiales con botones y estados de botones faltantes agregados, los estados de usuario ahora son opcionales, otras correcciones y optimizaciones",
+                "pl": "zoptymalizowano kilka specjalnych przypadków z przyciskami i dodano brakujące stany przycisków, stany użytkownika są teraz opcjonalne, inne poprawki i optymalizacje",
+                "zh-cn": "使用按钮优化了几种特殊情况并添加了缺少的按钮状态，用户状态现在是可选的，其他修复和优化"
+            },
             "1.0.0": {
                 "en": "version increased because adapter seems stable, dependecies updated, default loglevel is set to \"info\" now",
                 "de": "Die Version wurde erhöht, da der Adapter stabil zu sein scheint. Die Abhängigkeiten wurden aktualisiert. Die Standardeinstellung für loglevel ist jetzt \"info\"",
