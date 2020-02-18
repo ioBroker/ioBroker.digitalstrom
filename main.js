@@ -447,7 +447,7 @@ class Digitalstrom extends utils.Adapter {
                     this.log.info('INVALID Device Binary input event');
                     return;
                 }
-                this.setState(sourceDeviceId, data.properties.inputState, true);
+                this.setState(sourceDeviceId, parseInt(data.properties.inputState, 10), true);
             });
 
             const handleStateChange = (data) => {
