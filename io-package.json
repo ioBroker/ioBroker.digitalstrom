@@ -1,7 +1,7 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "2.0.2",
+        "version": "2.0.3",
         "news": {
             "1.0.2": {
                 "en": "optimized several special cases with buttons and added missing button states, user-states are now optional, other fixes and optimizations",
