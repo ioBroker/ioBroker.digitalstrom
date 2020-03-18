@@ -3,6 +3,18 @@
         "name": "digitalstrom",
         "version": "2.0.5",
         "news": {
+            "2.0.5": {
+                "en": "BREAKING: changed datatypes of binaryInput and States! new sunelevation and sunazimuth values added and other optimizations and fixes. See Changelog in README.md",
+                "de": "BREAKING: Geänderte Datentypen von binaryInput und States! Neue Sonnenhöhen- und Sonnenazimutwerte sowie weitere Optimierungen und Korrekturen. Siehe Changelog in README.md",
+                "ru": "BREAKING: изменены типы данных для бинарного ввода и состояния! добавлены новые значения sunelevation и sunazimuth, а также другие оптимизации и исправления. Смотрите список изменений в README.md",
+                "pt": "BREAKING: tipos de dados alterados de binaryInput e States! novos valores de elevação solar e sunazimuth adicionados e outras otimizações e correções. Consulte Registro de alterações em README.md",
+                "nl": "BREAKING: veranderde datatypes van binaryInput en States! nieuwe sunelevation- en sunazimuth-waarden toegevoegd en andere optimalisaties en fixes. Zie Changelog in README.md",
+                "fr": "RUPTURE: types de données modifiés de l'entrée binaire et des états! nouvelles valeurs de levée et d'azimut du soleil ajoutées et autres optimisations et corrections. Voir Changelog dans README.md",
+                "it": "BREAKING: cambiati i tipi di dati di binaryInput e States! nuovi valori di sunelevation e sunazimuth aggiunti e altre ottimizzazioni e correzioni. Vedi Log delle modifiche in README.md",
+                "es": "ROMPIENDO: ¡cambiaron los tipos de datos de binaryInput y States! Se agregaron nuevos valores de solarización y sunazimut y otras optimizaciones y correcciones. Ver registro de cambios en README.md",
+                "pl": "ŁAMANIE: zmieniono typy danych binaryInput i stanów! dodano nowe wartości sunelevation i sunazimuth oraz inne optymalizacje i poprawki. Zobacz dziennik zmian w README.md",
+                "zh-cn": "BREAKING：更改了binaryInput和States的数据类型！添加了新的sunelevation和sunazimuth值以及其他优化和修复。请参阅README.md中的Changelog"
+            },
             "1.0.2": {
                 "en": "optimized several special cases with buttons and added missing button states, user-states are now optional, other fixes and optimizations",
                 "de": "Mehrere Sonderfälle mit Schaltflächen optimiert und fehlende Schaltflächenzustände hinzugefügt. Benutzerzustände sind jetzt optional. Weitere Korrekturen und Optimierungen",
