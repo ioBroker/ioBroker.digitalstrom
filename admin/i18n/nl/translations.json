@@ -1,0 +1,17 @@
+{
+    "Create DSS App Token": "Maak een DSS-app-token",
+    "DSS App-Token": "DSS app-token",
+    "DSS Host": "DSS-host",
+    "DSS Password": "DSS-wachtwoord",
+    "DSS Username": "DSS-gebruikersnaam",
+    "Data Polling Interval": "Data Polling-interval",
+    "Error while retrieving DSS App-Token": "Fout bij het ophalen van DSS App-Token",
+    "I have App token": "Ik heb een app-token",
+    "I have no App token": "Ik heb geen app-token",
+    "Provide Login data to automatically retrieve a DSS App-Token": "Verstrek inloggegevens om automatisch een DSS app-token op te halen",
+    "Request Device Output values actively": "Verzoek Device Output-waarden actief",
+    "Successfully retrieved DSS App-Token": "DSS app-token opgehaald",
+    "Use Scene Preset Values": "Gebruik vooraf ingestelde scènewaarden",
+    "You have to start the adapter before you can retrieve the DSS App-Token": "U moet de adapter starten voordat u het DSS App-Token kunt ophalen",
+    "digitalstrom adapter settings": "Adapterinstellingen voor digitalstrom"
+}

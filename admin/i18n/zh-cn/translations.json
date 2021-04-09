@@ -1,0 +1,17 @@
+{
+    "Create DSS App Token": "创建DSS应用令牌",
+    "DSS App-Token": "DSS应用令牌",
+    "DSS Host": "DSS主机",
+    "DSS Password": "DSS密码",
+    "DSS Username": "DSS用户名",
+    "Data Polling Interval": "数据轮询间隔",
+    "Error while retrieving DSS App-Token": "检索DSS应用令牌时出错",
+    "I have App token": "我有应用令牌",
+    "I have no App token": "我没有应用令牌",
+    "Provide Login data to automatically retrieve a DSS App-Token": "提供登录数据以自动检索DSS应用令牌",
+    "Request Device Output values actively": "主动请求设备输出值",
+    "Successfully retrieved DSS App-Token": "成功检索DSS应用令牌",
+    "Use Scene Preset Values": "使用场景预设值",
+    "You have to start the adapter before you can retrieve the DSS App-Token": "您必须先启动适配器，然后才能检索DSS App-Token",
+    "digitalstrom adapter settings": "digitalstrom的适配器设置"
+}

@@ -1,0 +1,17 @@
+{
+    "Create DSS App Token": "Utwórz token aplikacji DSS",
+    "DSS App-Token": "Token aplikacji DSS",
+    "DSS Host": "Host DSS",
+    "DSS Password": "Hasło DSS",
+    "DSS Username": "Nazwa użytkownika DSS",
+    "Data Polling Interval": "Interwał sondowania danych",
+    "Error while retrieving DSS App-Token": "Błąd podczas pobierania tokenu aplikacji DSS",
+    "I have App token": "Mam token aplikacji",
+    "I have no App token": "Nie mam tokena aplikacji",
+    "Provide Login data to automatically retrieve a DSS App-Token": "Podaj dane logowania, aby automatycznie pobrać token aplikacji DSS",
+    "Request Device Output values actively": "Aktywnie żądaj wartości wyjściowych urządzenia",
+    "Successfully retrieved DSS App-Token": "Pomyślnie odzyskano token aplikacji DSS",
+    "Use Scene Preset Values": "Użyj wstępnie ustawionych wartości scen",
+    "You have to start the adapter before you can retrieve the DSS App-Token": "Aby móc pobrać token aplikacji DSS, musisz uruchomić adapter",
+    "digitalstrom adapter settings": "Ustawienia adaptera dla digitalstrom"
+}

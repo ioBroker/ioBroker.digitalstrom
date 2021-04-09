@@ -1,0 +1,17 @@
+{
+    "Create DSS App Token": "Créer un jeton d'application DSS",
+    "DSS App-Token": "Jeton d'application DSS",
+    "DSS Host": "Hôte DSS",
+    "DSS Password": "Mot de passe DSS",
+    "DSS Username": "Nom d'utilisateur DSS",
+    "Data Polling Interval": "Intervalle d'interrogation des données",
+    "Error while retrieving DSS App-Token": "Erreur lors de la récupération du jeton d'application DSS",
+    "I have App token": "J'ai un jeton d'application",
+    "I have no App token": "Je n'ai pas de jeton d'application",
+    "Provide Login data to automatically retrieve a DSS App-Token": "Fournir des données de connexion pour récupérer automatiquement un jeton d'application DSS",
+    "Request Device Output values actively": "Demander activement les valeurs de sortie de périphérique",
+    "Successfully retrieved DSS App-Token": "Jeton d'application DSS récupéré avec succès",
+    "Use Scene Preset Values": "Utiliser les valeurs prédéfinies de scène",
+    "You have to start the adapter before you can retrieve the DSS App-Token": "Vous devez démarrer l'adaptateur avant de pouvoir récupérer le jeton d'application DSS",
+    "digitalstrom adapter settings": "Paramètres d'adaptateur pour digitalstrom"
+}
