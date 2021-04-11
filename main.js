@@ -292,7 +292,7 @@ class Digitalstrom extends utils.Adapter {
     restartAdapter(timeout) {
         if (this.restartTimeout) return;
         this.restartTimeout = setTimeout(() => {
-            this.terminate ? this.terminate(-100) : proces.exit(-100);
+            this.terminate ? this.terminate(-100) : process.exit(-100);
         }, timeout || 1000);
     }
 

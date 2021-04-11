@@ -173,14 +173,18 @@
         "stopTimeout": 5000,
         "dependencies": [
             {
-                "js-controller": ">=1.4.2"
+                "js-controller": ">=2.0.0"
             }
         ],
         "plugins": {
             "sentry": {
                 "dsn": "https://d1ac0b5cf6c24ee8b7ce11c686a14888@sentry.iobroker.net/2",
-                "pathWhitelist": ["@apollon"],
-                "errorBlacklist": ["SyntaxError"]
+                "pathWhitelist": [
+                    "@apollon"
+                ],
+                "errorBlacklist": [
+                    "SyntaxError"
+                ]
             }
         }
     },
