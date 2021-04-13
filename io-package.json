@@ -1,8 +1,20 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "2.0.5",
+        "version": "2.1.0",
         "news": {
+            "2.1.0": {
+                "en": "prevent crashes (Sentry IOBROKER-DIGITALSTROM-5)\nFix EnergyMeterValue\nfurther optimizations and adding new outout channel types",
+                "de": "Abstürze verhindern (Sentry IOBROKER-DIGITALSTROM-5)\nFix EnergyMeterValue\nweitere Optimierungen und Hinzufügen neuer Outout-Kanaltypen",
+                "ru": "предотвращение сбоев (Sentry IOBROKER-DIGITALSTROM-5)\nИсправить EnergyMeterValue\nдальнейшая оптимизация и добавление новых типов выходных каналов",
+                "pt": "evitar travamentos (Sentry IOBROKER-DIGITALSTROM-5)\nCorrigir EnergyMeterValue\nmais otimizações e adição de novos tipos de canais de saída",
+                "nl": "crashes voorkomen (Sentry IOBROKER-DIGITALSTROM-5)\nHerstel EnergyMeterValue\nverdere optimalisaties en het toevoegen van nieuwe outout-kanaaltypes",
+                "fr": "éviter les plantages (Sentry IOBROKER-DIGITALSTROM-5)\nFixer EnergyMeterValue\noptimisations supplémentaires et ajout de nouveaux types de canaux de sortie",
+                "it": "prevenire arresti anomali (Sentry IOBROKER-DIGITALSTROM-5)\nCorreggi EnergyMeterValue\nulteriori ottimizzazioni e aggiunta di nuovi tipi di canali di outout",
+                "es": "prevenir accidentes (Sentry IOBROKER-DIGITALSTROM-5)\nFijar EnergyMeterValue\noptimizaciones adicionales y adición de nuevos tipos de canales de salida",
+                "pl": "zapobiegaj awariom (Sentry IOBROKER-DIGITALSTROM-5)\nNapraw EnergyMeterValue\ndalsze optymalizacje i dodawanie nowych typów kanałów wyjściowych",
+                "zh-cn": "防止崩溃（Sentry IOBROKER-DIGITALSTROM-5）\n修正EnergyMeterValue\n进一步优化并添加新的外出渠道类型"
+            },
             "2.0.5": {
                 "en": "BREAKING: changed datatypes of binaryInput and States! new sunelevation and sunazimuth values added and other optimizations and fixes. See Changelog in README.md",
                 "de": "BREAKING: Geänderte Datentypen von binaryInput und States! Neue Sonnenhöhen- und Sonnenazimutwerte sowie weitere Optimierungen und Korrekturen. Siehe Changelog in README.md",

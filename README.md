@@ -96,7 +96,7 @@ Best is to set the adapter to Debug log mode (Instances -> Expert mode -> Column
 
 ## Changelog
 
-### __WORK IN PROGRESS__
+### 2.1.0 (2021-04-13)
 * (Apollon77) prevent crashes (Sentry IOBROKER-DIGITALSTROM-5)
 * (Apollon77) Fix EnergyMeterValue
 * (Apollon77) further optimizations and adding new outout channel types
