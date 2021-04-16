@@ -96,7 +96,7 @@ Best is to set the adapter to Debug log mode (Instances -> Expert mode -> Column
 
 ## Changelog
 
-### __WORK IN PROGRESS__
+### 2.2.0 (2021-04-16)
 * (Apollon77) Add support for integrated (IC) devices (SW, GE, GR)
 
 ### 2.1.0 (2021-04-13)

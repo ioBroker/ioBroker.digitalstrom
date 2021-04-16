@@ -1,8 +1,20 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "2.1.0",
+        "version": "2.2.0",
         "news": {
+            "2.2.0": {
+                "en": "Add support for integrated (IC) devices (SW, GE, GR)",
+                "de": "Unterstützung für integrierte (IC) Geräte hinzufügen (SW, GE, GR)",
+                "ru": "Добавить поддержку интегрированных (IC) устройств (SW, GE, GR)",
+                "pt": "Adicionar suporte para dispositivos integrados (IC) (SW, GE, GR)",
+                "nl": "Ondersteuning toevoegen voor geïntegreerde (IC) apparaten (SW, GE, GR)",
+                "fr": "Ajout de la prise en charge des périphériques intégrés (IC) (SW, GE, GR)",
+                "it": "Aggiunta del supporto per dispositivi integrati (IC) (SW, GE, GR)",
+                "es": "Agregue soporte para dispositivos integrados (IC) (SW, GE, GR)",
+                "pl": "Dodaj obsługę urządzeń zintegrowanych (IC) (SW, GE, GR)",
+                "zh-cn": "增加对集成（IC）设备（SW，GE，GR）的支持"
+            },
             "2.1.0": {
                 "en": "prevent crashes (Sentry IOBROKER-DIGITALSTROM-5)\nFix EnergyMeterValue\nfurther optimizations and adding new outout channel types",
                 "de": "Abstürze verhindern (Sentry IOBROKER-DIGITALSTROM-5)\nFix EnergyMeterValue\nweitere Optimierungen und Hinzufügen neuer Outout-Kanaltypen",
