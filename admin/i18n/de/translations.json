@@ -4,14 +4,14 @@
     "DSS Host": "DSS-Host",
     "DSS Password": "DSS-Passwort",
     "DSS Username": "DSS-Benutzername",
-    "Data Polling Interval": "Datenabrufintervall",
+    "Data Polling Interval": "Datenabfrageintervall",
     "Error while retrieving DSS App-Token": "Fehler beim Abrufen des DSS-App-Token",
-    "I have App token": "Ich habe ein App-Token",
-    "I have no App token": "Ich habe kein App-Token",
-    "Provide Login data to automatically retrieve a DSS App-Token": "Geben Sie Anmeldedaten ein, um ein DSS-App-Token automatisch abzurufen",
-    "Request Device Output values actively": "Geräteausgangswerte aktiv abfragen",
+    "I have App token": "Ich habe bereits einen App-Token",
+    "I have no App token": "Ich habe noch keinen App-Token",
+    "Provide Login data to automatically retrieve a DSS App-Token": "DSS-Anmeldedaten eingeben, um automatisch einen DSS-App-Token abzurufen",
+    "Request Device Output values actively": "Ausgabewerte der Geräte aktiv abfragen",
     "Successfully retrieved DSS App-Token": "DSS-App-Token erfolgreich abgerufen",
-    "Use Scene Preset Values": "Verwenden Sie Szenenvoreinstellungswerte",
-    "You have to start the adapter before you can retrieve the DSS App-Token": "Sie müssen den Adapter starten, bevor Sie das DSS-App-Token abrufen können",
-    "digitalstrom adapter settings": "Adaptereinstellungen für digitalstrom"
+    "Use Scene Preset Values": "Szenen-Voreinstellungswerte verwenden",
+    "You have to start the adapter before you can retrieve the DSS App-Token": "Die Instanz muss gestartet sein, bevor das DSS-App-Token abgerufen werden kann",
+    "digitalstrom adapter settings": "Digitalstrom Instanzeinstellungen"
 }
