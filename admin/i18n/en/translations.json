@@ -5,13 +5,13 @@
     "DSS Password": "DSS Password",
     "DSS Username": "DSS Username",
     "Data Polling Interval": "Data Polling Interval",
-    "Error while retrieving DSS App-Token": "Error while retrieving DSS App-Token",
-    "I have App token": "I have App token",
-    "I have no App token": "I have no App token",
-    "Provide Login data to automatically retrieve a DSS App-Token": "Provide Login data to automatically retrieve a DSS App-Token",
-    "Request Device Output values actively": "Request Device Output values actively",
+    "Error while retrieving DSS App-Token": "Error happened while retrieving DSS App-Token",
+    "I have App token": "I already have an App token",
+    "I have no App token": "I don't have an App token",
+    "Provide Login data to automatically retrieve a DSS App-Token": "Provide DSS Login data to automatically retrieve a DSS App-Token",
+    "Request Device Output values actively": "Actively request Device Output values",
     "Successfully retrieved DSS App-Token": "Successfully retrieved DSS App-Token",
     "Use Scene Preset Values": "Use Scene Preset Values",
-    "You have to start the adapter before you can retrieve the DSS App-Token": "You have to start the adapter before you can retrieve the DSS App-Token",
-    "digitalstrom adapter settings": "Adapter settings for digitalstrom"
+    "You have to start the adapter before you can retrieve the DSS App-Token": "You have to start the instance before you can retrieve the DSS App-Token",
+    "digitalstrom adapter settings": "Digitalstrom Instance Settings"
 }
