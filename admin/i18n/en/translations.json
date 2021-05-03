@@ -4,7 +4,7 @@
     "DSS Host": "DSS Host",
     "DSS Password": "DSS Password",
     "DSS Username": "DSS Username",
-    "Data Polling Interval": "Data Polling Interval",
+    "Data Polling Interval": "Data polling Interval",
     "Error while retrieving DSS App-Token": "Error happened while retrieving DSS App-Token",
     "I have App token": "I already have an App token",
     "I have no App token": "I don't have an App token",
