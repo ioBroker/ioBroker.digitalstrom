@@ -183,7 +183,6 @@
         ],
         "license": "MIT",
         "platform": "Javascript/Node.js",
-        "main": "main.js",
         "icon": "digitalstrom.png",
         "enabled": true,
         "extIcon": "https://raw.githubusercontent.com/ioBroker/ioBroker.digitalstrom/master/admin/digitalstrom.png",
@@ -195,6 +194,9 @@
         "materialize": true,
         "messagebox": true,
         "stopTimeout": 5000,
+        "connectionType": "local",
+        "dataSource": "poll",
+        "tier": 2,
         "dependencies": [
             {
                 "js-controller": ">=2.0.0"
