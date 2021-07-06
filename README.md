@@ -95,6 +95,7 @@ Best is to set the adapter to Debug log mode (Instances -> Expert mode -> Column
 
 ### __WORK IN PROGRESS__
 * (Apollon77) Optimize for js-controller 3.3
+* (Apollon77) Optimize get/set Value handling for new devices
 
 ### 2.2.0 (2021-04-16)
 * (Apollon77) Add support for integrated (IC) devices (SW, GE, GR)
