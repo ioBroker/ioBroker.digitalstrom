@@ -1,8 +1,20 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "2.2.0",
+        "version": "2.2.1",
         "news": {
+            "2.2.1": {
+                "en": "Optimize for js-controller 3.3\nOptimize get/set Value handling for new devices",
+                "de": "Optimieren Sie für js-Controller 3.3\nGet/Set Value-Handling für neue Geräte optimieren",
+                "ru": "Оптимизировать под js-controller 3.3\nОптимизация обработки значений get / set для новых устройств",
+                "pt": "Otimize para js-controller 3.3\nOtimize obter / definir o manuseio de valores para novos dispositivos",
+                "nl": "Optimaliseren voor js-controller 3.3\nOptimaliseer het ophalen/instellen van waardeverwerking voor nieuwe apparaten",
+                "fr": "Optimiser pour js-controller 3.3\nOptimiser la gestion de la valeur get/set pour les nouveaux appareils",
+                "it": "Ottimizza per js-controller 3.3\nOttimizza la gestione del valore get/set per i nuovi dispositivi",
+                "es": "Optimizar para js-controller 3.3\nOptimice la gestión de obtener / establecer valor para nuevos dispositivos",
+                "pl": "Optymalizacja dla kontrolera js 3.3\nZoptymalizuj pobieranie/ustawianie obsługi wartości dla nowych urządzeń",
+                "zh-cn": "针对 js-controller 3.3 优化\n优化新设备的获取/设置值处理"
+            },
             "2.2.0": {
                 "en": "Add support for integrated (IC) devices (SW, GE, GR)",
                 "de": "Unterstützung für integrierte (IC) Geräte hinzufügen (SW, GE, GR)",
