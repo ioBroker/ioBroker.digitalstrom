@@ -439,7 +439,7 @@ class Digitalstrom extends utils.Adapter {
                     this.log.info('INVALID Device Sensor update');
                     return;
                 }
-                this.setState(sourceDeviceId, data.properties.sensorValueFloat, true);
+                this.setState(sourceDeviceId, parseFloat(data.properties.sensorValueFloat), true);
             });
 
             this.dss.on('deviceBinaryInputEvent', data => {
