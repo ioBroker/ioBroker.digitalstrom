@@ -1,8 +1,20 @@
 {
     "common": {
         "name": "digitalstrom",
-        "version": "2.2.1",
+        "version": "2.3.0",
         "news": {
+            "2.3.0": {
+                "en": "Add support for use defined properties on apartment level",
+                "de": "Unterstützung für die Verwendung definierter Eigenschaften auf Wohnungsebene hinzufügen",
+                "ru": "Добавить поддержку использования определенных свойств на уровне квартиры",
+                "pt": "Adicionar suporte para uso de propriedades definidas no nível do apartamento",
+                "nl": "Ondersteuning toevoegen voor gebruik gedefinieerde eigenschappen op appartementsniveau",
+                "fr": "Ajout de la prise en charge de l'utilisation des propriétés définies au niveau de l'appartement",
+                "it": "Aggiungi il supporto per l'uso di proprietà definite a livello di appartamento",
+                "es": "Agregue soporte para usar propiedades definidas a nivel de apartamento",
+                "pl": "Dodaj obsługę korzystania ze zdefiniowanych właściwości na poziomie mieszkania",
+                "zh-cn": "添加对在公寓级别使用定义的属性的支持"
+            },
             "2.2.1": {
                 "en": "Optimize for js-controller 3.3\nOptimize get/set Value handling for new devices",
                 "de": "Optimieren Sie für js-Controller 3.3\nGet/Set Value-Handling für neue Geräte optimieren",
