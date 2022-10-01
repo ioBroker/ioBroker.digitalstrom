@@ -20,7 +20,7 @@
   "dependencies": {
     "@iobroker/adapter-core": "^2.6.6",
     "ds-wrapper": "^1.0.1",
-    "@apollon/iobroker-tools": "^0.2.0",
+    "@apollon/iobroker-tools": "^0.2.1",
     "@sentry/node": "^7.12.0",
     "@sentry/integrations": "^7.12.1",
     "source-map-support": "^0.5.21"
