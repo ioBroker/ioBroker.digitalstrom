@@ -21,7 +21,7 @@
     "@iobroker/adapter-core": "^2.6.8",
     "ds-wrapper": "^1.0.1",
     "@apollon/iobroker-tools": "^0.2.1",
-    "@sentry/node": "^7.47.0",
+    "@sentry/node": "^7.104.0",
     "@sentry/integrations": "^7.46.0",
     "source-map-support": "^0.5.21"
   },
