@@ -9,9 +9,9 @@
   "homepage": "https://github.com/ioBroker/ioBroker.digitalstrom",
   "license": "MIT",
   "keywords": [
+    "ioBroker",
     "digitalstrom",
-    "iot",
-    "iobroker"
+    "iot"
   ],
   "repository": {
     "type": "git",

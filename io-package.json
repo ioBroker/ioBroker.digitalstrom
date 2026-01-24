@@ -202,8 +202,7 @@
         ],
         "keywords": [
             "digitalstrom",
-            "iot",
-            "iobroker"
+            "iot"
         ],
         "license": "MIT",
         "platform": "Javascript/Node.js",
