@@ -93,6 +93,10 @@ Best is to set the adapter to Debug log mode (Instances -> Expert mode -> Column
 
 ## Changelog
 
+
+### **WORK IN PROGRESS**
+- (ioBroker-Bot) Adapter requires js-controller >= 6.0.11 now.
+
 ### 2.3.0 (2021-08-01)
 * (Apollon77) Add support for use defined properties on apartment level
 
