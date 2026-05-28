@@ -1,272 +1,274 @@
 {
-    "common": {
-        "name": "digitalstrom",
-        "version": "2.3.0",
-        "news": {
-            "2.3.0": {
-                "en": "Add support for use defined properties on apartment level",
-                "de": "Unterstützung für die Verwendung definierter Eigenschaften auf Wohnungsebene hinzufügen",
-                "ru": "Добавить поддержку использования определенных свойств на уровне квартиры",
-                "pt": "Adicionar suporte para uso de propriedades definidas no nível do apartamento",
-                "nl": "Ondersteuning toevoegen voor gebruik gedefinieerde eigenschappen op appartementsniveau",
-                "fr": "Ajout de la prise en charge de l'utilisation des propriétés définies au niveau de l'appartement",
-                "it": "Aggiungi il supporto per l'uso di proprietà definite a livello di appartamento",
-                "es": "Agregue soporte para usar propiedades definidas a nivel de apartamento",
-                "pl": "Dodaj obsługę korzystania ze zdefiniowanych właściwości na poziomie mieszkania",
-                "zh-cn": "添加对在公寓级别使用定义的属性的支持"
-            },
-            "2.2.1": {
-                "en": "Optimize for js-controller 3.3\nOptimize get/set Value handling for new devices",
-                "de": "Optimieren Sie für js-Controller 3.3\nGet/Set Value-Handling für neue Geräte optimieren",
-                "ru": "Оптимизировать под js-controller 3.3\nОптимизация обработки значений get / set для новых устройств",
-                "pt": "Otimize para js-controller 3.3\nOtimize obter / definir o manuseio de valores para novos dispositivos",
-                "nl": "Optimaliseren voor js-controller 3.3\nOptimaliseer het ophalen/instellen van waardeverwerking voor nieuwe apparaten",
-                "fr": "Optimiser pour js-controller 3.3\nOptimiser la gestion de la valeur get/set pour les nouveaux appareils",
-                "it": "Ottimizza per js-controller 3.3\nOttimizza la gestione del valore get/set per i nuovi dispositivi",
-                "es": "Optimizar para js-controller 3.3\nOptimice la gestión de obtener / establecer valor para nuevos dispositivos",
-                "pl": "Optymalizacja dla kontrolera js 3.3\nZoptymalizuj pobieranie/ustawianie obsługi wartości dla nowych urządzeń",
-                "zh-cn": "针对 js-controller 3.3 优化\n优化新设备的获取/设置值处理"
-            },
-            "2.2.0": {
-                "en": "Add support for integrated (IC) devices (SW, GE, GR)",
-                "de": "Unterstützung für integrierte (IC) Geräte hinzufügen (SW, GE, GR)",
-                "ru": "Добавить поддержку интегрированных (IC) устройств (SW, GE, GR)",
-                "pt": "Adicionar suporte para dispositivos integrados (IC) (SW, GE, GR)",
-                "nl": "Ondersteuning toevoegen voor geïntegreerde (IC) apparaten (SW, GE, GR)",
-                "fr": "Ajout de la prise en charge des périphériques intégrés (IC) (SW, GE, GR)",
-                "it": "Aggiunta del supporto per dispositivi integrati (IC) (SW, GE, GR)",
-                "es": "Agregue soporte para dispositivos integrados (IC) (SW, GE, GR)",
-                "pl": "Dodaj obsługę urządzeń zintegrowanych (IC) (SW, GE, GR)",
-                "zh-cn": "增加对集成（IC）设备（SW，GE，GR）的支持"
-            },
-            "2.1.0": {
-                "en": "prevent crashes (Sentry IOBROKER-DIGITALSTROM-5)\nFix EnergyMeterValue\nfurther optimizations and adding new outout channel types",
-                "de": "Abstürze verhindern (Sentry IOBROKER-DIGITALSTROM-5)\nFix EnergyMeterValue\nweitere Optimierungen und Hinzufügen neuer Outout-Kanaltypen",
-                "ru": "предотвращение сбоев (Sentry IOBROKER-DIGITALSTROM-5)\nИсправить EnergyMeterValue\nдальнейшая оптимизация и добавление новых типов выходных каналов",
-                "pt": "evitar travamentos (Sentry IOBROKER-DIGITALSTROM-5)\nCorrigir EnergyMeterValue\nmais otimizações e adição de novos tipos de canais de saída",
-                "nl": "crashes voorkomen (Sentry IOBROKER-DIGITALSTROM-5)\nHerstel EnergyMeterValue\nverdere optimalisaties en het toevoegen van nieuwe outout-kanaaltypes",
-                "fr": "éviter les plantages (Sentry IOBROKER-DIGITALSTROM-5)\nFixer EnergyMeterValue\noptimisations supplémentaires et ajout de nouveaux types de canaux de sortie",
-                "it": "prevenire arresti anomali (Sentry IOBROKER-DIGITALSTROM-5)\nCorreggi EnergyMeterValue\nulteriori ottimizzazioni e aggiunta di nuovi tipi di canali di outout",
-                "es": "prevenir accidentes (Sentry IOBROKER-DIGITALSTROM-5)\nFijar EnergyMeterValue\noptimizaciones adicionales y adición de nuevos tipos de canales de salida",
-                "pl": "zapobiegaj awariom (Sentry IOBROKER-DIGITALSTROM-5)\nNapraw EnergyMeterValue\ndalsze optymalizacje i dodawanie nowych typów kanałów wyjściowych",
-                "zh-cn": "防止崩溃（Sentry IOBROKER-DIGITALSTROM-5）\n修正EnergyMeterValue\n进一步优化并添加新的外出渠道类型"
-            },
-            "2.0.5": {
-                "en": "BREAKING: changed datatypes of binaryInput and States! new sunelevation and sunazimuth values added and other optimizations and fixes. See Changelog in README.md",
-                "de": "BREAKING: Geänderte Datentypen von binaryInput und States! Neue Sonnenhöhen- und Sonnenazimutwerte sowie weitere Optimierungen und Korrekturen. Siehe Changelog in README.md",
-                "ru": "BREAKING: изменены типы данных для бинарного ввода и состояния! добавлены новые значения sunelevation и sunazimuth, а также другие оптимизации и исправления. Смотрите список изменений в README.md",
-                "pt": "BREAKING: tipos de dados alterados de binaryInput e States! novos valores de elevação solar e sunazimuth adicionados e outras otimizações e correções. Consulte Registro de alterações em README.md",
-                "nl": "BREAKING: veranderde datatypes van binaryInput en States! nieuwe sunelevation- en sunazimuth-waarden toegevoegd en andere optimalisaties en fixes. Zie Changelog in README.md",
-                "fr": "RUPTURE: types de données modifiés de l'entrée binaire et des états! nouvelles valeurs de levée et d'azimut du soleil ajoutées et autres optimisations et corrections. Voir Changelog dans README.md",
-                "it": "BREAKING: cambiati i tipi di dati di binaryInput e States! nuovi valori di sunelevation e sunazimuth aggiunti e altre ottimizzazioni e correzioni. Vedi Log delle modifiche in README.md",
-                "es": "ROMPIENDO: ¡cambiaron los tipos de datos de binaryInput y States! Se agregaron nuevos valores de solarización y sunazimut y otras optimizaciones y correcciones. Ver registro de cambios en README.md",
-                "pl": "ŁAMANIE: zmieniono typy danych binaryInput i stanów! dodano nowe wartości sunelevation i sunazimuth oraz inne optymalizacje i poprawki. Zobacz dziennik zmian w README.md",
-                "zh-cn": "BREAKING：更改了binaryInput和States的数据类型！添加了新的sunelevation和sunazimuth值以及其他优化和修复。请参阅README.md中的Changelog"
-            },
-            "1.0.2": {
-                "en": "optimized several special cases with buttons and added missing button states, user-states are now optional, other fixes and optimizations",
-                "de": "Mehrere Sonderfälle mit Schaltflächen optimiert und fehlende Schaltflächenzustände hinzugefügt. Benutzerzustände sind jetzt optional. Weitere Korrekturen und Optimierungen",
-                "ru": "оптимизировано несколько особых случаев с кнопками и добавлены отсутствующие состояния кнопок, пользовательские состояния теперь являются необязательными, другие исправления и оптимизации",
-                "pt": "otimizados vários casos especiais com botões e adicionados estados de botões ausentes, os estados do usuário agora são opcionais, outras correções e otimizações",
-                "nl": "verschillende speciale gevallen met knoppen geoptimaliseerd en ontbrekende knopstatussen toegevoegd, gebruikersstatussen zijn nu optioneel, andere fixes en optimalisaties",
-                "fr": "optimisé plusieurs cas spéciaux avec des boutons et ajouté des états de bouton manquants, les états utilisateur sont désormais facultatifs, d'autres correctifs et optimisations",
-                "it": "ottimizzato diversi casi speciali con pulsanti e stati di pulsanti mancanti aggiunti, gli stati utente sono ora opzionali, altre correzioni e ottimizzazioni",
-                "es": "optimizado varios casos especiales con botones y estados de botones faltantes agregados, los estados de usuario ahora son opcionales, otras correcciones y optimizaciones",
-                "pl": "zoptymalizowano kilka specjalnych przypadków z przyciskami i dodano brakujące stany przycisków, stany użytkownika są teraz opcjonalne, inne poprawki i optymalizacje",
-                "zh-cn": "使用按钮优化了几种特殊情况并添加了缺少的按钮状态，用户状态现在是可选的，其他修复和优化"
-            },
-            "1.0.0": {
-                "en": "version increased because adapter seems stable, dependecies updated, default loglevel is set to \"info\" now",
-                "de": "Die Version wurde erhöht, da der Adapter stabil zu sein scheint. Die Abhängigkeiten wurden aktualisiert. Die Standardeinstellung für loglevel ist jetzt \"info\"",
-                "ru": "Версия увеличена, потому что адаптер кажется стабильным, зависимости обновлены, уровень логирования по умолчанию теперь установлен в «info»",
-                "pt": "versão aumentada porque o adaptador parece estável, as dependências atualizadas, o nível de log padrão está definido como \"info\" agora",
-                "nl": "versie verhoogd omdat adapter stabiel lijkt, afhankelijkheden bijgewerkt, standaard loglevel is nu ingesteld op \"info\"",
-                "fr": "la version a été augmentée car l'adaptateur semble stable, les dépendances ont été mises à jour, le niveau de journalisation par défaut est maintenant réglé sur \"info\"",
-                "it": "versione aumentata perché l'adattatore sembra stabile, dipendenze aggiornate, il livello predefinito di Google è impostato su \"info\" ora",
-                "es": "la versión aumentó porque el adaptador parece estable, las dependencias actualizadas, el nivel de registro predeterminado ahora está configurado en \"información\"",
-                "pl": "wersja została zwiększona, ponieważ adapter wydaje się stabilny, zależności zależne zaktualizowane, domyślna loglevel jest teraz ustawiona na „info”",
-                "zh-cn": "由于适配器似乎稳定，更新了相关性，因此版本已增加，默认日志级别现在设置为“ info”"
-            },
-            "0.5.5": {
-                "en": "bugfixes, change Sentry that my own server is used",
-                "de": "Bugfixes, ändern Sie Sentry, dass mein eigener Server verwendet wird",
-                "ru": "исправления, поменяйте Sentry, что используется мой собственный сервер",
-                "pt": "correções, mudança Sentry que meu próprio servidor é usado",
-                "nl": "bugfixes, verander Sentry dat mijn eigen server wordt gebruikt",
-                "fr": "corrections de bugs, changez Sentry que mon propre serveur est utilisé",
-                "it": "bugfixes, cambia Sentry che viene utilizzato il mio server",
-                "es": "correcciones de errores, cambio de Centinela que se utiliza mi propio servidor",
-                "pl": "poprawki błędów, zmień Sentry, że mój własny serwer jest używany",
-                "zh-cn": "错误修正，更改使用我自己的服务器的哨兵"
-            },
-            "0.5.0": {
-                "en": "buttons are supported for more device types",
-                "de": "Schaltflächen werden für weitere Gerätetypen unterstützt",
-                "ru": "кнопки поддерживаются для большего количества типов устройств",
-                "pt": "botões são suportados para mais tipos de dispositivos",
-                "nl": "knoppen worden ondersteund voor meer apparaattypen",
-                "fr": "les boutons sont pris en charge pour plus de types d'appareils",
-                "it": "i pulsanti sono supportati per più tipi di dispositivi",
-                "es": "los botones son compatibles con más tipos de dispositivos",
-                "pl": "przyciski są obsługiwane dla większej liczby typów urządzeń",
-                "zh-cn": "支持更多设备类型的按钮"
-            },
-            "0.4.10": {
-                "en": "shade position control fixed and state changes added",
-                "de": "Behobene Rollopositionskontrolle und Zustandsänderungen hinzugefügt",
-                "ru": "Исправлено управление положением шторы и добавлены изменения состояния",
-                "pt": "controle de posição de sombra corrigido e alterações de estado adicionadas",
-                "nl": "schaduwpositieregeling vast en statuswijzigingen toegevoegd",
-                "fr": "correction de la position de l'ombre et changements d'état ajoutés",
-                "it": "controllo della posizione dell'ombra fisso e cambiamenti di stato aggiunti",
-                "es": "control de posición de sombra fijo y cambios de estado agregados",
-                "pl": "Poprawiono kontrolę pozycji cienia i dodano zmiany stanu",
-                "zh-cn": "固定阴影位置控制并添加状态更改"
-            },
-            "0.4.9": {
-                "en": "binary input type handling optimized, controlling shaders fixed",
-                "de": "Die Behandlung von Binäreingaben wurde optimiert, die Steuerung von Shadern wurde behoben",
-                "ru": "Оптимизирована обработка двоичного типа ввода, исправлено управление шейдерами",
-                "pt": "manipulação de tipo de entrada binária otimizada, controlando shaders corrigidos",
-                "nl": "binaire input type handling geoptimaliseerd, controlerende shaders vast",
-                "fr": "gestion des types d'entrées binaires optimisée, contrôle des shaders fixes",
-                "it": "ottimizzazione del tipo di input binario, controllo degli shader fissi",
-                "es": "manejo de tipo de entrada binaria optimizado, control de sombreadores fijos",
-                "pl": "zoptymalizowano obsługę typu wejścia binarnego, naprawiono sterowanie shaderem",
-                "zh-cn": "优化了二进制输入类型的处理，固定了着色器"
-            },
-            "0.4.7": {
-                "en": "fix error when writing vdc output values",
-                "de": "Fehler beim Schreiben von VDC-Ausgabewerten behoben",
-                "ru": "исправить ошибку при записи выходных значений vdc",
-                "pt": "corrigir erro ao gravar valores de saída vdc",
-                "nl": "fout verholpen bij het schrijven van vdc-uitvoerwaarden",
-                "fr": "correction d'une erreur lors de l'écriture des valeurs de sortie vdc",
-                "it": "correggere l'errore durante la scrittura di valori di output VDC",
-                "es": "corrige el error al escribir valores de salida vdc",
-                "pl": "napraw błąd podczas zapisywania wartości wyjściowych VDC",
-                "zh-cn": "写入vdc输出值时修复错误"
-            },
-            "0.4.6": {
-                "en": "missing datatypes added for sensors and output values",
-                "de": "Fehlende Datentypen für Sensoren und Ausgabewerte hinzugefügt",
-                "ru": "добавлены недостающие типы данных для датчиков и выходных значений",
-                "pt": "tipos de dados ausentes adicionados para sensores e valores de saída",
-                "nl": "ontbrekende gegevenstypen toegevoegd voor sensoren en uitvoerwaarden",
-                "fr": "types de données manquants ajoutés pour les capteurs et les valeurs de sortie",
-                "it": "Aggiunti tipi di dati mancanti per sensori e valori di uscita",
-                "es": "faltan tipos de datos agregados para sensores y valores de salida",
-                "pl": "dodano brakujące typy danych dla czujników i wartości wyjściowych",
-                "zh-cn": "为传感器和输出值添加了缺少的数据类型"
-            },
-            "0.4.5": {
-                "en": "initial release",
-                "de": "Erstveröffentlichung",
-                "ru": "Начальная версия",
-                "pt": "lançamento inicial",
-                "nl": "Eerste uitgave",
-                "fr": "Première version",
-                "it": "Versione iniziale",
-                "es": "Versión inicial",
-                "pl": "Pierwsze wydanie",
-                "zh-cn": "首次出版"
-            }
-        },
-        "title": "Digitalstrom",
-        "titleLang": {
-            "en": "Digitalstrom",
-            "de": "Digitalstrom",
-            "ru": "Digitalstrom",
-            "pt": "Digitalstrom",
-            "nl": "Digitalstrom",
-            "fr": "Digitalstrom",
-            "it": "Digitalstrom",
-            "es": "Digitalstrom",
-            "pl": "Digitalstrom",
-            "zh-cn": "Digitalstrom"
-        },
-        "desc": {
-            "en": "Support for Digitalstrom devices via DSS",
-            "de": "Unterstützung für Digitalstrom-Geräte über DSS",
-            "ru": "Поддержка устройств Digitalstrom через DSS",
-            "pt": "Suporte para dispositivos Digitalstrom via DSS",
-            "nl": "Ondersteuning voor Digitalstrom-apparaten via DSS",
-            "fr": "Prise en charge des appareils Digitalstrom via DSS",
-            "it": "Supporto per dispositivi Digitalstrom tramite DSS",
-            "es": "Soporte para dispositivos Digitalstrom a través de DSS",
-            "pl": "Obsługa urządzeń Digitalstrom za pośrednictwem DSS",
-            "zh-cn": "通过DSS支持Digitalstrom设备"
-        },
-        "authors": [
-            "Apollon77 <iobroker@fischer-ka.de>"
-        ],
-        "keywords": [
-            "digitalstrom",
-            "iot",
-            "iobroker"
-        ],
-        "license": "MIT",
-        "platform": "Javascript/Node.js",
-        "icon": "digitalstrom.png",
-        "enabled": true,
-        "extIcon": "https://raw.githubusercontent.com/ioBroker/ioBroker.digitalstrom/master/admin/digitalstrom.png",
-        "readme": "https://github.com/ioBroker/ioBroker.digitalstrom/blob/master/README.md",
-        "loglevel": "info",
-        "mode": "daemon",
-        "type": "iot-systems",
-        "compact": true,
-        "materialize": true,
-        "messagebox": true,
-        "stopTimeout": 5000,
-        "connectionType": "local",
-        "dataSource": "poll",
-        "tier": 2,
-        "dependencies": [
-            {
-                "js-controller": ">=2.0.0"
-            }
-        ],
-        "plugins": {
-            "sentry": {
-                "dsn": "https://d1ac0b5cf6c24ee8b7ce11c686a14888@sentry.iobroker.net/2",
-                "pathWhitelist": [
-                    "@apollon"
-                ],
-                "errorBlacklist": [
-                    "SyntaxError"
-                ]
-            }
-        }
+  "common": {
+    "name": "digitalstrom",
+    "version": "2.3.0",
+    "news": {
+      "2.3.0": {
+        "en": "Add support for use defined properties on apartment level",
+        "de": "Unterstützung für die Verwendung definierter Eigenschaften auf Wohnungsebene hinzufügen",
+        "ru": "Добавить поддержку использования определенных свойств на уровне квартиры",
+        "pt": "Adicionar suporte para uso de propriedades definidas no nível do apartamento",
+        "nl": "Ondersteuning toevoegen voor gebruik gedefinieerde eigenschappen op appartementsniveau",
+        "fr": "Ajout de la prise en charge de l'utilisation des propriétés définies au niveau de l'appartement",
+        "it": "Aggiungi il supporto per l'uso di proprietà definite a livello di appartamento",
+        "es": "Agregue soporte para usar propiedades definidas a nivel de apartamento",
+        "pl": "Dodaj obsługę korzystania ze zdefiniowanych właściwości na poziomie mieszkania",
+        "zh-cn": "添加对在公寓级别使用定义的属性的支持"
+      },
+      "2.2.1": {
+        "en": "Optimize for js-controller 3.3\nOptimize get/set Value handling for new devices",
+        "de": "Optimieren Sie für js-Controller 3.3\nGet/Set Value-Handling für neue Geräte optimieren",
+        "ru": "Оптимизировать под js-controller 3.3\nОптимизация обработки значений get / set для новых устройств",
+        "pt": "Otimize para js-controller 3.3\nOtimize obter / definir o manuseio de valores para novos dispositivos",
+        "nl": "Optimaliseren voor js-controller 3.3\nOptimaliseer het ophalen/instellen van waardeverwerking voor nieuwe apparaten",
+        "fr": "Optimiser pour js-controller 3.3\nOptimiser la gestion de la valeur get/set pour les nouveaux appareils",
+        "it": "Ottimizza per js-controller 3.3\nOttimizza la gestione del valore get/set per i nuovi dispositivi",
+        "es": "Optimizar para js-controller 3.3\nOptimice la gestión de obtener / establecer valor para nuevos dispositivos",
+        "pl": "Optymalizacja dla kontrolera js 3.3\nZoptymalizuj pobieranie/ustawianie obsługi wartości dla nowych urządzeń",
+        "zh-cn": "针对 js-controller 3.3 优化\n优化新设备的获取/设置值处理"
+      },
+      "2.2.0": {
+        "en": "Add support for integrated (IC) devices (SW, GE, GR)",
+        "de": "Unterstützung für integrierte (IC) Geräte hinzufügen (SW, GE, GR)",
+        "ru": "Добавить поддержку интегрированных (IC) устройств (SW, GE, GR)",
+        "pt": "Adicionar suporte para dispositivos integrados (IC) (SW, GE, GR)",
+        "nl": "Ondersteuning toevoegen voor geïntegreerde (IC) apparaten (SW, GE, GR)",
+        "fr": "Ajout de la prise en charge des périphériques intégrés (IC) (SW, GE, GR)",
+        "it": "Aggiunta del supporto per dispositivi integrati (IC) (SW, GE, GR)",
+        "es": "Agregue soporte para dispositivos integrados (IC) (SW, GE, GR)",
+        "pl": "Dodaj obsługę urządzeń zintegrowanych (IC) (SW, GE, GR)",
+        "zh-cn": "增加对集成（IC）设备（SW，GE，GR）的支持"
+      },
+      "2.1.0": {
+        "en": "prevent crashes (Sentry IOBROKER-DIGITALSTROM-5)\nFix EnergyMeterValue\nfurther optimizations and adding new outout channel types",
+        "de": "Abstürze verhindern (Sentry IOBROKER-DIGITALSTROM-5)\nFix EnergyMeterValue\nweitere Optimierungen und Hinzufügen neuer Outout-Kanaltypen",
+        "ru": "предотвращение сбоев (Sentry IOBROKER-DIGITALSTROM-5)\nИсправить EnergyMeterValue\nдальнейшая оптимизация и добавление новых типов выходных каналов",
+        "pt": "evitar travamentos (Sentry IOBROKER-DIGITALSTROM-5)\nCorrigir EnergyMeterValue\nmais otimizações e adição de novos tipos de canais de saída",
+        "nl": "crashes voorkomen (Sentry IOBROKER-DIGITALSTROM-5)\nHerstel EnergyMeterValue\nverdere optimalisaties en het toevoegen van nieuwe outout-kanaaltypes",
+        "fr": "éviter les plantages (Sentry IOBROKER-DIGITALSTROM-5)\nFixer EnergyMeterValue\noptimisations supplémentaires et ajout de nouveaux types de canaux de sortie",
+        "it": "prevenire arresti anomali (Sentry IOBROKER-DIGITALSTROM-5)\nCorreggi EnergyMeterValue\nulteriori ottimizzazioni e aggiunta di nuovi tipi di canali di outout",
+        "es": "prevenir accidentes (Sentry IOBROKER-DIGITALSTROM-5)\nFijar EnergyMeterValue\noptimizaciones adicionales y adición de nuevos tipos de canales de salida",
+        "pl": "zapobiegaj awariom (Sentry IOBROKER-DIGITALSTROM-5)\nNapraw EnergyMeterValue\ndalsze optymalizacje i dodawanie nowych typów kanałów wyjściowych",
+        "zh-cn": "防止崩溃（Sentry IOBROKER-DIGITALSTROM-5）\n修正EnergyMeterValue\n进一步优化并添加新的外出渠道类型"
+      },
+      "2.0.5": {
+        "en": "BREAKING: changed datatypes of binaryInput and States! new sunelevation and sunazimuth values added and other optimizations and fixes. See Changelog in README.md",
+        "de": "BREAKING: Geänderte Datentypen von binaryInput und States! Neue Sonnenhöhen- und Sonnenazimutwerte sowie weitere Optimierungen und Korrekturen. Siehe Changelog in README.md",
+        "ru": "BREAKING: изменены типы данных для бинарного ввода и состояния! добавлены новые значения sunelevation и sunazimuth, а также другие оптимизации и исправления. Смотрите список изменений в README.md",
+        "pt": "BREAKING: tipos de dados alterados de binaryInput e States! novos valores de elevação solar e sunazimuth adicionados e outras otimizações e correções. Consulte Registro de alterações em README.md",
+        "nl": "BREAKING: veranderde datatypes van binaryInput en States! nieuwe sunelevation- en sunazimuth-waarden toegevoegd en andere optimalisaties en fixes. Zie Changelog in README.md",
+        "fr": "RUPTURE: types de données modifiés de l'entrée binaire et des états! nouvelles valeurs de levée et d'azimut du soleil ajoutées et autres optimisations et corrections. Voir Changelog dans README.md",
+        "it": "BREAKING: cambiati i tipi di dati di binaryInput e States! nuovi valori di sunelevation e sunazimuth aggiunti e altre ottimizzazioni e correzioni. Vedi Log delle modifiche in README.md",
+        "es": "ROMPIENDO: ¡cambiaron los tipos de datos de binaryInput y States! Se agregaron nuevos valores de solarización y sunazimut y otras optimizaciones y correcciones. Ver registro de cambios en README.md",
+        "pl": "ŁAMANIE: zmieniono typy danych binaryInput i stanów! dodano nowe wartości sunelevation i sunazimuth oraz inne optymalizacje i poprawki. Zobacz dziennik zmian w README.md",
+        "zh-cn": "BREAKING：更改了binaryInput和States的数据类型！添加了新的sunelevation和sunazimuth值以及其他优化和修复。请参阅README.md中的Changelog"
+      },
+      "1.0.2": {
+        "en": "optimized several special cases with buttons and added missing button states, user-states are now optional, other fixes and optimizations",
+        "de": "Mehrere Sonderfälle mit Schaltflächen optimiert und fehlende Schaltflächenzustände hinzugefügt. Benutzerzustände sind jetzt optional. Weitere Korrekturen und Optimierungen",
+        "ru": "оптимизировано несколько особых случаев с кнопками и добавлены отсутствующие состояния кнопок, пользовательские состояния теперь являются необязательными, другие исправления и оптимизации",
+        "pt": "otimizados vários casos especiais com botões e adicionados estados de botões ausentes, os estados do usuário agora são opcionais, outras correções e otimizações",
+        "nl": "verschillende speciale gevallen met knoppen geoptimaliseerd en ontbrekende knopstatussen toegevoegd, gebruikersstatussen zijn nu optioneel, andere fixes en optimalisaties",
+        "fr": "optimisé plusieurs cas spéciaux avec des boutons et ajouté des états de bouton manquants, les états utilisateur sont désormais facultatifs, d'autres correctifs et optimisations",
+        "it": "ottimizzato diversi casi speciali con pulsanti e stati di pulsanti mancanti aggiunti, gli stati utente sono ora opzionali, altre correzioni e ottimizzazioni",
+        "es": "optimizado varios casos especiales con botones y estados de botones faltantes agregados, los estados de usuario ahora son opcionales, otras correcciones y optimizaciones",
+        "pl": "zoptymalizowano kilka specjalnych przypadków z przyciskami i dodano brakujące stany przycisków, stany użytkownika są teraz opcjonalne, inne poprawki i optymalizacje",
+        "zh-cn": "使用按钮优化了几种特殊情况并添加了缺少的按钮状态，用户状态现在是可选的，其他修复和优化"
+      },
+      "1.0.0": {
+        "en": "version increased because adapter seems stable, dependecies updated, default loglevel is set to \"info\" now",
+        "de": "Die Version wurde erhöht, da der Adapter stabil zu sein scheint. Die Abhängigkeiten wurden aktualisiert. Die Standardeinstellung für loglevel ist jetzt \"info\"",
+        "ru": "Версия увеличена, потому что адаптер кажется стабильным, зависимости обновлены, уровень логирования по умолчанию теперь установлен в «info»",
+        "pt": "versão aumentada porque o adaptador parece estável, as dependências atualizadas, o nível de log padrão está definido como \"info\" agora",
+        "nl": "versie verhoogd omdat adapter stabiel lijkt, afhankelijkheden bijgewerkt, standaard loglevel is nu ingesteld op \"info\"",
+        "fr": "la version a été augmentée car l'adaptateur semble stable, les dépendances ont été mises à jour, le niveau de journalisation par défaut est maintenant réglé sur \"info\"",
+        "it": "versione aumentata perché l'adattatore sembra stabile, dipendenze aggiornate, il livello predefinito di Google è impostato su \"info\" ora",
+        "es": "la versión aumentó porque el adaptador parece estable, las dependencias actualizadas, el nivel de registro predeterminado ahora está configurado en \"información\"",
+        "pl": "wersja została zwiększona, ponieważ adapter wydaje się stabilny, zależności zależne zaktualizowane, domyślna loglevel jest teraz ustawiona na „info”",
+        "zh-cn": "由于适配器似乎稳定，更新了相关性，因此版本已增加，默认日志级别现在设置为“ info”"
+      },
+      "0.5.5": {
+        "en": "bugfixes, change Sentry that my own server is used",
+        "de": "Bugfixes, ändern Sie Sentry, dass mein eigener Server verwendet wird",
+        "ru": "исправления, поменяйте Sentry, что используется мой собственный сервер",
+        "pt": "correções, mudança Sentry que meu próprio servidor é usado",
+        "nl": "bugfixes, verander Sentry dat mijn eigen server wordt gebruikt",
+        "fr": "corrections de bugs, changez Sentry que mon propre serveur est utilisé",
+        "it": "bugfixes, cambia Sentry che viene utilizzato il mio server",
+        "es": "correcciones de errores, cambio de Centinela que se utiliza mi propio servidor",
+        "pl": "poprawki błędów, zmień Sentry, że mój własny serwer jest używany",
+        "zh-cn": "错误修正，更改使用我自己的服务器的哨兵"
+      },
+      "0.5.0": {
+        "en": "buttons are supported for more device types",
+        "de": "Schaltflächen werden für weitere Gerätetypen unterstützt",
+        "ru": "кнопки поддерживаются для большего количества типов устройств",
+        "pt": "botões são suportados para mais tipos de dispositivos",
+        "nl": "knoppen worden ondersteund voor meer apparaattypen",
+        "fr": "les boutons sont pris en charge pour plus de types d'appareils",
+        "it": "i pulsanti sono supportati per più tipi di dispositivi",
+        "es": "los botones son compatibles con más tipos de dispositivos",
+        "pl": "przyciski są obsługiwane dla większej liczby typów urządzeń",
+        "zh-cn": "支持更多设备类型的按钮"
+      },
+      "0.4.10": {
+        "en": "shade position control fixed and state changes added",
+        "de": "Behobene Rollopositionskontrolle und Zustandsänderungen hinzugefügt",
+        "ru": "Исправлено управление положением шторы и добавлены изменения состояния",
+        "pt": "controle de posição de sombra corrigido e alterações de estado adicionadas",
+        "nl": "schaduwpositieregeling vast en statuswijzigingen toegevoegd",
+        "fr": "correction de la position de l'ombre et changements d'état ajoutés",
+        "it": "controllo della posizione dell'ombra fisso e cambiamenti di stato aggiunti",
+        "es": "control de posición de sombra fijo y cambios de estado agregados",
+        "pl": "Poprawiono kontrolę pozycji cienia i dodano zmiany stanu",
+        "zh-cn": "固定阴影位置控制并添加状态更改"
+      },
+      "0.4.9": {
+        "en": "binary input type handling optimized, controlling shaders fixed",
+        "de": "Die Behandlung von Binäreingaben wurde optimiert, die Steuerung von Shadern wurde behoben",
+        "ru": "Оптимизирована обработка двоичного типа ввода, исправлено управление шейдерами",
+        "pt": "manipulação de tipo de entrada binária otimizada, controlando shaders corrigidos",
+        "nl": "binaire input type handling geoptimaliseerd, controlerende shaders vast",
+        "fr": "gestion des types d'entrées binaires optimisée, contrôle des shaders fixes",
+        "it": "ottimizzazione del tipo di input binario, controllo degli shader fissi",
+        "es": "manejo de tipo de entrada binaria optimizado, control de sombreadores fijos",
+        "pl": "zoptymalizowano obsługę typu wejścia binarnego, naprawiono sterowanie shaderem",
+        "zh-cn": "优化了二进制输入类型的处理，固定了着色器"
+      },
+      "0.4.7": {
+        "en": "fix error when writing vdc output values",
+        "de": "Fehler beim Schreiben von VDC-Ausgabewerten behoben",
+        "ru": "исправить ошибку при записи выходных значений vdc",
+        "pt": "corrigir erro ao gravar valores de saída vdc",
+        "nl": "fout verholpen bij het schrijven van vdc-uitvoerwaarden",
+        "fr": "correction d'une erreur lors de l'écriture des valeurs de sortie vdc",
+        "it": "correggere l'errore durante la scrittura di valori di output VDC",
+        "es": "corrige el error al escribir valores de salida vdc",
+        "pl": "napraw błąd podczas zapisywania wartości wyjściowych VDC",
+        "zh-cn": "写入vdc输出值时修复错误"
+      },
+      "0.4.6": {
+        "en": "missing datatypes added for sensors and output values",
+        "de": "Fehlende Datentypen für Sensoren und Ausgabewerte hinzugefügt",
+        "ru": "добавлены недостающие типы данных для датчиков и выходных значений",
+        "pt": "tipos de dados ausentes adicionados para sensores e valores de saída",
+        "nl": "ontbrekende gegevenstypen toegevoegd voor sensoren en uitvoerwaarden",
+        "fr": "types de données manquants ajoutés pour les capteurs et les valeurs de sortie",
+        "it": "Aggiunti tipi di dati mancanti per sensori e valori di uscita",
+        "es": "faltan tipos de datos agregados para sensores y valores de salida",
+        "pl": "dodano brakujące typy danych dla czujników i wartości wyjściowych",
+        "zh-cn": "为传感器和输出值添加了缺少的数据类型"
+      },
+      "0.4.5": {
+        "en": "initial release",
+        "de": "Erstveröffentlichung",
+        "ru": "Начальная версия",
+        "pt": "lançamento inicial",
+        "nl": "Eerste uitgave",
+        "fr": "Première version",
+        "it": "Versione iniziale",
+        "es": "Versión inicial",
+        "pl": "Pierwsze wydanie",
+        "zh-cn": "首次出版"
+      }
     },
-    "native": {
-        "host": "",
-        "appToken": "",
-        "dataPollInterval": 60,
-        "usePresetValues": true,
-        "initializeOutputValues": true
+    "title": "Digitalstrom",
+    "titleLang": {
+      "en": "Digitalstrom",
+      "de": "Digitalstrom",
+      "ru": "Digitalstrom",
+      "pt": "Digitalstrom",
+      "nl": "Digitalstrom",
+      "fr": "Digitalstrom",
+      "it": "Digitalstrom",
+      "es": "Digitalstrom",
+      "pl": "Digitalstrom",
+      "zh-cn": "Digitalstrom"
     },
-    "objects": [],
-    "instanceObjects": [
-        {
-            "_id": "info",
-            "type": "channel",
-            "common": {
-                "name": "Information"
-            },
-            "native": {}
-        },
-        {
-            "_id": "info.connection",
-            "type": "state",
-            "common": {
-                "role": "indicator.connected",
-                "name": "Device or service connected",
-                "type": "boolean",
-                "read": true,
-                "write": false,
-                "def": false
-            },
-            "native": {}
-        }
-    ]
+    "desc": {
+      "en": "Support for Digitalstrom devices via DSS",
+      "de": "Unterstützung für Digitalstrom-Geräte über DSS",
+      "ru": "Поддержка устройств Digitalstrom через DSS",
+      "pt": "Suporte para dispositivos Digitalstrom via DSS",
+      "nl": "Ondersteuning voor Digitalstrom-apparaten via DSS",
+      "fr": "Prise en charge des appareils Digitalstrom via DSS",
+      "it": "Supporto per dispositivi Digitalstrom tramite DSS",
+      "es": "Soporte para dispositivos Digitalstrom a través de DSS",
+      "pl": "Obsługa urządzeń Digitalstrom za pośrednictwem DSS",
+      "zh-cn": "通过DSS支持Digitalstrom设备"
+    },
+    "authors": [
+      "Apollon77 <iobroker@fischer-ka.de>"
+    ],
+    "keywords": [
+      "digitalstrom",
+      "iot",
+      "iobroker"
+    ],
+    "license": "MIT",
+    "platform": "Javascript/Node.js",
+    "icon": "digitalstrom.png",
+    "enabled": true,
+    "extIcon": "https://raw.githubusercontent.com/ioBroker/ioBroker.digitalstrom/master/admin/digitalstrom.png",
+    "readme": "https://github.com/ioBroker/ioBroker.digitalstrom/blob/master/README.md",
+    "loglevel": "info",
+    "mode": "daemon",
+    "type": "iot-systems",
+    "compact": true,
+    "messagebox": true,
+    "stopTimeout": 5000,
+    "connectionType": "local",
+    "dataSource": "poll",
+    "tier": 2,
+    "dependencies": [
+      {
+        "js-controller": ">=6.0.11"
+      }
+    ],
+    "plugins": {
+      "sentry": {
+        "dsn": "https://d1ac0b5cf6c24ee8b7ce11c686a14888@sentry.iobroker.net/2",
+        "pathWhitelist": [
+          "@apollon"
+        ],
+        "errorBlacklist": [
+          "SyntaxError"
+        ]
+      }
+    },
+    "adminUI": {
+      "config": "materialize"
+    }
+  },
+  "native": {
+    "host": "",
+    "appToken": "",
+    "dataPollInterval": 60,
+    "usePresetValues": true,
+    "initializeOutputValues": true
+  },
+  "objects": [],
+  "instanceObjects": [
+    {
+      "_id": "info",
+      "type": "channel",
+      "common": {
+        "name": "Information"
+      },
+      "native": {}
+    },
+    {
+      "_id": "info.connection",
+      "type": "state",
+      "common": {
+        "role": "indicator.connected",
+        "name": "Device or service connected",
+        "type": "boolean",
+        "read": true,
+        "write": false,
+        "def": false
+      },
+      "native": {}
+    }
+  ]
 }
