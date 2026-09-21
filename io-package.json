@@ -205,7 +205,10 @@
             "iot",
             "iobroker"
         ],
-        "license": "MIT",
+        "licenseInformation": {
+            "type": "free",
+            "license": "MIT"
+        },
         "platform": "Javascript/Node.js",
         "icon": "digitalstrom.png",
         "enabled": true,
