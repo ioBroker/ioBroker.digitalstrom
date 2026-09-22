@@ -216,7 +216,9 @@
         "mode": "daemon",
         "type": "iot-systems",
         "compact": true,
-        "materialize": true,
+        "adminUI": {
+            "config": "materialize"
+        },
         "messagebox": true,
         "stopTimeout": 5000,
         "connectionType": "local",
