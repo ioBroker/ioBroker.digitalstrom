@@ -1,0 +1,58 @@
+# Enables auto-merge for Dependabot pull requests.
+#
+# Security notes for this workflow:
+# - `pull_request_target` runs with write access to the repository. This workflow
+#   therefore never checks out and never executes any code from the pull request.
+# - The job only runs for pull requests that were really opened by Dependabot.
+# - It uses the automatically provided GITHUB_TOKEN with minimal scopes instead of a
+#   long lived personal access token (the former AUTO_MERGE_TOKEN secret is no longer used).
+# - The external action is pinned to a full commit SHA, not to a movable tag.
+#
+# Merge policy (documented change compared to .github/auto-merge.yml, which is no
+# longer read by this workflow):
+# - production dependencies: patch updates only
+# - development dependencies: patch and minor updates
+# - everything else, including major updates and security minor bumps of production
+#   dependencies, stays a manual review - the policy became stricter, never looser.
+# Merging happens through GitHub auto-merge, so a pull request is only merged after all
+# required status checks passed instead of being merged immediately.
+
+name: Auto-Merge Dependabot PRs
+
+on:
+  pull_request_target:
+
+# Nothing is granted by default, the job requests exactly what it needs
+permissions: {}
+
+jobs:
+  auto-merge:
+    # Both checks on purpose: the actor and the author of the pull request
+    if: github.actor == 'dependabot[bot]' && github.event.pull_request.user.login == 'dependabot[bot]'
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # required to enable auto-merge
+      pull-requests: write # required to approve the pull request
+
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        # dependabot/fetch-metadata v3.1.0
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Approve and enable auto-merge for allowed updates
+        if: |
+          (steps.metadata.outputs.dependency-type == 'direct:production' &&
+           steps.metadata.outputs.update-type == 'version-update:semver-patch') ||
+          (steps.metadata.outputs.dependency-type == 'direct:development' &&
+           contains(fromJSON('["version-update:semver-patch","version-update:semver-minor"]'), steps.metadata.outputs.update-type))
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

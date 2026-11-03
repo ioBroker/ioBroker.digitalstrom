@@ -7,6 +7,7 @@ nbproject
 # npm package files
 iobroker.*.tgz
 
+.DS_Store
 Thumbs.db
 
 # i18n intermediate files
@@ -14,5 +15,9 @@ admin/i18n/flat.txt
 admin/i18n/*/flat.txt
 /iob_npm.done
 
-#ignore .commitinfo created by ioBroker release script
-.commitinfo
+# Probe-Ausgabe: enthaelt API-Key und die komplette Wohnungsstruktur
+ds-probe/
+
+# digitalSTROM-Dokumentation - urheberrechtlich geschuetzt, bleibt lokal
+API-dss-json.pdf
+*.pdf
