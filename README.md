@@ -1,8 +1,8 @@
 ![Logo](admin/digitalstrom.png)
 # ioBroker.digitalstrom
 
-[![GitHub release](https://img.shields.io/github/v/release/mrandreschmitz/ioBroker.digitalstrom)](https://github.com/mrandreschmitz/ioBroker.digitalstrom/releases)
-![Test and Release](https://github.com/mrandreschmitz/ioBroker.digitalstrom/workflows/Test%20and%20Release/badge.svg)
+[![GitHub release](https://img.shields.io/github/v/release/ioBroker/ioBroker.digitalstrom)](https://github.com/ioBroker/ioBroker.digitalstrom/releases)
+![Test and Release](https://github.com/ioBroker/ioBroker.digitalstrom/workflows/Test%20and%20Release/badge.svg)
 
 **Deutsche Version: [README_de.md](README_de.md)**
 
@@ -10,23 +10,15 @@
 
 Support for digitalSTROM devices via DSS
 
-> This is a maintained fork of [ioBroker/ioBroker.digitalstrom](https://github.com/ioBroker/ioBroker.digitalstrom)
-> by Apollon77, which has not been updated since 2021. The original library layer was replaced,
-> the admin dialog was rebuilt from scratch, the modern Smart Home API of the dSS is used
+> Since version 2.4 the adapter has been substantially reworked: the original library layer was
+> replaced, the admin dialog was rebuilt from scratch, the modern Smart Home API of the dSS is used
 > alongside the classic interface and a large number of runtime bugs were fixed.
 > See the changelog for details.
->
-> This fork does **not** send any error reports: the Sentry plugin of the original adapter was
-> removed, because its reports would have been delivered to a project of the ioBroker organisation
-> that this fork has no access to.
 
 ## Installation
 
-This fork is installed directly from GitHub. The digitalstrom adapter in the normal adapter list of
-Admin is the original adapter, not this fork.
-
-In Admin, use the "Custom Install" option with the URL https://github.com/mrandreschmitz/ioBroker.digitalstrom,
-or run `iobroker url https://github.com/mrandreschmitz/ioBroker.digitalstrom` on the command line.
+Install the adapter from the adapter list in Admin. The current development state can be installed
+with `iobroker url https://github.com/ioBroker/ioBroker.digitalstrom` on the command line.
 
 Requirements: Node.js 22 or newer, js-controller 6.0.11 or newer and Admin 7.6.17 or newer. The
 object warning limit on the settings tab needs js-controller 7.1.0 or newer.
@@ -215,9 +207,7 @@ The devices are structured with "circuit/dSM"."deviceID" and the subsctructure i
 
 ## How to report issues and feature requests
 
-Please use GitHub issues for this.
-
-Please use the [issues of this fork](https://github.com/mrandreschmitz/ioBroker.digitalstrom/issues).
+Please use [GitHub issues](https://github.com/ioBroker/ioBroker.digitalstrom/issues) for this.
 
 Best is to set the adapter to Debug log mode (Instances -> Expert mode -> Column Log level). Then please get the logfile from disk (subdirectory "log" in ioBroker installation directory and not from Admin because Admin cuts the lines). Please add a reference to the relevant GitHub issue AND also describe what should be seen in the log at which time.
 
@@ -227,11 +217,19 @@ This adapter was originally written by **Apollon77 &lt;iobroker@fischer-ka.de&gt
 MIT license at [ioBroker/ioBroker.digitalstrom](https://github.com/ioBroker/ioBroker.digitalstrom).
 All credit for the original work belongs to him.
 
-This repository is a fork that continues maintenance from version 2.4.0 on (André Schmitz, 2026).
-It is published under the same MIT license; the original copyright notice is kept unchanged in
-[LICENSE](LICENSE).
+The rework from version 2.4.0 on was done by André Schmitz (2026). It is published under the same
+MIT license; the original copyright notice is kept unchanged in [LICENSE](LICENSE).
 
 ## Changelog
+<!--
+    Placeholder for the next version (at the beginning of the line):
+    ### **WORK IN PROGRESS**
+-->
+### **WORK IN PROGRESS**
+
+* The maintained fork (https://github.com/mrandreschmitz/ioBroker.digitalstrom) was brought back
+  into this repository. Repository URLs point here again, the Sentry plugin is configured again,
+  and the release workflow publishes to npm again
 
 ### 2.4.27 (2026-10-09)
 

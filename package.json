@@ -11,7 +11,7 @@
             "name": "Andr\u00e9 Schmitz"
         }
     ],
-    "homepage": "https://github.com/mrandreschmitz/ioBroker.digitalstrom",
+    "homepage": "https://github.com/ioBroker/ioBroker.digitalstrom",
     "license": "MIT",
     "keywords": [
         "digitalstrom",
@@ -22,7 +22,7 @@
     ],
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/mrandreschmitz/ioBroker.digitalstrom.git"
+        "url": "git+https://github.com/ioBroker/ioBroker.digitalstrom.git"
     },
     "dependencies": {
         "@apollon/iobroker-tools": "^0.3.0",
@@ -83,7 +83,7 @@
         "check:admin": "tsc --noEmit -p src-admin/tsconfig.json"
     },
     "bugs": {
-        "url": "https://github.com/mrandreschmitz/ioBroker.digitalstrom/issues"
+        "url": "https://github.com/ioBroker/ioBroker.digitalstrom/issues"
     },
     "readmeFilename": "README.md"
 }

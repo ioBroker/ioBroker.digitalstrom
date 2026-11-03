@@ -1,8 +1,8 @@
 ![Logo](admin/digitalstrom.png)
 # ioBroker.digitalstrom
 
-[![GitHub release](https://img.shields.io/github/v/release/mrandreschmitz/ioBroker.digitalstrom)](https://github.com/mrandreschmitz/ioBroker.digitalstrom/releases)
-![Test and Release](https://github.com/mrandreschmitz/ioBroker.digitalstrom/workflows/Test%20and%20Release/badge.svg)
+[![GitHub release](https://img.shields.io/github/v/release/ioBroker/ioBroker.digitalstrom)](https://github.com/ioBroker/ioBroker.digitalstrom/releases)
+![Test and Release](https://github.com/ioBroker/ioBroker.digitalstrom/workflows/Test%20and%20Release/badge.svg)
 
 **English version: [README.md](README.md)**
 
@@ -10,24 +10,15 @@
 
 Anbindung von digitalSTROM-Geräten über den DSS (digitalSTROM-Server)
 
-> Dies ist ein gepflegter Fork von [ioBroker/ioBroker.digitalstrom](https://github.com/ioBroker/ioBroker.digitalstrom)
-> von Apollon77, der seit 2021 nicht mehr aktualisiert wurde. Die zugrunde liegende Bibliotheksschicht
+> Seit Version 2.4 wurde der Adapter grundlegend überarbeitet: Die zugrunde liegende Bibliotheksschicht
 > wurde ersetzt, der Admin-Dialog neu gebaut, neben der klassischen Schnittstelle wird die moderne
 > Smart Home API des dSS genutzt und eine größere Zahl von Laufzeitfehlern behoben.
 > Einzelheiten stehen im Changelog.
->
-> Dieser Fork sendet **keine** Fehlerberichte: Das Sentry-Plugin des Originaladapters wurde entfernt,
-> weil dessen Berichte in einem Projekt der ioBroker-Organisation gelandet wären, auf das dieser Fork
-> keinen Zugriff hat.
 
 ## Installation
 
-Dieser Fork wird direkt von GitHub installiert. Der digitalstrom-Adapter in der normalen
-Adapterliste von Admin ist der ursprüngliche Adapter, nicht dieser Fork.
-
-Verwende in Admin die Option „Beliebig / Custom Install" mit der URL
-https://github.com/mrandreschmitz/ioBroker.digitalstrom oder gib auf der Kommandozeile
-`iobroker url https://github.com/mrandreschmitz/ioBroker.digitalstrom` ein.
+Installiere den Adapter über die Adapterliste in Admin. Den aktuellen Entwicklungsstand installierst
+du auf der Kommandozeile mit `iobroker url https://github.com/ioBroker/ioBroker.digitalstrom`.
 
 Voraussetzungen: Node.js 22 oder neuer, js-controller 6.0.11 oder neuer und Admin 7.6.17 oder neuer. Die
 Objekt-Warngrenze im Reiter „Einstellungen" braucht js-controller 7.1.0 oder neuer.
@@ -336,7 +327,7 @@ Die Geräte sind als „Klemme/dSM"."Geräte-ID" strukturiert, darunter jeweils:
 
 ## Fehler melden und Funktionswünsche
 
-Bitte nutze dafür die [Issues dieses Forks](https://github.com/mrandreschmitz/ioBroker.digitalstrom/issues).
+Bitte nutze dafür die [Issues auf GitHub](https://github.com/ioBroker/ioBroker.digitalstrom/issues).
 
 Am hilfreichsten ist es, den Adapter auf den Loglevel „debug" zu stellen (Instanzen → Expertenmodus →
 Spalte Loglevel) und die Logdatei anschließend von der Festplatte zu holen (Unterverzeichnis `log` im
@@ -349,14 +340,20 @@ Dieser Adapter wurde ursprünglich von **Apollon77 &lt;iobroker@fischer-ka.de&gt
 der MIT-Lizenz auf [ioBroker/ioBroker.digitalstrom](https://github.com/ioBroker/ioBroker.digitalstrom)
 veröffentlicht. Das Verdienst an der ursprünglichen Arbeit gebührt ihm.
 
-Dieses Repository ist ein Fork, der die Pflege ab Version 2.4.0 fortsetzt (André Schmitz, 2026). Es
-wird unter derselben MIT-Lizenz veröffentlicht; der ursprüngliche Copyright-Hinweis bleibt in
-[LICENSE](LICENSE) unverändert erhalten.
+Die Überarbeitung ab Version 2.4.0 stammt von André Schmitz (2026). Sie wird unter derselben
+MIT-Lizenz veröffentlicht; der ursprüngliche Copyright-Hinweis bleibt in [LICENSE](LICENSE)
+unverändert erhalten.
 
 ## Changelog
 
 Der vollständige Changelog inklusive der Historie von Apollon77 steht in der englischen Fassung:
 [README.md](README.md#changelog). Hier die Einträge der gepflegten Versionen auf Deutsch.
+
+### **WORK IN PROGRESS**
+
+* Der gepflegte Fork (https://github.com/mrandreschmitz/ioBroker.digitalstrom) wurde in dieses
+  Repository zurückgeführt. Die Repository-Adressen zeigen wieder hierher, das Sentry-Plugin ist
+  wieder eingerichtet, und der Release-Workflow veröffentlicht wieder auf npm
 
 ### 2.4.27 (2026-10-09)
 

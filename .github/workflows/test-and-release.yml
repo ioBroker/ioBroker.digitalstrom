@@ -103,8 +103,7 @@ jobs:
        startsWith(github.ref, 'refs/tags/v'))
     runs-on: ubuntu-latest
 
-    # Write permission is required to create the Github release. No id-token here:
-    # this fork does not publish to npm, see the note at the release step below.
+    # Write permission is required to create the Github release.
     permissions:
       contents: write
 
@@ -155,11 +154,17 @@ jobs:
           printf '%s\n' "$NOTES" > "$RUNNER_TEMP/release-notes.md"
           echo "wrote $(wc -l < "$RUNNER_TEMP/release-notes.md") lines of release notes"
 
-      # Deliberately NO "npm publish" here. The npm package name iobroker.digitalstrom
-      # belongs to the upstream project (maintainers bluefox and apollon77), so publishing
-      # from this fork is not possible. Installation happens through the GitHub URL:
-      #   iobroker url https://github.com/mrandreschmitz/ioBroker.digitalstrom
-      #
+      # Restored from the release workflow before 2.4: publishing uses the NPM_TOKEN secret
+      # of this repository. Switch to npm trusted publishing (id-token) if preferred.
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Publish package to npm
+        run: |
+          npm config set //registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}
+          npm whoami
+          npm publish
+
       # The release is written with the gh CLI instead of a third party action. An action
       # that only creates the release left the body of an already existing release
       # untouched, so a rebuilt release kept the notes of its first run. "gh release edit"
@@ -196,3 +201,16 @@ jobs:
           gh release view "v$VERSION" --json name,tagName,isDraft \
             --jq '"published \(.name), tag \(.tagName), draft \(.isDraft)"' \
             || echo "::warning::the release was created, but reading it back did not work"
+
+      - name: Notify Sentry.io about the release
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_URL: https://sentry.iobroker.net
+          SENTRY_ORG: iobroker
+          SENTRY_PROJECT: iobroker-digitalstrom
+          SENTRY_VERSION: iobroker.digitalstrom@${{ steps.extract_release.outputs.VERSION }}
+        run: |
+          npm i -g @sentry/cli
+          sentry-cli releases new "$SENTRY_VERSION"
+          sentry-cli releases set-commits "$SENTRY_VERSION" --auto
+          sentry-cli releases finalize "$SENTRY_VERSION"
