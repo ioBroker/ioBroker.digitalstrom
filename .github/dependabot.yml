@@ -1,24 +1,33 @@
-# Dependabot will run on day 11 of each month at 01:26 (Europe/Berlin timezone)
 version: 2
 updates:
-
-  - package-ecosystem: 'github-actions'
-    directory: '/'
+  # Maintain dependencies for GitHub Actions
+  - package-ecosystem: github-actions
+    directory: "/"
     schedule:
-      interval: 'cron'
-      timezone: 'Europe/Berlin'
-      cronjob: '26 1 11 * *'
-    open-pull-requests-limit: 15
+      interval: monthly
+      time: "04:00"
+      timezone: Europe/Berlin
 
-  - package-ecosystem: 'npm'
-    directory: '/'
+  - package-ecosystem: npm
+    directory: "/"
     schedule:
-      interval: 'cron'
-      timezone: 'Europe/Berlin'
-      cronjob: '26 1 11 * *'
+      interval: monthly
+      time: "04:00"
+      timezone: Europe/Berlin
     open-pull-requests-limit: 20
-    versioning-strategy: 'increase'
+    versioning-strategy: increase
+    # @iobroker/adapter-react-v5 pins the admin UI stack through its peer dependencies:
+    # react and react-dom ^18.3.1, @mui/material and @mui/icons-material ^6.5.0. There is
+    # no release of it that allows more, so a major bump of any of the four cannot be
+    # installed at all - npm ci ends in ERESOLVE and the pull request is red the moment it
+    # is opened. They stay ignored until adapter-react-v5 moves; patch and minor updates
+    # inside the supported range keep coming.
     ignore:
-      - dependency-name: '@types/node'
-        update-types:
-          - 'version-update:semver-major'
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@mui/material"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@mui/icons-material"
+        update-types: ["version-update:semver-major"]

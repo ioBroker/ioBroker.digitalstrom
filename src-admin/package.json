@@ -1,0 +1,7 @@
+{
+    "name": "iobroker.digitalstrom-admin",
+    "private": true,
+    "version": "0.0.0",
+    "type": "module",
+    "description": "Sources of the admin interface, built into ../admin by 'npm run build:admin'"
+}
