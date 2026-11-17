@@ -1,8 +1,15 @@
 ![Logo](admin/digitalstrom.png)
 # ioBroker.digitalstrom
 
-[![GitHub release](https://img.shields.io/github/v/release/ioBroker/ioBroker.digitalstrom)](https://github.com/ioBroker/ioBroker.digitalstrom/releases)
+![Number of Installations](http://iobroker.live/badges/digitalstrom-installed.svg)
+![Number of Installations](http://iobroker.live/badges/digitalstrom-stable.svg)
+[![NPM version](http://img.shields.io/npm/v/iobroker.digitalstrom.svg)](https://www.npmjs.com/package/iobroker.digitalstrom)
+
 ![Test and Release](https://github.com/ioBroker/ioBroker.digitalstrom/workflows/Test%20and%20Release/badge.svg)
+[![Translation status](https://weblate.iobroker.net/widgets/adapters/-/digitalstrom/svg-badge.svg)](https://weblate.iobroker.net/engage/adapters/?utm_source=widget)
+[![Downloads](https://img.shields.io/npm/dm/iobroker.digitalstrom.svg)](https://www.npmjs.com/package/iobroker.digitalstrom)
+
+**This adapter uses Sentry libraries to automatically report exceptions and code errors to the developers.** For more details and for information how to disable the error reporting see [Sentry-Plugin Documentation](https://github.com/ioBroker/plugin-sentry#plugin-sentry)! Sentry reporting is used starting with js-controller 3.0.
 
 **Deutsche Version: [README_de.md](README_de.md)**
 
