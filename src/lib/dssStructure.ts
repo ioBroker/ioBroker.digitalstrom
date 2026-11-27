@@ -1,54 +1,135 @@
-const dssConstants = require('./constants');
-const DSSQueue = require('./dssQueue');
-const SmartHomeOutputSync = require('./dssSmartHomeSync');
-const { errorMessage } = require('./configUtils');
+import * as dssConstants from './constants';
+import { DSSQueue } from './dssQueue';
+import { SmartHomeOutputSync } from './dssSmartHomeSync';
+import { errorMessage } from './configUtils';
+import type { DSS } from './dss';
+import type { DSSSmartHome } from './dssSmartHome';
 
 /**
  * A device of the apartment structure: what apartment/getStructure delivers, enriched by
  * this adapter while the objects are built. Only the fields the output handling relies on
  * are named here.
- *
- * @typedef {object} StructureDeviceKnownFields
- * @property {string} dSUID unique id of the device, its object path and its event key
- * @property {string} [name] name given in digitalSTROM, missing on an unnamed device
- * @property {boolean} [isVdcDevice] true for vDC hardware (Hue, Sonos), which answers only the named channel read
- * @property {Record<string, string>} [outputChannelList] channel type -> ioBroker state id, filled while the objects are created
- * @property {(value: number, options?: {skipUnchanged?: boolean}) => void} [applyNativeLightValue] light helper of createLightDevice, maintains the boolean .state as well
  */
+export interface StructureDeviceKnownFields {
+    /** unique id of the device, its object path and its event key */
+    dSUID: string;
+    /** dSUID of the meter (dSM) the device hangs on, the queue key of its requests */
+    meterDSUID: string;
+    /** name given in digitalSTROM, missing on an unnamed device */
+    name?: string;
+    /** true for vDC hardware (Hue, Sonos), which answers only the named channel read */
+    isVdcDevice?: boolean;
+    /** channel type -> ioBroker state id, filled while the objects are created */
+    outputChannelList?: Record<string, string>;
+    /** light helper of createLightDevice, maintains the boolean .state as well */
+    applyNativeLightValue?: (value: number, options?: { skipUnchanged?: boolean }) => void;
+}
 
 /**
  * The DSS delivers many more fields per device type and a newer firmware may add further
  * ones, so the rest stays open - a closed type would reject the very fields the comment
  * above promises to leave alone. Same shape as DssResponse in configUtils.
- *
- * @typedef {StructureDeviceKnownFields & Record<string, any>} StructureDevice
  */
+export type StructureDevice = StructureDeviceKnownFields & Record<string, any>;
 
 /**
  * A zone of the apartment structure, as far as the temperature control needs it.
- *
- * @typedef {object} StructureZoneKnownFields
- * @property {number} id zone id the DSS addresses the room by
- * @property {string} [name] name of the room, missing on an unnamed zone
  */
+export interface StructureZoneKnownFields {
+    /** zone id the DSS addresses the room by */
+    id: number;
+    /** name of the room, missing on an unnamed zone */
+    name?: string;
+}
 
-/**
- * @typedef {StructureZoneKnownFields & Record<string, any>} StructureZone
- */
+export type StructureZone = StructureZoneKnownFields & Record<string, any>;
 
 /**
  * One zone entry of apartment/getTemperatureControlStatus. The DSS answers for EVERY
  * zone, an unregulated one carries nothing but ControlMode 0.
- *
- * @typedef {object} TemperatureControlStatusKnownFields
- * @property {number} [ControlMode] 0 when the zone is not regulated at all
- * @property {number} [ControlState] state of the controller, missing on older firmware
- * @property {number} [OperationMode] currently active operation mode (scene of group 48)
  */
+export interface TemperatureControlStatusKnownFields {
+    /** 0 when the zone is not regulated at all */
+    ControlMode?: number;
+    /** state of the controller, missing on older firmware */
+    ControlState?: number;
+    /** currently active operation mode (scene of group 48) */
+    OperationMode?: number;
+}
+
+export type TemperatureControlStatus = TemperatureControlStatusKnownFields & Record<string, any>;
+
+/** A circuit (dSM) as apartment/getCircuits delivers it - open for the same reason as StructureDevice */
+export type StructureCircuit = { dSUID: string; name?: string; hasMetering?: boolean } & Record<string, any>;
+
+/** One entry of the property query of /usr/states, see findStates() */
+export type PropertyState = { name: string; state?: any; value?: any; matchedName?: string } & Record<string, any>;
+
+/** A room sensor state of a dSS app, see readAddonSensorStates() */
+export interface AddonSensorState {
+    name: string;
+    addon: string;
+    zoneId: number;
+    groupId: number;
+    sensorType: number;
+    identifier: string;
+    state?: any;
+    value?: any;
+}
 
 /**
- * @typedef {TemperatureControlStatusKnownFields & Record<string, any>} TemperatureControlStatus
+ * Write handler of a state. It gets whatever was written: ioBroker does not enforce
+ * common.type, so the handlers check the value themselves.
  */
+export type StateChangeHandler = (value: any) => void;
+
+/** An object of the tree this structure builds, main.ts writes them to ioBroker */
+export interface StructureObject {
+    type: 'folder' | 'channel' | 'device' | 'state';
+    common: Record<string, any>;
+    native?: Record<string, any>;
+    /** initial value of a state */
+    value?: any;
+    /** write handler of a state */
+    onChange?: StateChangeHandler;
+}
+
+/** Called when a part of the structure is built, with an error text if that failed */
+export type StructureCallback = (err?: string | null) => void;
+
+/** Called once per meter poll with the number of failed and of all reads */
+export type MeterCallback = (failed: number, total: number) => void;
+
+/** Priority of a queued request */
+export type Priority = 'high' | 'medium' | 'low';
+
+/**
+ * What the structure needs from the adapter instance. main.ts hands in itself, the tests a
+ * fake - so only these members are relied on.
+ */
+export interface StructureAdapter {
+    log: ioBroker.Logger;
+    config: ioBroker.AdapterConfig;
+    setState?(id: string, state: ioBroker.StateValue, ack: boolean): unknown;
+    isStopping?(): boolean;
+    restartAdapter?(timeout: number, reason: string): unknown;
+    objectHelper?: { existingStates?: Record<string, any> } | null;
+    setDssState(id: string, value: any): unknown;
+}
+
+export interface DSSStructureOptions {
+    dss: DSS;
+    adapter: StructureAdapter;
+    dssQueue: DSSQueue;
+    /** client of the Smart Home API, missing or null when that option is off */
+    smartHome?: DSSSmartHome | null;
+    /** handed on to SmartHomeOutputSync */
+    smartHomeSyncOptions?: Record<string, any>;
+    smartHomeMeterRetryBase?: number;
+    smartHomeMeterRetryMax?: number;
+    now?: () => number;
+    outputReconcileMinInterval?: number;
+}
 
 const SMART_HOME_METER_RETRY_BASE = 5 * 60 * 1000;
 const SMART_HOME_METER_RETRY_MAX = 60 * 60 * 1000;
@@ -88,11 +169,8 @@ const DSID_BASED_DSUID = /^[0-9a-f]{12}0{8}[0-9a-f]{12}00$/;
  * The dSUID one dSID below the given one - the device a further input of the same
  * terminal block counts up from. Only a dSUID derived from a dSID has a serial number to
  * count with; a vDC device has a name based dSUID, and "one below" means nothing there.
- *
- * @param {string} dSUID
- * @returns {string|undefined}
  */
-function previousDsidDsuid(dSUID) {
+function previousDsidDsuid(dSUID: string): string | undefined {
     if (typeof dSUID !== 'string' || !DSID_BASED_DSUID.test(dSUID)) {
         return undefined;
     }
@@ -125,11 +203,8 @@ const FORBIDDEN_ID_CHARS = /[^._\-/ :!#$%&()+=@^{}|~\p{Ll}\p{Lu}\p{Nd}]+/gu;
 /**
  * The Smart Home API sometimes returns numbers as strings. Empty strings, null and
  * non-finite values must not silently become a real meter value (notably null -> 0).
- *
- * @param {unknown} value
- * @returns {number|undefined}
  */
-function finiteMeterValue(value) {
+function finiteMeterValue(value: unknown): number | undefined {
     if (typeof value === 'number') {
         return Number.isFinite(value) ? value : undefined;
     }
@@ -148,10 +223,10 @@ function finiteMeterValue(value) {
  * below a watt hour that no meter of a dSM measures, and a float tail that made two equal
  * readings look different. The total is rounded, not the step, so nothing adds up.
  *
- * @param {number} wattSeconds meter value as the dSS reports it
- * @returns {number} kWh with at most three decimals
+ * @param wattSeconds meter value as the dSS reports it
+ * @returns kWh with at most three decimals
  */
-function wattSecondsToKwh(wattSeconds) {
+function wattSecondsToKwh(wattSeconds: number): number {
     return Math.round(wattSeconds / 3600) / 1000;
 }
 
@@ -165,17 +240,82 @@ function wattSecondsToKwh(wattSeconds) {
  * pass on purpose: escapeHTML() replaced "&" first, so "&amp;lt;" was a literal "&lt;" and
  * has to stay one. "&#39;" is accepted as the short spelling of the same apostrophe.
  *
- * @param {string} text name as the dSS stored it
- * @returns {string} the name as it was typed in the dSS
+ * @param text name as the dSS stored it
+ * @returns the name as it was typed in the dSS
  */
-function decodeDssEntities(text) {
-    /** @type {Record<string, string>} */
-    const entities = { amp: '&', quot: '"', '#039': "'", '#39': "'", lt: '<', gt: '>' };
+function decodeDssEntities(text: string): string {
+    const entities: Record<string, string> = { amp: '&', quot: '"', '#039': "'", '#39': "'", lt: '<', gt: '>' };
     return text.replace(/&(amp|quot|#0?39|lt|gt);/g, (match, entity) => entities[entity]);
 }
 
-class DSSStructure {
-    constructor(options) {
+export class DSSStructure {
+    options: DSSStructureOptions;
+    dss: DSS;
+    adapter: StructureAdapter;
+    dssQueue: DSSQueue;
+    smartHome: DSSSmartHome | null;
+    smartHomeSync: SmartHomeOutputSync | null;
+    smartHomeMeterFailures: number;
+    smartHomeMeterRetryAfter: number;
+    smartHomeMeterRetryBase: number;
+    smartHomeMeterRetryMax: number;
+    now: () => number;
+    /** zuletzt gemeldeter Weg, verhindert Wiederholungen */
+    lastMeteringApi: 'classic' | 'smarthome' | null;
+    /** dito fuer die Output-Werte (info.outputApi) */
+    lastOutputApi: 'classic' | 'smarthome' | null;
+    stateMap: Record<string, string>;
+    dssObjects: Record<string, StructureObject>;
+    initialObjectValues: Record<string, any>;
+    processedZones: Record<string, boolean>;
+    zoneDevices: Record<string, Record<string, string[]>>;
+    initialScenes: Record<string, number>;
+    /** jedes gueltige Geraet, fuer den Abgleich per Notification */
+    devicesByDsuid: Record<string, StructureDevice>;
+    /** "zone.group.scene" -> vom Nutzer vergebener Szenenname (neue API) */
+    scenarioNames: Record<string, string>;
+    /** Zonen-Id (als String) -> State-Praefix der Zonen-Sensoren */
+    zoneSensorBaseIds: Record<string, string>;
+    lastOutputReconcileAt: number;
+    outputReconcileMinInterval: number;
+    // The answers of the DSS JSON API, untyped by nature - see DssResponse in configUtils
+    apartmentStructure: any;
+    apartmentCircuits: StructureCircuit[] | null;
+    sensorValues: any;
+    temperatureControlStatus: any;
+    propertyUserStates: any[] | null;
+    propertyStates: PropertyState[] | null;
+    userActions: any[] | null;
+    reachableGroups: any;
+    groupTypes: Record<string, string>;
+    basicRoomScenes: number[];
+    reportedOutputReadErrors: Set<string>;
+    publishedValues: Map<string, any>;
+    /** vDC devices the dSS rejected for the named channel read */
+    vdcChannelReadRejected: Set<string>;
+    /** devices with a named channel read in flight - one answer serves all channels */
+    vdcChannelReadPending: Map<string, { report: boolean }>;
+    /** devices whose outputs are re-read after a scene, registered once */
+    sceneRefreshDevices: Set<string>;
+    /**
+     * The apartment user states, by ioBroker id: their name in the dSS and the value
+     * it holds as far as the adapter knows. Kept current from both directions - what
+     * is written to the dSS and what the dSS reports back - so a write that would
+     * change nothing there can be skipped.
+     */
+    userStates: Map<string, { name: string; value: any }>;
+    skippedStatePrefixes: Set<string>;
+    matchedPropertyStates: Set<string>;
+    /**
+     * The sensor states of dSS apps other than the user-defined states, read from
+     * /usr/addon-states at startup - see readAddonSensorStates().
+     */
+    addonSensorStates: AddonSensorState[];
+    addonSensorStatesRead: boolean;
+    pendingTimeouts: Set<NodeJS.Timeout>;
+    objectsReady: boolean;
+
+    constructor(options: DSSStructureOptions) {
         this.options = options || {};
         this.dss = options.dss;
         this.adapter = options.adapter;
@@ -200,9 +340,7 @@ class DSSStructure {
         this.smartHomeMeterRetryBase = options.smartHomeMeterRetryBase || SMART_HOME_METER_RETRY_BASE;
         this.smartHomeMeterRetryMax = options.smartHomeMeterRetryMax || SMART_HOME_METER_RETRY_MAX;
         this.now = options.now || Date.now;
-        /** @type {'classic'|'smarthome'|null} zuletzt gemeldeter Weg, verhindert Wiederholungen */
         this.lastMeteringApi = null;
-        /** @type {'classic'|'smarthome'|null} dito fuer die Output-Werte (info.outputApi) */
         this.lastOutputApi = null;
 
         this.stateMap = {};
@@ -211,11 +349,8 @@ class DSSStructure {
         this.processedZones = {};
         this.zoneDevices = {};
         this.initialScenes = {};
-        /** @type {Record<string, any>} jedes gueltige Geraet, fuer den Abgleich per Notification */
         this.devicesByDsuid = {};
-        /** @type {Record<string, string>} "zone.group.scene" -> vom Nutzer vergebener Szenenname (neue API) */
         this.scenarioNames = {};
-        /** @type {Record<string, string>} Zonen-Id (als String) -> State-Praefix der Zonen-Sensoren */
         this.zoneSensorBaseIds = {};
         // -Infinity statt 0: der allererste Abgleich darf nie an der Ratenbremse haengen
         this.lastOutputReconcileAt = -Infinity;
@@ -247,39 +382,19 @@ class DSSStructure {
         // writes in three hours. An event-driven value is never suppressed - "the dSS
         // reported this now" is a message even when the number repeats - and neither is
         // the confirmation of a user command, which has to reach its ack.
-        /** @type {Map<string, any>} */
         this.publishedValues = new Map();
-        /** @type {Set<string>} vDC devices the dSS rejected for the named channel read */
         this.vdcChannelReadRejected = new Set();
-        /** @type {Map<string, {report: boolean}>} devices with a named channel read in flight - one answer serves all channels */
         this.vdcChannelReadPending = new Map();
-        /** @type {Set<string>} devices whose outputs are re-read after a scene, registered once */
         this.sceneRefreshDevices = new Set();
-        /**
-         * The apartment user states, by ioBroker id: their name in the dSS and the value
-         * it holds as far as the adapter knows. Kept current from both directions - what
-         * is written to the dSS and what the dSS reports back - so a write that would
-         * change nothing there can be skipped.
-         *
-         * @type {Map<string, {name: string, value: any}>}
-         */
         this.userStates = new Map();
         // Prefixes of zones and groups THIS adapter decided not to build objects for -
         // a zone the dSS reports as not present, a group no zone can reach, a zone 0
         // group without devices. Their states have no object by our own choice, so they
         // are not "unassignable" and must not be reported as such.
-        /** @type {Set<string>} */
         this.skippedStatePrefixes = new Set();
         // Names of the property states that were claimed by a device, circuit, zone, group
         // or the apartment. Everything left over is reported by reportUnmappedStates().
-        /** @type {Set<string>} */
         this.matchedPropertyStates = new Set();
-        /**
-         * The sensor states of dSS apps other than the user-defined states, read from
-         * /usr/addon-states at startup - see readAddonSensorStates().
-         *
-         * @type {Array<{name: string, addon: string, zoneId: number, groupId: number, sensorType: number, identifier: string, state?: any, value?: any}>}
-         */
         this.addonSensorStates = [];
         // true once readAddonSensorStates() got an answer - only then is a room sensor state
         // that is not in it really gone, see createZoneSensorStates()
@@ -289,7 +404,7 @@ class DSSStructure {
         this.objectsReady = false;
     }
 
-    setClearableTimeout(func, delay) {
+    setClearableTimeout(func: () => void, delay: number): NodeJS.Timeout {
         const timeout = setTimeout(() => {
             this.pendingTimeouts.delete(timeout);
             func();
@@ -298,7 +413,7 @@ class DSSStructure {
         return timeout;
     }
 
-    clearTimeouts() {
+    clearTimeouts(): void {
         this.pendingTimeouts.forEach(timeout => clearTimeout(timeout));
         this.pendingTimeouts.clear();
         this.smartHomeSync && this.smartHomeSync.stop();
@@ -313,13 +428,13 @@ class DSSStructure {
      * options.report = false keeps info.outputApi untouched: reads the Smart Home sync
      * hands over for single channels the status cannot deliver must not flip the state
      * to "classic" while the Smart Home API stays in charge of everything else.
-     *
-     * @param {StructureDevice} dev
-     * @param {string} outputType
-     * @param {'high'|'medium'|'low'} [prio]
-     * @param {{report?: boolean}} [options]
      */
-    queueClassicOutputRead(dev, outputType, prio = 'medium', options = {}) {
+    queueClassicOutputRead(
+        dev: StructureDevice,
+        outputType: string,
+        prio: Priority = 'medium',
+        options: { report?: boolean } = {},
+    ): void {
         const report = options.report !== false;
         // A vDC device (Hue, Sonos, ...) answers ONLY the named channel read. Its
         // outputs have no offset the dSS could address - getOutputValue returns
@@ -339,7 +454,7 @@ class DSSStructure {
         this.dssQueue.queueUpdateOutputValue(
             dev,
             roleDef.native.channelIndex,
-            roleDef.native.nativeMax,
+            roleDef.native.nativeMax!,
             prio,
             (err, value) => {
                 if (err) {
@@ -351,8 +466,8 @@ class DSSStructure {
                     report && this.reportOutputApi('classic');
                     return;
                 }
-                if (roleDef.native.nativeMax && roleDef.max) {
-                    value = Math.round((value * roleDef.max) / roleDef.native.nativeMax);
+                if (roleDef.native!.nativeMax && roleDef.max) {
+                    value = Math.round((value * roleDef.max) / roleDef.native!.nativeMax);
                 }
                 const stateId = dev.outputChannelList && dev.outputChannelList[outputType];
                 if (!stateId) {
@@ -371,13 +486,13 @@ class DSSStructure {
      * are filtered by the structure flag, and a dSS that still rejects the call
      * ("This call is currently only supported on vDCs") is remembered per device.
      *
-     * @param {StructureDevice} dev
-     * @param {string} outputType the channel that asked - the answer serves all of them
-     * @param {'high'|'medium'|'low'} prio
-     * @param {boolean} report whether a successful read may flip info.outputApi
-     * @returns {boolean} true when a read serves this channel (queued now or in flight)
+     * @param dev the device
+     * @param outputType the channel that asked - the answer serves all of them
+     * @param prio priority of the read
+     * @param report whether a successful read may flip info.outputApi
+     * @returns true when a read serves this channel (queued now or in flight)
      */
-    queueVdcChannelRead(dev, outputType, prio, report) {
+    queueVdcChannelRead(dev: StructureDevice, outputType: string, prio: Priority, report: boolean): boolean {
         if (!dev || dev.isVdcDevice !== true || this.vdcChannelReadRejected.has(dev.dSUID)) {
             return false;
         }
@@ -410,7 +525,7 @@ class DSSStructure {
                 return;
             }
             let applied = 0;
-            for (const [channel, entry] of Object.entries(channels)) {
+            for (const [channel, entry] of Object.entries(channels!)) {
                 if (!dev.outputChannelList || !dev.outputChannelList[channel]) {
                     continue;
                 }
@@ -435,10 +550,8 @@ class DSSStructure {
      * would be a burst, and that is what the reconciliation is there for.
      *
      * Registered once per device - createJokerDevice can be reached from two paths.
-     *
-     * @param {StructureDevice} dev
      */
-    registerSceneOutputRefresh(dev) {
+    registerSceneOutputRefresh(dev: StructureDevice): void {
         if (!this.adapter.config.initializeOutputValues || !this.smartHomeSync) {
             return;
         }
@@ -467,11 +580,11 @@ class DSSStructure {
      * carries all of its channels at once. A native terminal gets false here and keeps
      * the offset read it always had.
      *
-     * @param {StructureDevice} dev
-     * @param {string} outputType any channel of the device - both reads cover all of them
-     * @returns {boolean} true when a read is on its way
+     * @param dev the device
+     * @param outputType any channel of the device - both reads cover all of them
+     * @returns true when a read is on its way
      */
-    queueGenericInitialRead(dev, outputType) {
+    queueGenericInitialRead(dev: StructureDevice, outputType: string): boolean {
         // ONLY a vDC device may hand its initial read over. A native terminal in this
         // branch has no second way in: its channels have no fixed channelIndex, the
         // caller below reads them through the channelIndex the DEVICE declares, and
@@ -492,13 +605,8 @@ class DSSStructure {
      * API status AND of device/getOutputChannelValue2. Counterpart of the
      * native-scale write in the queueClassicOutputRead callback; the same rules as
      * SmartHomeOutputSync.applyValue (kept separate there for its own test rig).
-     *
-     * @param {any} dev
-     * @param {string} outputType
-     * @param {number} value
-     * @returns {'applied'|'unsupported'}
      */
-    applyChannelScaleValue(dev, outputType, value) {
+    applyChannelScaleValue(dev: any, outputType: string, value: number): 'applied' | 'unsupported' {
         const roleDef = dssConstants.outputChannelUnitRoleMap[outputType];
         const stateId = dev.outputChannelList && dev.outputChannelList[outputType];
         if (!roleDef || !stateId) {
@@ -534,10 +642,10 @@ class DSSStructure {
      * bleiben beim klassischen Weg: ihre Zahlensemantik ist gegen die neue API nicht
      * verifiziert, Grad Celsius und Prozent dagegen schon (gegen echte Anlage geprueft).
      *
-     * @param {any} status Antwort von getApartmentStatus()
-     * @returns {number} Anzahl geschriebener Werte
+     * @param status Antwort von getApartmentStatus()
+     * @returns Anzahl geschriebener Werte
      */
-    applyZoneTemperatureStatus(status) {
+    applyZoneTemperatureStatus(status: any): number {
         const zones = (status && status.included && status.included.zones) || [];
         let written = 0;
         for (const zone of zones) {
@@ -546,7 +654,7 @@ class DSSStructure {
                 continue;
             }
             const applications = (zone.attributes && zone.attributes.applications) || [];
-            const temperature = applications.find(app => app && app.id === 'temperature');
+            const temperature = applications.find((app: any) => app && app.id === 'temperature');
             if (!temperature) {
                 continue;
             }
@@ -574,9 +682,9 @@ class DSSStructure {
      * Geraete mit Ausgaengen einmal ueber den Sync abgleichen. Hart ratenbegrenzt,
      * siehe OUTPUT_RECONCILE_MIN_INTERVAL.
      *
-     * @returns {boolean} true wenn ein Abgleich angestossen wurde
+     * @returns true wenn ein Abgleich angestossen wurde
      */
-    reconcileOutputValues() {
+    reconcileOutputValues(): boolean {
         if (!this.smartHomeSync || !this.adapter.config || !this.adapter.config.initializeOutputValues) {
             return false;
         }
@@ -599,10 +707,8 @@ class DSSStructure {
      * Records which API delivered the last output values - the counterpart of
      * reportMeteringApi() for info.outputApi, with the same "last successful
      * writer" semantics and the same change-only reporting.
-     *
-     * @param {'classic'|'smarthome'} api
      */
-    reportOutputApi(api) {
+    reportOutputApi(api: 'classic' | 'smarthome'): void {
         if (this.lastOutputApi === api) {
             return;
         }
@@ -613,7 +719,7 @@ class DSSStructure {
         );
     }
 
-    init(callback) {
+    init(callback: StructureCallback): void {
         // Die Klarnamen der Szenen kennt nur die neue API - einmalig am Start geholt,
         // bevor die Zonen verarbeitet werden. Ohne sie bleiben die bisherigen Namen.
         this.loadScenarioNames(() => this.initClassicStructure(callback));
@@ -624,9 +730,9 @@ class DSSStructure {
      * Jeder Fehler ist folgenlos: die Benennung faellt auf die klassischen
      * userSceneNames und die generischen Preset-Namen zurueck.
      *
-     * @param {() => void} callback laeuft immer, auch bei Fehlern
+     * @param callback laeuft immer, auch bei Fehlern
      */
-    loadScenarioNames(callback) {
+    loadScenarioNames(callback: () => void): void {
         if (!this.smartHome || this.isAdapterStopping()) {
             return void callback();
         }
@@ -656,7 +762,10 @@ class DSSStructure {
         );
     }
 
-    initClassicStructure(callback) {
+    // TODO(refactoring): an answer without message and status_code ends up in these error
+    // texts as "[object Object]" - JSON.stringify(res) would show what the DSS sent.
+    /* eslint-disable @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-template-expressions -- the error texts stay as they were until the TODO above is done */
+    initClassicStructure(callback: StructureCallback): void {
         this.dss.requestAsync('apartment', 'getStructure').then(
             res => {
                 if (!res || !res.ok || !res.result || !res.result.apartment) {
@@ -829,7 +938,7 @@ class DSSStructure {
                                                                                         );
 
                                                                                         // Optional, it never fails the start
-                                                                                        this.readAddonSensorStates().then(
+                                                                                        void this.readAddonSensorStates().then(
                                                                                             () =>
                                                                                                 this.parseData(
                                                                                                     callback,
@@ -927,8 +1036,9 @@ class DSSStructure {
             },
         );
     }
+    /* eslint-enable @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-template-expressions */
 
-    convertObject(data, nameField, prefilled) {
+    convertObject(data: any, nameField: string, prefilled?: Record<string, any>): Record<string, any> {
         const res = prefilled || {};
         if (!data || !Array.isArray(data)) {
             return res;
@@ -942,8 +1052,8 @@ class DSSStructure {
         return res;
     }
 
-    parseData(callback) {
-        const apt = {
+    parseData(callback: StructureCallback): void {
+        const apt: Record<string, any> = {
             clusters: this.convertObject(this.apartmentStructure.clusters, 'id'),
             floors: this.convertObject(this.apartmentStructure.floors, 'id'),
             zones: this.convertObject(this.apartmentStructure.zones, 'id'),
@@ -988,10 +1098,8 @@ class DSSStructure {
      *
      * Optional: a dSS without that node or without query2 only leaves the list empty. It
      * never throws and never fails the start.
-     *
-     * @returns {Promise<void>}
      */
-    async readAddonSensorStates() {
+    async readAddonSensorStates(): Promise<void> {
         try {
             const res = await this.dss.requestAsync('property', 'query2', {
                 query: '/usr/addon-states/*(*)/*(*)',
@@ -1018,12 +1126,11 @@ class DSSStructure {
      * "<dSUID>_open-tilded" have no object on purpose, and the sensor states of a device
      * are named once when they change, like every other state without an object.
      *
-     * @param {Record<string, any>|null|undefined} tree answer of the query, keyed by app and
+     * @param tree answer of the query, keyed by app and
      *   state name
-     * @returns {Array<{name: string, addon: string, zoneId: number, groupId: number, sensorType: number, identifier: string, state?: any, value?: any}>}
      */
-    static collectAddonSensorStates(tree) {
-        const result = [];
+    static collectAddonSensorStates(tree: Record<string, any> | null | undefined): AddonSensorState[] {
+        const result: AddonSensorState[] = [];
         if (!tree || typeof tree !== 'object') {
             return result;
         }
@@ -1032,7 +1139,7 @@ class DSSStructure {
         // A state name is unique in the dSS - an event carries nothing else - so the first
         // entry wins. A second one would become a second object, "<identifier>_type9", and
         // take the events away from the first.
-        const seen = new Set();
+        const seen = new Set<string>();
         Object.keys(tree).forEach(addon => {
             const states = tree[addon];
             if (addon === 'system-addon-user-defined-states' || !states || typeof states !== 'object') {
@@ -1078,10 +1185,10 @@ class DSSStructure {
      * not missing, the dSS hides it on purpose; it is named on debug with its device.
      * A room sensor state of a dSS app that got no object is named in the same line.
      *
-     * @param {any[]} [structureDevices] all devices of zone 0, including the ones this
+     * @param [structureDevices] all devices of zone 0, including the ones this
      *   adapter skipped - the partner of a 2-way button is recognised by its neighbour
      */
-    reportUnmappedStates(structureDevices) {
+    reportUnmappedStates(structureDevices?: any[]): void {
         if (!Array.isArray(this.propertyStates)) {
             return;
         }
@@ -1108,8 +1215,7 @@ class DSSStructure {
                 `${skipped} DSS state(s) belong to zones or groups this adapter skipped on purpose and are not reported`,
             );
         }
-        /** @type {Map<string, any>} */
-        const devicesByDsuid = new Map();
+        const devicesByDsuid = new Map<string, any>();
         (Array.isArray(structureDevices) ? structureDevices : []).forEach(dev => {
             dev && typeof dev.dSUID === 'string' && devicesByDsuid.set(dev.dSUID, dev);
         });
@@ -1119,8 +1225,8 @@ class DSSStructure {
         // the binary input state of its alternative use (a 230 V sensor) stays in
         // /usr/states. There is nothing to map - wired as a 2-way switch that input is a
         // push button, not a sensor - so it is named on debug, with its device.
-        const hiddenPartners = [];
-        const unmapped = [];
+        const hiddenPartners: string[] = [];
+        const unmapped: string[] = [];
         notSkipped.forEach(name => {
             const master = DSSStructure.twoWayMasterOf(name, devicesByDsuid);
             if (master) {
@@ -1154,11 +1260,11 @@ class DSSStructure {
      * below must be a dS device (no vDC) and that device must be a 2-way master by its
      * own buttonInputMode - exactly the pair the dSS hides.
      *
-     * @param {string} stateName
-     * @param {Map<string, any>} devicesByDsuid all devices of the apartment structure
-     * @returns {any|undefined} the master device of the pair
+     * @param stateName name of the state in the dSS, `dev.<dSUID>.<state>` for a device
+     * @param devicesByDsuid all devices of the apartment structure
+     * @returns the master device of the pair
      */
-    static twoWayMasterOf(stateName, devicesByDsuid) {
+    static twoWayMasterOf(stateName: string, devicesByDsuid: Map<string, any>): any {
         const match = /^dev\.([0-9a-f]{34})\./.exec(stateName);
         if (!match || devicesByDsuid.has(match[1])) {
             return undefined;
@@ -1178,9 +1284,9 @@ class DSSStructure {
         return undefined;
     }
 
-    findStates(checkRegEx) {
+    findStates(checkRegEx: string): PropertyState[] {
         const regEx = new RegExp(checkRegEx);
-        const res = [];
+        const res: PropertyState[] = [];
         if (!Array.isArray(this.propertyStates)) {
             return res;
         }
@@ -1208,10 +1314,12 @@ class DSSStructure {
      * nachweislich identisch (gegen einen dSS 1.19.13 verglichen: fuenf von sechs Klemmen
      * auf die Wattsekunde gleich, die sechste um genau den Zeitversatz daneben), die
      * Umrechnung bleibt deshalb dieselbe wie im klassischen Weg.
-     *
-     * @returns {Promise<{attempted: boolean, succeeded: boolean, missingCircuits: object[]}>}
      */
-    async updateMeterDataViaSmartHome() {
+    async updateMeterDataViaSmartHome(): Promise<{
+        attempted: boolean;
+        succeeded: boolean;
+        missingCircuits: StructureCircuit[];
+    }> {
         const meteredCircuits = (this.apartmentCircuits || []).filter(circuit => circuit.hasMetering);
         if (!meteredCircuits.length || this.isAdapterStopping()) {
             return { attempted: false, succeeded: true, missingCircuits: [] };
@@ -1222,7 +1330,7 @@ class DSSStructure {
         if (this.smartHomeMeterRetryAfter > this.now()) {
             return { attempted: false, succeeded: false, missingCircuits: meteredCircuits };
         }
-        let values;
+        let values: any;
         try {
             const answer = await this.smartHome.getMeteringValues();
             if (this.isAdapterStopping()) {
@@ -1243,14 +1351,14 @@ class DSSStructure {
             return { attempted: true, succeeded: false, missingCircuits: meteredCircuits };
         }
 
-        const byId = new Map();
+        const byId = new Map<string, number | undefined>();
         for (const entry of values) {
             if (entry && typeof entry.id === 'string') {
                 byId.set(entry.id, finiteMeterValue(entry.attributes && entry.attributes.value));
             }
         }
 
-        const missingCircuits = [];
+        const missingCircuits: StructureCircuit[] = [];
         for (const circuit of meteredCircuits) {
             const power = byId.get(`dsm-${circuit.dSUID}-power`);
             const energy = byId.get(`dsm-${circuit.dSUID}-energy`);
@@ -1289,10 +1397,8 @@ class DSSStructure {
     /**
      * Delays the next optional Smart Home attempt exponentially. Authentication errors use
      * the maximum delay immediately; saving corrected settings restarts the adapter anyway.
-     *
-     * @param {unknown} err
      */
-    deferSmartHomeMeterRetry(err) {
+    deferSmartHomeMeterRetry(err: unknown): void {
         this.smartHomeMeterFailures++;
         const status = err && typeof err === 'object' && 'status' in err ? err.status : undefined;
         const exponent = Math.min(this.smartHomeMeterFailures - 1, 10);
@@ -1317,7 +1423,7 @@ class DSSStructure {
         }
     }
 
-    resetSmartHomeMeterRetry() {
+    resetSmartHomeMeterRetry(): void {
         this.smartHomeMeterFailures = 0;
         this.smartHomeMeterRetryAfter = 0;
     }
@@ -1328,10 +1434,8 @@ class DSSStructure {
      * Without this the fallback is invisible: the adapter keeps running, just quietly on
      * the classic path. A single log line at startup does not answer "is the new API
      * actually working right now" - a state does, and it can be watched and charted.
-     *
-     * @param {'classic'|'smarthome'} api
      */
-    reportMeteringApi(api) {
+    reportMeteringApi(api: 'classic' | 'smarthome'): void {
         if (this.lastMeteringApi === api) {
             return;
         }
@@ -1342,15 +1446,15 @@ class DSSStructure {
         );
     }
 
-    isAdapterStopping() {
+    isAdapterStopping(): boolean {
         return !!(this.adapter && typeof this.adapter.isStopping === 'function' && this.adapter.isStopping());
     }
 
-    updateMeterData(callback) {
+    updateMeterData(callback?: MeterCallback): void {
         // main.js plant den naechsten Poll-Zyklus ausschliesslich in diesem Callback -
         // er muss deshalb genau einmal laufen, auch wenn ein Handler unerwartet wirft
         let settled = false;
-        const finish = (failed, total) => {
+        const finish = (failed: number, total: number): void => {
             if (settled) {
                 return;
             }
@@ -1426,7 +1530,7 @@ class DSSStructure {
         this.updateMeterDataViaClassicApi(finish);
     }
 
-    updateMeterDataViaClassicApi(callback, circuits) {
+    updateMeterDataViaClassicApi(callback: MeterCallback, circuits?: StructureCircuit[]): void {
         if (this.isAdapterStopping()) {
             callback && setImmediate(() => callback(0, 0));
             return;
@@ -1439,7 +1543,7 @@ class DSSStructure {
         let updateCounter = totalCounter;
         let errorCounter = 0;
         let callbackCalled = false;
-        const finishOne = failed => {
+        const finishOne = (failed: boolean): void => {
             if (failed) {
                 errorCounter++;
             }
@@ -1514,10 +1618,10 @@ class DSSStructure {
         });
     }
 
-    createDevices(devices, callback) {
+    createDevices(devices: StructureDevice[], callback: StructureCallback): void {
         this.addFolderObject('devices', 'Devices');
 
-        this.apartmentCircuits.forEach(circuit => {
+        this.apartmentCircuits!.forEach(circuit => {
             this.addFolderObject(`devices.${circuit.dSUID}`, circuit.name || 'Circuit');
             if (!circuit.hasMetering) {
                 return;
@@ -1599,7 +1703,7 @@ class DSSStructure {
         !deviceCounter && callback && setImmediate(() => callback(null));
     }
 
-    createDevice(dev, callback) {
+    createDevice(dev: StructureDevice, callback: StructureCallback): void {
         if (!dev.isValid || !dev.isPresent) {
             this.adapter.log.debug(`IGNORE DEVICE ${dev.dSUID} because invalid`);
             callback && setImmediate(() => callback(null));
@@ -1607,7 +1711,7 @@ class DSSStructure {
         }
         this.zoneDevices[dev.zoneID] = this.zoneDevices[dev.zoneID] || {};
         dev.groups &&
-            dev.groups.forEach(group => {
+            dev.groups.forEach((group: any) => {
                 this.zoneDevices[dev.zoneID][group] = this.zoneDevices[dev.zoneID][group] || [];
                 this.zoneDevices[dev.zoneID][group].push(dev.dSUID);
             });
@@ -1629,7 +1733,7 @@ class DSSStructure {
 
         if (dev.sensorInputCount) {
             let realSensors = false;
-            dev.sensors.forEach((sensor, idx) => {
+            dev.sensors.forEach((sensor: any, idx: number) => {
                 if (!dssConstants.sensorUnitRoleMap[sensor.type]) {
                     return;
                 }
@@ -1669,7 +1773,7 @@ class DSSStructure {
 
         if (dev.binaryInputCount) {
             this.addFolderObject(`${devId}.binaryInputs`, 'Device Binary Inputs', 'channel');
-            dev.binaryInputs.forEach((input, idx) => {
+            dev.binaryInputs.forEach((input: any, idx: number) => {
                 if (
                     !dssConstants.binaryInputTypeNames[input.inputType] &&
                     input.inputType === 0 &&
@@ -1742,7 +1846,7 @@ class DSSStructure {
 
         dev.outputChannelList = {};
         if (dev.outputMode && dev.outputChannels && dev.outputChannels.length) {
-            dev.outputChannels.forEach(output => {
+            dev.outputChannels.forEach((output: any) => {
                 if (!dssConstants.outputChannelUnitRoleMap[output.channelType]) {
                     // Channels without a channelType (e.g. the media channels of dS audio
                     // devices) are simply not supported - that is not an error worth a warning.
@@ -1763,7 +1867,7 @@ class DSSStructure {
                     `${dev.dSUID}.${output.channelId}`,
                     dssConstants.outputChannelUnitRoleMap[output.channelType],
                 );
-                dev.outputChannelList[output.channelType] = outputChannelId;
+                dev.outputChannelList![output.channelType] = outputChannelId;
 
                 // TODO find generic way to get Output value - currently implemented per device type later (light/shade)
 
@@ -1791,16 +1895,16 @@ class DSSStructure {
             // setDeviceScene: '/device/callScene?dsid=%s&sceneNumber=%s&category=manual',
             // setDeviceValue: '/device/setConfig?&dsuid=%1&class=%2&index=%3&value=%4&category=manual'
             this.addFolderObject(`${devId}.scenes`, 'Device Scenes', 'channel');
-            const sceneList = {};
+            const sceneList: Record<string, string> = {};
             Object.keys(dssConstants.zoneSceneCommands).forEach(scene => {
-                const sceneId = `${devId}.scenes.${this.convertSceneName(dssConstants.zoneSceneCommands[scene])}`;
-                sceneList[scene] = dssConstants.zoneSceneCommands[scene];
+                const sceneId = `${devId}.scenes.${this.convertSceneName(dssConstants.zoneSceneCommands[Number(scene)])}`;
+                sceneList[scene] = dssConstants.zoneSceneCommands[Number(scene)];
 
                 this.addStateObject(
                     sceneId,
                     `${dev.dSUID}.scenes.${scene}`,
                     {
-                        name: dssConstants.zoneSceneCommands[scene],
+                        name: dssConstants.zoneSceneCommands[Number(scene)],
                         type: 'boolean',
                         role: 'switch',
                     },
@@ -1945,10 +2049,10 @@ class DSSStructure {
                     ) {
                         const roleDef = dssConstants.outputChannelUnitRoleMap[output.channelType];
                         const channelIndex =
-                            roleDef.native.channelIndex !== undefined
-                                ? roleDef.native.channelIndex
+                            roleDef.native!.channelIndex !== undefined
+                                ? roleDef.native!.channelIndex
                                 : output.channelIndex;
-                        const nativeMax = roleDef.native.nativeMax;
+                        const nativeMax = roleDef.native!.nativeMax;
 
                         if (
                             output &&
@@ -1958,15 +2062,15 @@ class DSSStructure {
                             this.dssQueue.queueUpdateOutputValue(
                                 dev,
                                 channelIndex,
-                                nativeMax,
+                                nativeMax!, // a channel without native scale reads a single byte, see the queue
                                 'medium',
                                 (err, value) => {
                                     if (err) {
                                         this.logOutputReadError(dev, output.channelType, err);
                                         return;
                                     }
-                                    if (roleDef.native.nativeMax && roleDef.max) {
-                                        value = Math.round((value * roleDef.max) / roleDef.native.nativeMax);
+                                    if (roleDef.native!.nativeMax && roleDef.max) {
+                                        value = Math.round((value * roleDef.max) / roleDef.native!.nativeMax);
                                     }
                                     this.setStateSafe(outputStateId, value);
                                     // Auch dieser dritte klassische Lesepfad zaehlt fuer
@@ -2019,7 +2123,7 @@ class DSSStructure {
                                     roleDef.max !== undefined &&
                                     (value === roleDef.min || value === roleDef.max)
                                 ) {
-                                    value = value > roleDef.min;
+                                    value = value > roleDef.min!;
                                     this.dssQueue.pushQueryQueue(
                                         dev.meterDSUID,
                                         {
@@ -2046,7 +2150,7 @@ class DSSStructure {
                                         },
                                     );
                                 } else {
-                                    const normalizedValue = Math.round((value * nativeMax) / roleDef.max);
+                                    const normalizedValue = Math.round((value * nativeMax) / roleDef.max!);
                                     this.dssQueue.queueSetOutputValue(
                                         dev,
                                         channelIndex,
@@ -2093,7 +2197,7 @@ class DSSStructure {
                         // flood the log on every start.
                         this.adapter.log.debug(
                             `${dev.outputChannels.length} Output values for device ${dev.dSUID} are unsupported: ${dev.outputChannels
-                                .map(output => output.channelId)
+                                .map((output: any) => output.channelId)
                                 .join(', ')}`,
                         );
                     }
@@ -2118,7 +2222,7 @@ class DSSStructure {
                             data.source &&
                             data.source.isDevice
                         ) {
-                            this.queueVdcChannelRead(dev, Object.keys(dev.outputChannelList)[0], 'low', true);
+                            this.queueVdcChannelRead(dev, Object.keys(dev.outputChannelList!)[0], 'low', true);
                         }
                     });
                 }
@@ -2137,7 +2241,7 @@ class DSSStructure {
         }
     }
 
-    createJokerDevice(dev, devId, callback) {
+    createJokerDevice(dev: StructureDevice, devId: string, callback: StructureCallback): void {
         // The state of button 0 belongs to buttonClickType/buttonHoldCount below: the event
         // handler in main.js aborts the whole buttonClick when it is missing, so creating only
         // two of the three states silently swallowed every press of the first button on
@@ -2252,11 +2356,11 @@ class DSSStructure {
         callback && setImmediate(() => callback());
     }
 
-    createLightDevice(dev, devId, callback) {
+    createLightDevice(dev: StructureDevice, devId: string, callback: StructureCallback): void {
         // options is passed straight through to setStateSafe. The read paths hand in
         // skipUnchanged, the write callbacks below deliberately do not: a command has to
         // reach its acknowledgement even when it sets the value that is already there.
-        const setLightValue = (outputType, value, options) => {
+        const setLightValue = (outputType: string, value: number, options?: { skipUnchanged?: boolean }): void => {
             if (outputType !== 'brightness') {
                 this.adapter.log.warn(`Not supported ${outputType} for ${dev.dSUID}`);
                 return;
@@ -2371,12 +2475,12 @@ class DSSStructure {
                     );
                 } else {
                     value = Math.round(
-                        (value * dssConstants.outputChannelUnitRoleMap['brightness'].native.nativeMax) / 100,
+                        (value * dssConstants.outputChannelUnitRoleMap.brightness.native!.nativeMax!) / 100,
                     );
                     this.dssQueue.queueSetOutputValue(
                         dev,
-                        dssConstants.outputChannelUnitRoleMap['brightness'].native.channelIndex,
-                        dssConstants.outputChannelUnitRoleMap['brightness'].native.nativeMax,
+                        dssConstants.outputChannelUnitRoleMap.brightness.native!.channelIndex!,
+                        dssConstants.outputChannelUnitRoleMap.brightness.native!.nativeMax!,
                         value,
                         'high',
                         (err, value) => {
@@ -2406,7 +2510,7 @@ class DSSStructure {
             if (data.name !== 'callScene' && data.name !== 'undoScene') {
                 return;
             }
-            let brightness;
+            let brightness: number | null | undefined;
             if (this.adapter.config.usePresetValues) {
                 brightness = dssConstants.lightSceneValueMap[data.properties.sceneID];
                 if (brightness !== null && brightness !== undefined) {
@@ -2432,13 +2536,11 @@ class DSSStructure {
         callback && setImmediate(() => callback());
     }
 
-    createShaderDevice(dev, devId, callback) {
+    createShaderDevice(dev: StructureDevice, devId: string, callback: StructureCallback): void {
         // Both stay null on a blind that declares no such channel - a blind without tilt
         // has no angle at all, and the handlers below check for exactly that.
-        /** @type {string|null} */
-        let positionName = null;
-        /** @type {string|null} */
-        let angleName = null;
+        let positionName: string | null = null;
+        let angleName: string | null = null;
 
         // The write handlers are registered independently of initializeOutputValues.
         // That option only controls whether output values are READ from the DSS - a blind
@@ -2456,7 +2558,7 @@ class DSSStructure {
                 if (!relevant) {
                     return;
                 }
-                this.dssObjects[dev.outputChannelList[outputType]].onChange = value => {
+                this.dssObjects[dev.outputChannelList![outputType]].onChange = value => {
                     const originalValue = value;
                     if (outputType === positionName && (value === 0 || value === 100)) {
                         value = DSSStructure.toBoolean(value);
@@ -2481,25 +2583,25 @@ class DSSStructure {
                                         err,
                                     );
                                 } else {
-                                    this.setStateSafe(dev.outputChannelList[outputType], originalValue);
+                                    this.setStateSafe(dev.outputChannelList![outputType], originalValue);
                                 }
                             },
                         );
                     } else {
                         value = Math.round(
-                            (value * dssConstants.outputChannelUnitRoleMap[outputType].native.nativeMax) / 100,
+                            (value * dssConstants.outputChannelUnitRoleMap[outputType].native!.nativeMax!) / 100,
                         );
                         this.dssQueue.queueSetOutputValue(
                             dev,
-                            dssConstants.outputChannelUnitRoleMap[outputType].native.channelIndex,
-                            dssConstants.outputChannelUnitRoleMap[outputType].native.nativeMax,
+                            dssConstants.outputChannelUnitRoleMap[outputType].native!.channelIndex!,
+                            dssConstants.outputChannelUnitRoleMap[outputType].native!.nativeMax!,
                             value,
                             'high',
                             err => {
                                 if (err) {
                                     this.logOutputWriteError(dev, err);
                                 } else {
-                                    this.setStateSafe(dev.outputChannelList[outputType], originalValue);
+                                    this.setStateSafe(dev.outputChannelList![outputType], originalValue);
                                 }
                             },
                         );
@@ -2514,7 +2616,7 @@ class DSSStructure {
             });
         }
 
-        const valueUpdateTimeouts = {};
+        const valueUpdateTimeouts: Record<string, NodeJS.Timeout | null> = {};
         this.dss.on(dev.dSUID, data => {
             this.adapter.log.debug(`DEVICE event ${JSON.stringify(data)}`);
             if (data.name !== 'callScene' && data.name !== 'undoScene') {
@@ -2530,13 +2632,13 @@ class DSSStructure {
                 let shadePos = dssConstants.shadeSceneValueMap[data.properties.sceneID];
                 if (shadePos !== null && shadePos !== undefined) {
                     shadePos = Math.round((shadePos * 100) / 65535);
-                    positionName && this.setStateSafe(dev.outputChannelList[positionName], shadePos);
-                    if ((shadePos === 0 || shadePos === 100) && angleName && dev.outputChannelList[angleName]) {
-                        if (!this.dssObjects[dev.outputChannelList[angleName]]) {
-                            this.adapter.log.warn(`Can not set unknown state ${dev.outputChannelList[angleName]}`);
+                    positionName && this.setStateSafe(dev.outputChannelList![positionName], shadePos);
+                    if ((shadePos === 0 || shadePos === 100) && angleName && dev.outputChannelList![angleName]) {
+                        if (!this.dssObjects[dev.outputChannelList![angleName]]) {
+                            this.adapter.log.warn(`Can not set unknown state ${dev.outputChannelList![angleName]}`);
                         } else {
-                            this.setStateSafe(dev.outputChannelList[angleName], shadePos);
-                            this.initialObjectValues[dev.outputChannelList[angleName]] = shadePos;
+                            this.setStateSafe(dev.outputChannelList![angleName], shadePos);
+                            this.initialObjectValues[dev.outputChannelList![angleName]] = shadePos;
                         }
                     }
                 }
@@ -2584,11 +2686,10 @@ class DSSStructure {
      * fault, and the value is re-read after every scene. So it is reported once per device
      * and channel and only at debug afterwards.
      *
-     * @param {StructureDevice} dev device as reported by the DSS
-     * @param {string} outputType e.g. "shadeOpeningAngleOutside"
-     * @param {Error} err
+     * @param dev device as reported by the DSS
+     * @param outputType e.g. "shadeOpeningAngleOutside"
      */
-    logOutputReadError(dev, outputType, err) {
+    logOutputReadError(dev: StructureDevice, outputType: string, err: Error): void {
         const key = `${dev.dSUID}.${outputType}`;
         const message = `Could not read ${outputType} of ${dev.name || dev.dSUID}: ${(err && err.message) || err}`;
         if (DSSQueue.isExpectedQueueError(err)) {
@@ -2616,11 +2717,8 @@ class DSSStructure {
      * - a request cancelled by the adapter stop is expected as well
      *
      * Everything else (network errors, DSS error responses, invalid answers) stays a warning.
-     *
-     * @param {string} message
-     * @param {Error} [err]
      */
-    logQueueError(message, err) {
+    logQueueError(message: string, err?: Error): void {
         if (DSSQueue.isExpectedQueueError(err)) {
             this.adapter.log.debug(message);
             return;
@@ -2633,10 +2731,9 @@ class DSSStructure {
      * write of the same value be skipped safely: a state someone changed in the dSS
      * must not look unchanged to us.
      *
-     * @param {string} id ioBroker state id
-     * @param {any} value
+     * @param id ioBroker state id
      */
-    noteUserStateValue(id, value) {
+    noteUserStateValue(id: string, value: any): void {
         const tracked = this.userStates.get(id);
         if (tracked) {
             tracked.value = value;
@@ -2648,15 +2745,16 @@ class DSSStructure {
      * processObjectQueue() has created the objects - such a value is parked as an initial
      * value instead of being written to an object that does not exist yet.
      *
-     * @param {string} id ioBroker state id
-     * @param {any} value
-     * @param {{skipUnchanged?: boolean}} [options] skipUnchanged drops a write that would
+     * @param id ioBroker state id
+     * @param value the value to write
+     * @param [options] write options
+     * @param [options.skipUnchanged] drops a write that would
      *   publish the value that is already there. ONLY for polling and reconciling paths -
      *   see this.publishedValues.
-     * @returns {boolean} true when the value really went out, so a caller that counts its
+     * @returns true when the value really went out, so a caller that counts its
      *   writes counts writes and not attempts
      */
-    setStateSafe(id, value, options) {
+    setStateSafe(id: string, value: any, options?: { skipUnchanged?: boolean }): boolean {
         if (value === undefined) {
             return false;
         }
@@ -2676,11 +2774,8 @@ class DSSStructure {
      * adapter writes, and from the acknowledged echo in onStateChange() for everything
      * someone else wrote - without the second half a state overwritten by another adapter
      * could never be corrected by the next reconciliation.
-     *
-     * @param {string} id
-     * @param {any} value
      */
-    notePublishedValue(id, value) {
+    notePublishedValue(id: string, value: any): void {
         this.publishedValues.set(id, value);
     }
 
@@ -2696,11 +2791,11 @@ class DSSStructure {
      * came. Both forms end up in coerceScalarValue(), which knows what to do with a boolean
      * as well as with "off".
      *
-     * @param {Record<string, any>|null|undefined} state one entry of the property dump -
+     * @param state one entry of the property dump -
      *   the callers walk a list the dSS delivered, so an unusable entry is a normal case
-     * @returns {any} the value to park as the initial one, undefined when there is none
+     * @returns the value to park as the initial one, undefined when there is none
      */
-    static initialStateValue(state) {
+    static initialStateValue(state: Record<string, any> | null | undefined): any {
         if (!state) {
             return undefined;
         }
@@ -2710,11 +2805,8 @@ class DSSStructure {
     /**
      * Converts a written state value into a boolean. Plain !!value would turn the
      * strings "false" and "0" into true.
-     *
-     * @param {unknown} value
-     * @returns {boolean}
      */
-    static toBoolean(value) {
+    static toBoolean(value: unknown): boolean {
         if (typeof value === 'string') {
             const normalized = value.trim().toLowerCase();
             // The DSS uses different words for the "off" state depending on the state type
@@ -2734,11 +2826,12 @@ class DSSStructure {
      * map lookup answers it with null like any unknown scene - so undefined belongs in
      * the type instead of being an unwritten assumption.
      *
-     * @param {number|string|undefined} sceneId
-     * @returns {string|null} converted scene name or null when the scene is unknown
+     * @returns converted scene name or null when the scene is unknown
      */
-    resolveSceneStateName(sceneId) {
-        const name = dssConstants.apartmentScenes[sceneId] || dssConstants.zoneSceneCommands[sceneId];
+    resolveSceneStateName(sceneId: number | string | undefined): string | null {
+        // A string or a missing id indexes the maps the same way it always did
+        const name =
+            dssConstants.apartmentScenes[sceneId as number] || dssConstants.zoneSceneCommands[sceneId as number];
         if (!name) {
             return null;
         }
@@ -2755,12 +2848,12 @@ class DSSStructure {
      * Resolving the name generically here would mark the generic state as active while
      * every later event toggles the special one - both would permanently disagree.
      *
-     * @param {string} dssSceneKey state map key, e.g. "5.48.scenes.0"
-     * @param {number|string} sceneId scene number reported by the DSS
-     * @param {string} baseId object path that holds the "scenes" channel
-     * @returns {string|null} state id or null when the scene has no state
+     * @param dssSceneKey state map key, e.g. "5.48.scenes.0"
+     * @param sceneId scene number reported by the DSS
+     * @param baseId object path that holds the "scenes" channel
+     * @returns state id or null when the scene has no state
      */
-    resolveSceneStateId(dssSceneKey, sceneId, baseId) {
+    resolveSceneStateId(dssSceneKey: string, sceneId: number | string, baseId: string): string | null {
         const mapped = this.stateMap[dssSceneKey];
         if (mapped) {
             return mapped;
@@ -2775,12 +2868,12 @@ class DSSStructure {
      * Logs a failed output write. A superseded request is normal for fast slider
      * movements and therefore only logged at debug level.
      *
-     * @param {StructureDevice} dev
-     * @param {any} err whatever the queue rejected with - the DSS layer hands over an
+     * @param dev the device the value was meant for
+     * @param err whatever the queue rejected with - the DSS layer hands over an
      *   Error, a response message or a bare status code, which is why the callers read it
      *   as `(err && err.message) || err`
      */
-    logOutputWriteError(dev, err) {
+    logOutputWriteError(dev: StructureDevice, err: any): void {
         if (DSSQueue.isExpectedQueueError(err)) {
             this.adapter.log.debug(
                 `Output value for ${dev.dSUID} was not sent: ${(err && err.message) || err} (expected, no error)`,
@@ -2790,7 +2883,7 @@ class DSSStructure {
         this.adapter.log.warn(`Error when setting output value for ${dev.dSUID}: ${(err && err.message) || err}`);
     }
 
-    convertSceneName(name) {
+    convertSceneName(name: string): string {
         if (!name) {
             return name;
         }
@@ -2802,7 +2895,7 @@ class DSSStructure {
         return name;
     }
 
-    createUserActions() {
+    createUserActions(): void {
         if (!this.userActions || !this.userActions.length) {
             return;
         }
@@ -2852,7 +2945,7 @@ class DSSStructure {
      * dSS. Kept in its own method so the write path can be tested without building a
      * whole apartment.
      */
-    createApartmentUserStates() {
+    createApartmentUserStates(): void {
         if (this.propertyUserStates && this.propertyUserStates.length) {
             this.addFolderObject('apartment.userStates', 'Apartment User States', 'channel');
 
@@ -2922,7 +3015,7 @@ class DSSStructure {
      * really removed from the installation keeps its object too - deleting it stays a
      * deliberate step of the user.
      */
-    createOutdoorSensors() {
+    createOutdoorSensors(): void {
         const outdoor = (this.sensorValues && this.sensorValues.outdoor) || {};
         const existingStates = (this.adapter.objectHelper && this.adapter.objectHelper.existingStates) || {};
         const knownWithoutValue = Object.keys(dssConstants.sensorValuesRoleMapOutdoor).filter(
@@ -2933,10 +3026,10 @@ class DSSStructure {
         }
         this.addFolderObject('apartment.sensors.outdoor', 'Apartment Outdoor Sensors', 'channel');
 
-        const addSensor = sensorName =>
+        const addSensor = (sensorName: string): void =>
             this.addStateObject(
                 `apartment.sensors.outdoor.${sensorName}`,
-                `0.sensors.${dssConstants.sensorValuesRoleMapOutdoor[sensorName].native.sensorType}`,
+                `0.sensors.${dssConstants.sensorValuesRoleMapOutdoor[sensorName].native!.sensorType}`,
                 dssConstants.sensorValuesRoleMapOutdoor[sensorName],
             );
 
@@ -2964,18 +3057,22 @@ class DSSStructure {
         });
     }
 
-    createApartment(apartment, reachableZoneGroups, callback) {
+    createApartment(
+        apartment: Record<string, any>,
+        reachableZoneGroups: Record<string, any>,
+        callback: StructureCallback,
+    ): void {
         this.addFolderObject('apartment', 'Apartment');
 
         let callbackCounter = 0;
-        /** @type {Set<string>} zones that are assigned to a floor, see the check below */
-        const zonesOnAFloor = new Set();
+        // zones that are assigned to a floor, see the check below
+        const zonesOnAFloor = new Set<string>();
         // Create Floors and Zones and Groups inside
         Object.keys(apartment.floors).forEach(floorId => {
             const floor = apartment.floors[floorId];
             this.addFolderObject(`apartment.${floorId}`, floor.name || `Floor ${floorId}`);
 
-            floor.zones.forEach(zoneId => {
+            floor.zones.forEach((zoneId: any) => {
                 zonesOnAFloor.add(String(zoneId));
                 callbackCounter++;
                 const zoneReachableGroups = (reachableZoneGroups[zoneId] && reachableZoneGroups[zoneId].groups) || [];
@@ -3015,21 +3112,21 @@ class DSSStructure {
 
         this.addFolderObject('apartment.scenes', 'Apartment Scenes', 'channel');
 
-        const sceneList = {};
+        const sceneList: Record<string, string> = {};
         Object.keys(dssConstants.apartmentScenes).forEach(sceneId => {
             // Object.keys() delivers strings - compare as numbers instead of relying on
             // the implicit coercion of the relational operators
             if (Number(sceneId) >= 67 && Number(sceneId) <= 70) {
                 return;
             } // ignore Zone Scenes?
-            const sceneStateId = `apartment.scenes.${this.convertSceneName(dssConstants.apartmentScenes[sceneId])}`;
-            sceneList[sceneId] = dssConstants.apartmentScenes[sceneId];
+            const sceneStateId = `apartment.scenes.${this.convertSceneName(dssConstants.apartmentScenes[Number(sceneId)])}`;
+            sceneList[sceneId] = dssConstants.apartmentScenes[Number(sceneId)];
 
             this.addStateObject(
                 sceneStateId,
                 `0.0.scenes.${sceneId}`,
                 {
-                    name: `Apartment ${dssConstants.apartmentScenes[sceneId]}`,
+                    name: `Apartment ${dssConstants.apartmentScenes[Number(sceneId)]}`,
                     type: 'boolean',
                     role: 'switch',
                 },
@@ -3108,17 +3205,17 @@ class DSSStructure {
                 },
                 'high',
                 (err, res) => {
-                    if (err || (res && !res.ok) || !res.result || res.result.scene === undefined) {
+                    if (err || (res && !res.ok) || !res!.result || res!.result.scene === undefined) {
                         this.logQueueError(
                             `Error while getLastCalledScene for apartment: ${err || JSON.stringify(res)}`,
                             err,
                         );
                     } else {
-                        this.initialObjectValues['apartment.scenes.sceneId'] = res.result.scene;
-                        this.initialScenes['0.0'] = res.result.scene;
+                        this.initialObjectValues['apartment.scenes.sceneId'] = res!.result.scene;
+                        this.initialScenes['0.0'] = res!.result.scene;
                         const sceneStateId = this.resolveSceneStateId(
-                            `0.0.scenes.${res.result.scene}`,
-                            res.result.scene,
+                            `0.0.scenes.${res!.result.scene}`,
+                            res!.result.scene,
                             'apartment',
                         );
                         if (sceneStateId && this.dssObjects[sceneStateId]) {
@@ -3213,7 +3310,7 @@ class DSSStructure {
         // Create Apartment groups, as soon as at least one device is present
         this.addFolderObject('apartment.groups', 'Apartment Groups');
 
-        apartment.zone0.groups.forEach(group => {
+        apartment.zone0.groups.forEach((group: any) => {
             if (!group.devices || !group.devices.length) {
                 this.skippedStatePrefixes.add(`zone.0.group.${group.id}.`);
                 return;
@@ -3233,19 +3330,26 @@ class DSSStructure {
         !callbackCounter && callback && setImmediate(() => callback(null));
     }
 
-    processZone(baseId, zone, reachableGroups, sensorValues, temperatureControlStatus, callback) {
+    processZone(
+        baseId: string,
+        zone: StructureZone | undefined,
+        reachableGroups: number[],
+        sensorValues: any,
+        temperatureControlStatus: TemperatureControlStatus | undefined,
+        callback: StructureCallback,
+    ): void {
         if (!zone) {
             this.adapter.log.debug('INVALID ZONE (not contained in apartment structure)');
-            return callback && setImmediate(callback, null);
+            return void (callback && setImmediate(callback, null));
         }
         if (!zone.isPresent) {
             this.adapter.log.debug(`Ignore not present zone ${zone.id}`);
             this.skippedStatePrefixes.add(`zone.${zone.id}.`);
-            return callback && setImmediate(callback, null);
+            return void (callback && setImmediate(callback, null));
         }
         if (this.processedZones[zone.id]) {
             this.adapter.log.debug(`Zone ${zone.id} already processec`);
-            return callback && setImmediate(callback, null);
+            return void (callback && setImmediate(callback, null));
         }
 
         const zoneBaseId = `${baseId}.${zone.id}`;
@@ -3307,7 +3411,7 @@ class DSSStructure {
         this.createZoneSensorStates(zoneBaseId, zone);
 
         let groupCounter = 0;
-        zone.groups.forEach(group => {
+        zone.groups.forEach((group: any) => {
             if (!reachableGroups.includes(group.id)) {
                 this.skippedStatePrefixes.add(`zone.${zone.id}.group.${group.id}.`);
                 return;
@@ -3323,7 +3427,7 @@ class DSSStructure {
 
         this.addFolderObject(`${zoneBaseId}.scenes`, `${zone.name || `Zone ${zone.id}`} Scenes`, 'channel');
 
-        const sceneList = {};
+        const sceneList: Record<string, string> = {};
         this.basicRoomScenes.forEach(sceneId => {
             const sceneStateId = `${zoneBaseId}.scenes.${this.convertSceneName(dssConstants.zoneSceneCommands[sceneId])}`;
             sceneList[sceneId] = dssConstants.zoneSceneCommands[sceneId];
@@ -3455,17 +3559,17 @@ class DSSStructure {
                 },
                 'high',
                 (err, res) => {
-                    if (err || (res && !res.ok) || !res.result || res.result.scene === undefined) {
+                    if (err || (res && !res.ok) || !res!.result || res!.result.scene === undefined) {
                         this.logQueueError(
                             `Error while getLastCalledScene for zone ${zone.id}: ${err || JSON.stringify(res)}`,
                             err,
                         );
                     } else {
-                        this.initialObjectValues[`${zoneBaseId}.scenes.sceneId`] = res.result.scene;
-                        this.initialScenes[`${zone.id}.0`] = res.result.scene;
+                        this.initialObjectValues[`${zoneBaseId}.scenes.sceneId`] = res!.result.scene;
+                        this.initialScenes[`${zone.id}.0`] = res!.result.scene;
                         const sceneStateId = this.resolveSceneStateId(
-                            `${zone.id}.0.scenes.${res.result.scene}`,
-                            res.result.scene,
+                            `${zone.id}.0.scenes.${res!.result.scene}`,
+                            res!.result.scene,
                             zoneBaseId,
                         );
                         if (sceneStateId && this.dssObjects[sceneStateId]) {
@@ -3488,11 +3592,11 @@ class DSSStructure {
             sensorValues.values.push(temperatureControlStatus);
         }
         Object.keys(dssConstants.sensorValuesRoleMapZone).forEach(sensorValueName => {
-            const sensor = sensorValues.values.find(val => val && val[sensorValueName] !== undefined) || {};
+            const sensor = sensorValues.values.find((val: any) => val && val[sensorValueName] !== undefined) || {};
 
             this.addStateObject(
                 `${zoneBaseId}.sensors.${sensorValueName}`,
-                `${zone.id}.sensors.${dssConstants.sensorValuesRoleMapZone[sensorValueName].native.sensorType}`,
+                `${zone.id}.sensors.${dssConstants.sensorValuesRoleMapZone[sensorValueName].native!.sensorType}`,
                 dssConstants.sensorValuesRoleMapZone[sensorValueName],
                 value => {
                     this.dssQueue.pushQueryQueue(
@@ -3503,7 +3607,7 @@ class DSSStructure {
                             params: {
                                 id: zone.id,
                                 groupID: 0,
-                                sensorType: dssConstants.sensorValuesRoleMapZone[sensorValueName].native.sensorType,
+                                sensorType: dssConstants.sensorValuesRoleMapZone[sensorValueName].native!.sensorType,
                                 sensorValue: value,
                             },
                         },
@@ -3545,10 +3649,10 @@ class DSSStructure {
      * value list of its own), so an identifier without an entry in zoneSensorStateRoleMap
      * still gets a boolean. Unknown leaves it empty, like every other boolean state.
      *
-     * @param {string} zoneBaseId object path of the zone
-     * @param {StructureZone} zone zone as reported by the DSS
+     * @param zoneBaseId object path of the zone
+     * @param zone zone as reported by the DSS
      */
-    createZoneSensorStates(zoneBaseId, zone) {
+    createZoneSensorStates(zoneBaseId: string, zone: StructureZone): void {
         const states = this.addonSensorStates.filter(state => state.zoneId === zone.id && state.groupId === 0);
         // A failed read says nothing about the room. The objects of the last start keep their
         // mapping and their last value, the way createOutdoorSensors() keeps a sensor the dSS
@@ -3586,14 +3690,16 @@ class DSSStructure {
      * the dSS name kept in native.dssStateName. Their stored id is kept as it is, with a
      * _type<n> suffix or cleaned characters.
      *
-     * @param {string} zoneBaseId object path of the zone
-     * @param {StructureZone} zone zone as reported by the DSS
-     * @returns {Array<{id: string, state: {name: string, identifier: string}}>}
+     * @param zoneBaseId object path of the zone
+     * @param zone zone as reported by the DSS
      */
-    knownZoneSensorStates(zoneBaseId, zone) {
+    knownZoneSensorStates(
+        zoneBaseId: string,
+        zone: StructureZone,
+    ): Array<{ id: string; state: { name: string; identifier: string } }> {
         const existingStates = (this.adapter.objectHelper && this.adapter.objectHelper.existingStates) || {};
         const prefix = `${zoneBaseId}.states.`;
-        const result = [];
+        const result: Array<{ id: string; state: { name: string; identifier: string } }> = [];
         Object.keys(existingStates).forEach(id => {
             const obj = existingStates[id];
             const name = id.startsWith(prefix) && obj && obj.native ? obj.native.dssStateName : undefined;
@@ -3607,11 +3713,8 @@ class DSSStructure {
 
     /**
      * The object definition of a room sensor state of a dSS app, see createZoneSensorStates().
-     *
-     * @param {{name: string, identifier: string}} state
-     * @returns {Record<string, any>}
      */
-    static zoneSensorStateDefinition(state) {
+    static zoneSensorStateDefinition(state: { name: string; identifier: string }): Record<string, any> {
         const definition = dssConstants.zoneSensorStateRoleMap[state.identifier] || {
             name: state.identifier,
             role: 'indicator',
@@ -3634,10 +3737,9 @@ class DSSStructure {
      * controller only carries `ControlMode: 0` and no values at all. Creating the control
      * objects for those would only produce states that stay empty forever.
      *
-     * @param {TemperatureControlStatus} [status] per zone entry of apartment/getTemperatureControlStatus
-     * @returns {boolean}
+     * @param [status] per zone entry of apartment/getTemperatureControlStatus
      */
-    hasTemperatureControl(status) {
+    hasTemperatureControl(status?: TemperatureControlStatus): status is TemperatureControlStatus {
         return !!status && typeof status.ControlMode === 'number' && status.ControlMode > 0;
     }
 
@@ -3653,12 +3755,16 @@ class DSSStructure {
      * answered - an unsupported firmware simply gets no set point objects instead of a
      * folder full of dead states.
      *
-     * @param {string} zoneBaseId object path of the zone
-     * @param {StructureZone} zone zone as reported by the DSS
-     * @param {TemperatureControlStatus} status per zone entry of apartment/getTemperatureControlStatus
-     * @param {() => void} callback
+     * @param zoneBaseId object path of the zone
+     * @param zone zone as reported by the DSS
+     * @param status per zone entry of apartment/getTemperatureControlStatus
      */
-    createTemperatureControl(zoneBaseId, zone, status, callback) {
+    createTemperatureControl(
+        zoneBaseId: string,
+        zone: StructureZone,
+        status: TemperatureControlStatus,
+        callback: () => void,
+    ): void {
         const baseId = `${zoneBaseId}.temperatureControl`;
         this.addFolderObject(baseId, `${zone.name || `Zone ${zone.id}`} Temperature Control`, 'channel');
 
@@ -3795,9 +3901,9 @@ class DSSStructure {
         );
     }
 
-    processGroup(groupBaseId, zoneId, group, callback) {
+    processGroup(groupBaseId: string, zoneId: number, group: any, callback: StructureCallback): void {
         if (!group.isPresent || !group.isValid) {
-            return callback && setImmediate(callback, null);
+            return void (callback && setImmediate(callback, null));
         }
         // Request via the queue to not flood the DSS with a request burst on startup
         this.dssQueue.pushQueryQueue(
@@ -3824,7 +3930,7 @@ class DSSStructure {
                 this.addFolderObject(groupBaseId, group.name || `Group ${group.id}`);
                 this.addFolderObject(`${groupBaseId}.scenes`, `${group.name || `Group ${group.id}`} Scenes`, 'channel');
 
-                const sceneList = {};
+                const sceneList: Record<string, string> = {};
                 const reachableResult = (reachableScenes && reachableScenes.result) || {};
                 const scenesToProcess = reachableResult.reachableScenes || [];
                 this.basicRoomScenes.forEach(sceneId => scenesToProcess.push(sceneId)); // enhance
@@ -3833,9 +3939,9 @@ class DSSStructure {
                     if (scenesToProcess.includes(0)) {
                         scenesToProcess.push(40); // Add Auto-Off if we support off
                     }
-                    scenesToProcess.forEach(sceneId => {
-                        let sceneStateId;
-                        let sceneName;
+                    scenesToProcess.forEach((sceneId: any) => {
+                        let sceneStateId: string;
+                        let sceneName: string;
                         if (zoneId === 0) {
                             if (!dssConstants.apartmentScenes[sceneId] && !dssConstants.zoneSceneCommands[sceneId]) {
                                 this.adapter.log.warn(`IGNORE INVALID SCENEID ${sceneId}`);
@@ -3945,9 +4051,9 @@ class DSSStructure {
                 if (group.id === 48 && zoneId !== 0) {
                     Object.keys(dssConstants.temperatureControlScenes).forEach(sceneId => {
                         const sceneStateId = `${groupBaseId}.scenes.${this.convertSceneName(
-                            dssConstants.temperatureControlScenes[sceneId],
+                            dssConstants.temperatureControlScenes[Number(sceneId)],
                         )}`;
-                        const sceneName = dssConstants.temperatureControlScenes[sceneId];
+                        const sceneName = dssConstants.temperatureControlScenes[Number(sceneId)];
                         sceneList[sceneId] = sceneName;
 
                         this.addStateObject(
@@ -3991,9 +4097,9 @@ class DSSStructure {
                 if ((group.id === 10 || group.id === 64) && zoneId !== 0) {
                     Object.keys(dssConstants.ventilationControlScenes).forEach(sceneId => {
                         const sceneStateId = `${groupBaseId}.scenes.${this.convertSceneName(
-                            dssConstants.ventilationControlScenes[sceneId],
+                            dssConstants.ventilationControlScenes[Number(sceneId)],
                         )}`;
-                        const sceneName = dssConstants.ventilationControlScenes[sceneId];
+                        const sceneName = dssConstants.ventilationControlScenes[Number(sceneId)];
                         sceneList[sceneId] = sceneName;
 
                         this.addStateObject(
@@ -4086,7 +4192,7 @@ class DSSStructure {
                         },
                         'high',
                         (err, res) => {
-                            if (err || (res && !res.ok) || !res.result || res.result.scene === undefined) {
+                            if (err || (res && !res.ok) || !res!.result || res!.result.scene === undefined) {
                                 this.logQueueError(
                                     `Error while getLastCalledScene for group ${zoneId}.${group.id}: ${
                                         err || JSON.stringify(res)
@@ -4094,11 +4200,11 @@ class DSSStructure {
                                     err,
                                 );
                             } else {
-                                this.initialObjectValues[`${groupBaseId}.scenes.sceneId`] = res.result.scene;
-                                this.initialScenes[`${zoneId}.${group.id}`] = res.result.scene;
+                                this.initialObjectValues[`${groupBaseId}.scenes.sceneId`] = res!.result.scene;
+                                this.initialScenes[`${zoneId}.${group.id}`] = res!.result.scene;
                                 const sceneStateId = this.resolveSceneStateId(
-                                    `${zoneId}.${group.id}.scenes.${res.result.scene}`,
-                                    res.result.scene,
+                                    `${zoneId}.${group.id}.scenes.${res!.result.scene}`,
+                                    res!.result.scene,
                                     groupBaseId,
                                 );
                                 if (sceneStateId && this.dssObjects[sceneStateId]) {
@@ -4177,8 +4283,8 @@ class DSSStructure {
                                         params: {
                                             name: state.name,
                                             value: value
-                                                ? this.dssObjects[stateId].native.valueTrue
-                                                : this.dssObjects[stateId].native.valueFalse,
+                                                ? this.dssObjects[stateId].native!.valueTrue
+                                                : this.dssObjects[stateId].native!.valueFalse,
                                         },
                                     },
                                     'high',
@@ -4202,8 +4308,8 @@ class DSSStructure {
         );
     }
 
-    addFolderObject(id, name, type) {
-        const obj = {
+    addFolderObject(id: string, name: ioBroker.StringOrTranslated, type?: 'folder' | 'channel' | 'device'): void {
+        const obj: StructureObject = {
             type: type || 'folder',
             common: {
                 // Circuits, rooms and devices carry the names of the dSS. One the dSS still
@@ -4221,7 +4327,34 @@ class DSSStructure {
         );
     }
 
-    addStateObject(id, dssId, objData, value, onChange) {
+    /**
+     * Adds a state to the object tree. The state map key (dssId) and the initial value may
+     * be left out - the arguments are shifted at runtime, so the implementation takes them
+     * untyped.
+     *
+     * @param id ioBroker id of the state
+     * @param dssId key of the state map the DSS events are resolved with
+     * @param objData common part of the object, its native part under .native
+     * @param value initial value
+     * @param onChange write handler
+     */
+    addStateObject(id: string, objData: Record<string, any>, onChange?: StateChangeHandler): void;
+    addStateObject(id: string, dssId: string | null, objData: Record<string, any>, onChange?: StateChangeHandler): void;
+    addStateObject(id: string, objData: Record<string, any>, value: any, onChange?: StateChangeHandler): void;
+    addStateObject(
+        id: string,
+        dssId: string | null,
+        objData: Record<string, any>,
+        value: any,
+        onChange?: StateChangeHandler,
+    ): void;
+    addStateObject(
+        id: string,
+        dssId: string | null | Record<string, any>,
+        objData?: any,
+        value?: any,
+        onChange?: any,
+    ): void {
         if (typeof dssId === 'object') {
             onChange = value;
             value = objData;
@@ -4234,7 +4367,7 @@ class DSSStructure {
         }
 
         objData = JSON.parse(JSON.stringify(objData));
-        let native = {};
+        let native: Record<string, any> = {};
         if (objData.native) {
             native = objData.native;
             delete objData.native;
@@ -4243,7 +4376,7 @@ class DSSStructure {
         if (typeof objData.name === 'string') {
             objData.name = decodeDssEntities(objData.name);
         }
-        const obj = {
+        const obj: StructureObject = {
             type: 'state',
             common: objData,
             native,
@@ -4261,17 +4394,15 @@ class DSSStructure {
             `${spacesStr.substr(0, idLength * 2)}CREATE state ${id} value = ${value} WITH ${JSON.stringify(obj)}`,
         );
     }
+
+    static FALSY_STATE_WORDS = ['', '0', 'false', 'off', 'inactive', 'no', 'disabled', 'closed'];
+    // The word the dSS uses for a state it has no information about. A state without words of
+    // its own counts 1 = active, 2 = inactive, 3 = unknown; one with its own words numbers
+    // those instead (a window handle: 1 = closed, 2 = open, 3 = tilted). So only the word
+    // says "unknown", never the number (dss-mainline src/model/modelconst.h eState,
+    // src/model/state.cpp State::toString()). Neither true nor false, see
+    // Digitalstrom.coerceScalarValue().
+    static UNKNOWN_STATE_WORD = 'unknown';
+    static decodeDssEntities = decodeDssEntities;
+    static wattSecondsToKwh = wattSecondsToKwh;
 }
-
-DSSStructure.FALSY_STATE_WORDS = ['', '0', 'false', 'off', 'inactive', 'no', 'disabled', 'closed'];
-// The word the dSS uses for a state it has no information about. A state without words of
-// its own counts 1 = active, 2 = inactive, 3 = unknown; one with its own words numbers
-// those instead (a window handle: 1 = closed, 2 = open, 3 = tilted). So only the word
-// says "unknown", never the number (dss-mainline src/model/modelconst.h eState,
-// src/model/state.cpp State::toString()). Neither true nor false, see
-// Digitalstrom.coerceScalarValue().
-DSSStructure.UNKNOWN_STATE_WORD = 'unknown';
-DSSStructure.decodeDssEntities = decodeDssEntities;
-DSSStructure.wattSecondsToKwh = wattSecondsToKwh;
-
-module.exports = DSSStructure;

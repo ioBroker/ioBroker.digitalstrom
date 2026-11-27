@@ -1,27 +1,77 @@
-const EventEmitter = require('node:events');
-const http = require('node:http');
-const https = require('node:https');
-const { normalizeBoolean, errorMessage, asError, markShutdown } = require('./configUtils');
+import { EventEmitter } from 'node:events';
+import * as http from 'node:http';
+import * as https from 'node:https';
+import { normalizeBoolean, errorMessage, asError, markShutdown } from './configUtils';
+import type { AdapterError, DssResponse } from './configUtils';
+
+export type SubscribeCallback = (errs: Error[] | null) => void;
 
 /**
- * @typedef {(errs: Error[]|null) => void} SubscribeCallback
- * @typedef {import('./configUtils').AdapterError} AdapterError
- * @typedef {import('./configUtils').DssResponse} DssResponse
- *
  * One long-poll of the DSS. Every event name of a subscription id shares it, which is
  * why the error count and the retry timer live here and not per event name.
- * @typedef {object} EventChannel
- * @property {number} subscriptionId the id every event name of this channel shares
- * @property {number} timeout long-poll timeout in ms
- * @property {number} errorCount consecutive failures of event/get on this channel
- * @property {NodeJS.Timeout|null} retryTimer pending re-poll after a failure
- * @property {boolean} polling true while an event/get is in flight
- * @property {number} lastPollTime when the running long-poll was started
- *
+ */
+export interface EventChannel {
+    /** the id every event name of this channel shares */
+    subscriptionId: number;
+    /** long-poll timeout in ms */
+    timeout: number;
+    /** consecutive failures of event/get on this channel */
+    errorCount: number;
+    /** pending re-poll after a failure */
+    retryTimer: NodeJS.Timeout | null;
+    /** true while an event/get is in flight */
+    polling: boolean;
+    /** when the running long-poll was started */
+    lastPollTime: number;
+}
+
+/**
  * An event as this adapter passes it on: name is a string, source and properties are
  * always objects, see normalizeEvent().
- * @typedef {{name: string, source: Record<string, any>, properties: Record<string, any>} & Record<string, any>} DssEvent
  */
+export type DssEvent = { name: string; source: Record<string, any>; properties: Record<string, any> } & Record<
+    string,
+    any
+>;
+
+/** The logger the client writes to */
+export interface DssLogger {
+    silly?: (message: string) => void;
+    debug: (message: string) => void;
+    info: (message: string) => void;
+    warn: (message: string) => void;
+    error: (message: string) => void;
+}
+
+export interface DSSOptions {
+    host?: string;
+    appToken?: string;
+    subScriptionId?: number;
+    subScriptionTimeout?: number;
+    requestTimeout?: number;
+    /** Optional activity hook, see DSS.onActivity */
+    onActivity?: ((kind: string, detail: string) => void) | null;
+    /** Raw configuration value, normalized with normalizeBoolean() */
+    validateCertificate?: unknown;
+    apiMaxSockets?: number;
+    eventMaxSockets?: number;
+    logger?: DssLogger;
+}
+
+export interface RequestOptions {
+    /** timeout override in ms */
+    timeout?: number;
+    /** use the separate event agent for long-polls */
+    eventPoll?: boolean;
+    /** overrides the endpoint based default */
+    retryOnConnectionError?: boolean;
+}
+
+/** The part of node:http and node:https this client uses */
+interface Transport {
+    Agent: new (options: https.AgentOptions) => http.Agent;
+    get(url: string, options: http.RequestOptions, callback: (res: http.IncomingMessage) => void): http.ClientRequest;
+}
 
 const RETRYABLE_ERROR_CODES = ['ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'ECONNREFUSED'];
 
@@ -41,30 +91,107 @@ const EVENT_RETRY_MAX_DELAY = 60000;
  * Besides the message it carries structured markers that the consumers evaluate instead
  * of parsing the message text - see the AdapterError typedef in configUtils.
  */
-class DSSError extends Error {
+export class DSSError extends Error {
+    /** HTTP status code of the answer */
+    status: number | undefined;
+    /** backward compatible field name for status */
+    status_code: number | undefined;
+    /** node style error code, e.g. ETIMEDOUT */
+    code: string | undefined;
+    /** true for a request timeout of this client */
+    timeout: boolean | undefined;
+    /** true when the request was cancelled by stop() */
+    shutdown: boolean | undefined;
+
     /**
-     * @param {string} message
-     * @param {number} [status] HTTP status code, if the DSS answered at all
-     * @param {ErrorOptions} [options] standard error options, e.g. { cause }
+     * @param message error message
+     * @param [status] HTTP status code, if the DSS answered at all
+     * @param [options] standard error options, e.g. { cause }
      */
-    constructor(message, status, options) {
+    constructor(message: string, status?: number, options?: ErrorOptions) {
         super(message, options);
         this.name = 'DSSError';
-        /** @type {number|undefined} HTTP status code of the answer */
         this.status = status;
-        /** @type {number|undefined} backward compatible field name for status */
         this.status_code = status;
-        /** @type {string|undefined} node style error code, e.g. ETIMEDOUT */
         this.code = undefined;
-        /** @type {boolean|undefined} true for a request timeout of this client */
         this.timeout = undefined;
-        /** @type {boolean|undefined} true when the request was cancelled by stop() */
         this.shutdown = undefined;
     }
 }
 
-class DSS extends EventEmitter {
-    constructor(options) {
+export class DSS extends EventEmitter {
+    /**
+     * Allowlist of DSS endpoints that may be repeated once after a connection error.
+     *
+     * Deliberately a positive list: a newly used endpoint is not retried until its
+     * semantics have been checked. Every entry is a pure read whose repetition cannot
+     * change anything on the DSS or trigger an automation.
+     */
+    static RETRYABLE_REQUESTS: Set<string> = new Set([
+        'apartment/getCircuits',
+        'apartment/getName',
+        // Pure read of the reachable groups of a zone, used once during startup.
+        // Repeating it changes nothing on the DSS (same semantics as zone/getReachableScenes).
+        'apartment/getReachableGroups',
+        'apartment/getSensorValues',
+        'apartment/getStructure',
+        'apartment/getTemperatureControlStatus',
+        // Pure read of the configured set points of one zone
+        'zone/getTemperatureControlValues',
+        'circuit/getConsumption',
+        'circuit/getEnergyMeterValue',
+        'device/getConfig',
+        'device/getConfigWord',
+        'device/getOutputChannelValue',
+        // The named channel read of vDC devices. Same pure read as the line above,
+        // and for a Sonos player it is the ONLY path to audioVolume and powerState.
+        'device/getOutputChannelValue2',
+        'device/getOutputValue',
+        'device/getSwitchThreshold',
+        // A subscription is a registration, not an action: subscribing the same id and name
+        // twice has no effect, so a lost answer during startup may be retried.
+        'event/subscribe',
+        'property/query',
+        // The same pure read as property/query, only with the answer keyed by node name.
+        // Used once at startup for the sensor states under /usr/addon-states.
+        'property/query2',
+        'system/version',
+        'zone/getLastCalledScene',
+        'zone/getReachableScenes',
+    ]);
+
+    // DSSError hangs off the class so `DSS.DSSError` keeps working next to the named
+    // export of this module.
+    static DSSError = DSSError;
+
+    options: DSSOptions;
+    host: string | undefined;
+    appToken: string | undefined;
+    subScriptionId: number;
+    subScriptionTimeout: number;
+    requestTimeout: number;
+    /**
+     * Optionaler Zaehl-Haken fuer die Aktivitaetsanzeige:
+     * ('request'|'eventPoll'|'event', pfadOderName). Darf nie werfen muessen -
+     * wird deshalb nur aufgerufen, nie awaited.
+     */
+    onActivity: ((kind: string, detail: string) => void) | null;
+    baseUrl: string;
+    isSecure: boolean;
+    transport: Transport;
+    apiAgent: http.Agent;
+    eventAgent: http.Agent;
+    sessionToken: string | null;
+    sessionLastUsed: number;
+    sessionLoginPromise: Promise<string> | null;
+    /** eventName -> { subscriptionId, timeout }: which names are registered */
+    subscriptions: Record<string, { subscriptionId: number; timeout: number }>;
+    /** subscriptionId -> channel: exactly one long-poll per subscription id */
+    eventChannels: Record<string, EventChannel>;
+    activeRequests: Set<http.ClientRequest>;
+    stopped: boolean;
+
+    constructor(options?: DSSOptions) {
         super();
 
         this.options = options || {
@@ -75,13 +202,6 @@ class DSS extends EventEmitter {
         this.subScriptionId = this.options.subScriptionId || 42;
         this.subScriptionTimeout = this.options.subScriptionTimeout || 40 * 1000;
         this.requestTimeout = this.options.requestTimeout || DEFAULT_REQUEST_TIMEOUT;
-        /**
-         * Optionaler Zaehl-Haken fuer die Aktivitaetsanzeige:
-         * ('request'|'eventPoll'|'event', pfadOderName). Darf nie werfen muessen -
-         * wird deshalb nur aufgerufen, nie awaited.
-         *
-         * @type {((kind: string, detail: string) => void)|null}
-         */
         this.onActivity = typeof this.options.onActivity === 'function' ? this.options.onActivity : null;
 
         this.baseUrl = DSS.buildBaseUrl(this.host);
@@ -89,7 +209,7 @@ class DSS extends EventEmitter {
         this.isSecure = this.baseUrl.startsWith('https:');
         this.transport = this.isSecure ? https : http;
 
-        const agentOptions = {
+        const agentOptions: https.AgentOptions = {
             // No keep-alive on purpose: the DSS closes idle connections, and a pooled socket
             // that was closed in the meantime results in "socket hang up" on the next request.
             // The request rate is limited by the queue anyway, so pooling would gain very little.
@@ -126,10 +246,10 @@ class DSS extends EventEmitter {
      * Normalizes a configured host into a base url.
      * Accepts "1.2.3.4", "1.2.3.4:8080", "https://host:8080", "[::1]:8080" and DNS names.
      *
-     * @param {string} host configured host value
-     * @returns {string} normalized base url without trailing slash
+     * @param host configured host value
+     * @returns normalized base url without trailing slash
      */
-    static buildBaseUrl(host) {
+    static buildBaseUrl(host: string | undefined): string {
         if (typeof host !== 'string' || !host.trim()) {
             throw new DSSError('No DSS host configured');
         }
@@ -157,7 +277,7 @@ class DSS extends EventEmitter {
         }
         raw = scheme + authority + trailer;
 
-        let url;
+        let url: URL;
         try {
             url = new URL(raw);
         } catch {
@@ -182,7 +302,7 @@ class DSS extends EventEmitter {
         return `${url.protocol}//${url.hostname}:${port}`;
     }
 
-    stop() {
+    stop(): void {
         this.stopped = true;
         Object.keys(this.eventChannels).forEach(key => this.clearEventRetry(this.eventChannels[key].subscriptionId));
         // Abort in-flight requests (especially the long running event polls)
@@ -195,13 +315,18 @@ class DSS extends EventEmitter {
     /**
      * Low level HTTPS GET against the DSS JSON API
      *
-     * @param {string} path e.g. /json/system/login
-     * @param {Record<string, any>} [query] query parameters
-     * @param {number} [timeout] timeout in ms for this request
-     * @param {boolean} [isEventPoll] use the separate event agent for long-polls
-     * @returns {Promise<DssResponse>} parsed JSON body
+     * @param path e.g. /json/system/login
+     * @param [query] query parameters
+     * @param [timeout] timeout in ms for this request
+     * @param [isEventPoll] use the separate event agent for long-polls
+     * @returns parsed JSON body
      */
-    httpRequest(path, query, timeout, isEventPoll) {
+    httpRequest(
+        path: string,
+        query?: Record<string, any>,
+        timeout?: number,
+        isEventPoll?: boolean,
+    ): Promise<DssResponse> {
         return new Promise((resolve, reject) => {
             if (this.stopped) {
                 // Hard barrier: after stop() the agents are destroyed and no new socket
@@ -213,15 +338,15 @@ class DSS extends EventEmitter {
             const search = query ? `?${new URLSearchParams(query).toString()}` : '';
             const url = this.baseUrl + path + search;
             const effectiveTimeout = timeout || this.requestTimeout;
-            let req;
-            const done = (err, body) => {
+            let req: http.ClientRequest | undefined = undefined;
+            const done = (err: Error | null, body?: DssResponse): void => {
                 if (req) {
                     this.activeRequests.delete(req);
                 }
                 if (err) {
                     reject(err);
                 } else {
-                    resolve(body);
+                    resolve(body as DssResponse);
                 }
             };
             // Fuer die Aktivitaetsanzeige des Status-Tabs: was geht ueber diesen Weg
@@ -235,7 +360,7 @@ class DSS extends EventEmitter {
                 res => {
                     let data = '';
                     res.setEncoding('utf8');
-                    res.on('data', chunk => (data += chunk));
+                    res.on('data', (chunk: string) => (data += chunk));
                     res.on('end', () => {
                         if (res.statusCode !== 200) {
                             return done(new DSSError(`HTTP ${res.statusCode} for ${path}`, res.statusCode));
@@ -255,17 +380,18 @@ class DSS extends EventEmitter {
                     );
                 },
             );
-            this.activeRequests.add(req);
-            req.on('timeout', () => {
+            const request = req;
+            this.activeRequests.add(request);
+            request.on('timeout', () => {
                 // destroy() triggers the 'error' handler with our timeout error.
                 // The error carries the structured markers of a real socket timeout so that
                 // isRetryableConnectionError() does not have to parse the message text.
                 const timeoutError = new DSSError(`Timeout after ${effectiveTimeout}ms for ${path}`);
                 timeoutError.code = 'ETIMEDOUT';
                 timeoutError.timeout = true;
-                req.destroy(timeoutError);
+                request.destroy(timeoutError);
             });
-            req.on('error', err =>
+            request.on('error', err =>
                 done(
                     err instanceof DSSError
                         ? err
@@ -278,10 +404,8 @@ class DSS extends EventEmitter {
     /**
      * Returns a valid session token, renews it via loginApplication when needed.
      * Parallel callers share one login request.
-     *
-     * @returns {Promise<string>}
      */
-    async getSessionToken() {
+    async getSessionToken(): Promise<string> {
         if (this.sessionToken && Date.now() - this.sessionLastUsed < SESSION_MAX_AGE) {
             return this.sessionToken;
         }
@@ -296,7 +420,7 @@ class DSS extends EventEmitter {
                     }
                     this.sessionToken = body.result.token;
                     this.sessionLastUsed = Date.now();
-                    return this.sessionToken;
+                    return this.sessionToken as string;
                 },
                 err => {
                     this.sessionLoginPromise = null;
@@ -307,7 +431,7 @@ class DSS extends EventEmitter {
         return this.sessionLoginPromise;
     }
 
-    invalidateSession() {
+    invalidateSession(): void {
         this.sessionToken = null;
         this.sessionLastUsed = 0;
     }
@@ -317,10 +441,9 @@ class DSS extends EventEmitter {
      * Typical case: the DSS closed a pooled keep-alive socket while it was idle
      * and Node picked exactly that socket for the next request ("socket hang up").
      *
-     * @param {unknown} err thrown value
-     * @returns {boolean}
+     * @param err thrown value
      */
-    static isRetryableConnectionError(err) {
+    static isRetryableConnectionError(err: unknown): boolean {
         const error = asError(err);
         if (!error) {
             return false;
@@ -350,32 +473,29 @@ class DSS extends EventEmitter {
      * - state/set, pushSensorValue, setValue, setConfig: change data other systems react on
      * - event/get: a read, but it consumes the pending events - a repeat would lose them
      *
-     * @param {string} dssClass
-     * @param {string} dssFunction
-     * @returns {boolean} true if a single automatic retry is safe
+     * @returns true if a single automatic retry is safe
      */
-    static isRetryableRequest(dssClass, dssFunction) {
+    static isRetryableRequest(dssClass: string, dssFunction: string): boolean {
         return DSS.RETRYABLE_REQUESTS.has(`${dssClass}/${dssFunction}`);
     }
 
     /**
-     * @typedef {object} RequestOptions
-     * @property {number} [timeout] timeout override in ms
-     * @property {boolean} [eventPoll] use the separate event agent for long-polls
-     * @property {boolean} [retryOnConnectionError] overrides the endpoint based default
-     */
-
-    /**
      * Do Request to DSS. Resolves only with an "ok" response, rejects otherwise.
      *
-     * @param {string} dssClass
-     * @param {string} dssFunction
-     * @param {object} [params]
-     * @param {RequestOptions|number} [options] options object, or a timeout in ms for the legacy signature
-     * @param {boolean} [legacyIsEventPoll] only used together with the legacy signature
-     * @returns {Promise<DssResponse>} Promise resolving with the JSON body (body.ok === true)
+     * @param dssClass class of the DSS JSON API, e.g. apartment
+     * @param dssFunction function of that class, e.g. getStructure
+     * @param [params] parameters of the request
+     * @param [options] options object, or a timeout in ms for the legacy signature
+     * @param [legacyIsEventPoll] only used together with the legacy signature
+     * @returns Promise resolving with the JSON body (body.ok === true)
      */
-    async requestAsync(dssClass, dssFunction, params, options, legacyIsEventPoll) {
+    async requestAsync(
+        dssClass: string,
+        dssFunction: string,
+        params?: Record<string, any>,
+        options?: RequestOptions | number,
+        legacyIsEventPoll?: boolean,
+    ): Promise<DssResponse> {
         if (this.stopped) {
             // A callback that was already running when stop() was called must not be able to
             // open a new connection afterwards. Rejecting with the shutdown marker keeps the
@@ -403,7 +523,7 @@ class DSS extends EventEmitter {
         let retriedConnection = false;
         for (;;) {
             const token = await this.getSessionToken();
-            let body;
+            let body: DssResponse;
             try {
                 body = await this.httpRequest(path, { ...params, token }, timeout, isEventPoll);
             } catch (err) {
@@ -436,7 +556,7 @@ class DSS extends EventEmitter {
         }
     }
 
-    async createAppTokenAsync(username, password, readableName) {
+    async createAppTokenAsync(username: string, password: string, readableName?: string): Promise<string> {
         readableName = readableName || 'ioBroker';
         if (typeof username !== 'string' || !username) {
             throw new DSSError('No username provided');
@@ -452,7 +572,7 @@ class DSS extends EventEmitter {
                 `Could not request application token: ${(tokenRes && tokenRes.message) || 'unknown error'}`,
             );
         }
-        const appToken = tokenRes.result.applicationToken;
+        const appToken: string = tokenRes.result.applicationToken;
 
         const loginRes = await this.httpRequest('/json/system/login', { user: username, password });
         if (!loginRes || loginRes.ok !== true || !loginRes.result || !loginRes.result.token) {
@@ -481,16 +601,17 @@ class DSS extends EventEmitter {
      * Normalizes a single event from the DSS so that consumers can rely on
      * source/properties being objects. Returns null for unusable entries.
      *
-     * @param {any} event raw event as delivered by the DSS - deliberately any, this is
+     * @param event raw event as delivered by the DSS - deliberately any, this is
      *   unvalidated input and validating it is exactly what this function is for
-     * @returns {DssEvent|null} normalized event
+     * @returns normalized event
      */
-    static normalizeEvent(event) {
+    static normalizeEvent(event: any): DssEvent | null {
         if (!event || typeof event !== 'object' || typeof event.name !== 'string' || !event.name) {
             return null;
         }
-        const source = event.source && typeof event.source === 'object' ? event.source : {};
-        const properties = event.properties && typeof event.properties === 'object' ? event.properties : {};
+        const source: Record<string, any> = event.source && typeof event.source === 'object' ? event.source : {};
+        const properties: Record<string, any> =
+            event.properties && typeof event.properties === 'object' ? event.properties : {};
         // TempFix: dSID ist eigentlich eine dSUID
         if (source.dsid !== undefined && source.dSUID === undefined) {
             source.dSUID = source.dsid;
@@ -511,11 +632,11 @@ class DSS extends EventEmitter {
      * the DSS delivers every event of a subscription id through the same event/get.
      * That keeps exactly one open connection to the DSS instead of one per event name.
      *
-     * @param {number} subscriptionId
-     * @param {number} [timeout] long-poll timeout in ms
-     * @returns {EventChannel} the channel record
+     * @param subscriptionId subscription id of the channel
+     * @param [timeout] long-poll timeout in ms
+     * @returns the channel record
      */
-    ensureChannel(subscriptionId, timeout) {
+    ensureChannel(subscriptionId: number, timeout?: number): EventChannel {
         const key = String(subscriptionId);
         if (!this.eventChannels[key]) {
             this.eventChannels[key] = {
@@ -535,20 +656,18 @@ class DSS extends EventEmitter {
     }
 
     /**
-     * @param {number} subscriptionId
-     * @returns {EventChannel|null} the channel or null if it does not exist
+     * @returns the channel or null if it does not exist
      */
-    getChannel(subscriptionId) {
+    getChannel(subscriptionId: number): EventChannel | null {
         return this.eventChannels[String(subscriptionId)] || null;
     }
 
     /**
      * All event names that are currently registered on one subscription id.
      *
-     * @param {number} subscriptionId
-     * @returns {string[]} event names
+     * @returns event names
      */
-    channelEventNames(subscriptionId) {
+    channelEventNames(subscriptionId: number): string[] {
         return Object.keys(this.subscriptions).filter(
             eventName => this.subscriptions[eventName].subscriptionId === subscriptionId,
         );
@@ -556,16 +675,13 @@ class DSS extends EventEmitter {
 
     /**
      * Readable name of a channel for log messages and the eventError event.
-     *
-     * @param {number} subscriptionId
-     * @returns {string}
      */
-    channelLabel(subscriptionId) {
+    channelLabel(subscriptionId: number): string {
         const eventNames = this.channelEventNames(subscriptionId);
         return eventNames.length ? eventNames.join(', ') : `subscription ${subscriptionId}`;
     }
 
-    clearEventRetry(subscriptionId) {
+    clearEventRetry(subscriptionId: number): void {
         const channel = this.getChannel(subscriptionId);
         if (channel && channel.retryTimer) {
             clearTimeout(channel.retryTimer);
@@ -575,11 +691,8 @@ class DSS extends EventEmitter {
 
     /**
      * Schedules exactly one retry timer per channel using a bounded exponential backoff.
-     *
-     * @param {number} subscriptionId
-     * @param {() => void} action
      */
-    scheduleEventRetry(subscriptionId, action) {
+    scheduleEventRetry(subscriptionId: number, action: () => void): void {
         const channel = this.getChannel(subscriptionId);
         if (!channel || this.stopped) {
             return;
@@ -605,11 +718,11 @@ class DSS extends EventEmitter {
      * Handles a polling or re-subscribe failure of one channel: counts the error,
      * emits eventError once the limit is reached, otherwise schedules a retry.
      *
-     * @param {number} subscriptionId
-     * @param {AdapterError} err
-     * @param {string} context short description used for logging
+     * @param subscriptionId subscription id of the channel
+     * @param err error of the failed request
+     * @param context short description used for logging
      */
-    handleEventFailure(subscriptionId, err, context) {
+    handleEventFailure(subscriptionId: number, err: AdapterError, context: string): void {
         const channel = this.getChannel(subscriptionId);
         if (!channel || this.stopped) {
             return;
@@ -653,18 +766,17 @@ class DSS extends EventEmitter {
      * Subscribes every event name of a channel again, e.g. after the DSS dropped the
      * subscription. Does not start the poll - the caller decides.
      *
-     * @param {number} subscriptionId
-     * @param {(err: Error|null) => void} [callback] called with the first error, if any
+     * @param subscriptionId subscription id of the channel
+     * @param [callback] called with the first error, if any
      */
-    resubscribeChannel(subscriptionId, callback) {
+    resubscribeChannel(subscriptionId: number, callback?: (err: Error | null) => void): void {
         const eventNames = this.channelEventNames(subscriptionId);
         if (!eventNames.length) {
             return void (callback && setImmediate(() => callback(null)));
         }
         let open = eventNames.length;
-        /** @type {Error[]} */
-        const errs = [];
-        const finish = err => {
+        const errs: Error[] = [];
+        const finish = (err: Error | null): void => {
             if (err) {
                 errs.push(err);
             }
@@ -682,10 +794,8 @@ class DSS extends EventEmitter {
 
     /**
      * The long-poll of one channel. Delivers the events of every subscribed name.
-     *
-     * @param {number} subscriptionId
      */
-    pollChannel(subscriptionId) {
+    pollChannel(subscriptionId: number): void {
         const channel = this.getChannel(subscriptionId);
         if (!channel || this.stopped || channel.polling) {
             return;
@@ -712,7 +822,7 @@ class DSS extends EventEmitter {
                 current.errorCount = 0;
                 const rawEvents = (events && events.result && events.result.events) || [];
                 if (Array.isArray(rawEvents)) {
-                    rawEvents.forEach(rawEvent => {
+                    rawEvents.forEach((rawEvent: unknown) => {
                         // One broken event must not prevent the remaining events of this response
                         try {
                             const event = DSS.normalizeEvent(rawEvent);
@@ -749,13 +859,8 @@ class DSS extends EventEmitter {
 
     /**
      * Registers one event name on the DSS without starting the poll.
-     *
-     * @param {string} eventName
-     * @param {number} subscriptionId
-     * @param {number} timeout
-     * @returns {Promise<void>}
      */
-    registerEventSubscription(eventName, subscriptionId, timeout) {
+    registerEventSubscription(eventName: string, subscriptionId: number, timeout: number): Promise<void> {
         return this.requestAsync('event', 'subscribe', { subscriptionID: subscriptionId, name: eventName }).then(() => {
             if (this.stopped) {
                 return;
@@ -771,7 +876,12 @@ class DSS extends EventEmitter {
         });
     }
 
-    subscribeEvent(eventName, subscriptionId, timeout, callback) {
+    subscribeEvent(
+        eventName: string,
+        subscriptionId: number,
+        timeout: number,
+        callback?: (err: Error | null) => void,
+    ): void {
         this.registerEventSubscription(eventName, subscriptionId, timeout).then(
             () => {
                 if (!this.stopped) {
@@ -792,12 +902,17 @@ class DSS extends EventEmitter {
      * Polling deliberately starts only after the last subscription: a poll that is already
      * running when a name is added would not have to deliver its events.
      *
-     * @param {string[]|string} eventNames
-     * @param {number|SubscribeCallback} [subscriptionId] subscription id for all names, default subScriptionId
-     * @param {number|SubscribeCallback} [timeout] long-poll timeout in ms
-     * @param {SubscribeCallback} [callback]
+     * @param eventNames one or more names of DSS events
+     * @param [subscriptionId] subscription id for all names, default subScriptionId
+     * @param [timeout] long-poll timeout in ms
+     * @param [callback] called when done
      */
-    subscribeEvents(eventNames, subscriptionId, timeout, callback) {
+    subscribeEvents(
+        eventNames: string[] | string,
+        subscriptionId?: number | SubscribeCallback,
+        timeout?: number | SubscribeCallback,
+        callback?: SubscribeCallback,
+    ): void {
         // Legacy signatures: the callback may take the place of the id or of the timeout
         let done = callback;
         if (typeof subscriptionId === 'function') {
@@ -817,9 +932,8 @@ class DSS extends EventEmitter {
             return void (finalCallback && setImmediate(() => finalCallback(null)));
         }
         let toSubscribe = names.length;
-        /** @type {Error[]} */
-        const errs = [];
-        const finish = err => {
+        const errs: Error[] = [];
+        const finish = (err: Error | null): void => {
             if (err) {
                 errs.push(err);
             }
@@ -851,11 +965,8 @@ class DSS extends EventEmitter {
      * the id was gone. The dSS says so itself - the next event/get answered "Event
      * subscription token not found ... token:4711 m_subscriptions.size():0". So the single
      * request unsubscribeAllEvents() sends really does release all nine event names.
-     *
-     * @param {string} eventName
-     * @param {(err: Error|null) => void} [callback]
      */
-    unsubscribeEvent(eventName, callback) {
+    unsubscribeEvent(eventName: string, callback?: (err: Error | null) => void): void {
         const sub = this.subscriptions[eventName];
         if (!sub) {
             return void (callback && callback(null));
@@ -877,9 +988,9 @@ class DSS extends EventEmitter {
     /**
      * Unsubscribes every channel - one request per subscription id, not per event name.
      *
-     * @param {(lastPollEnd: number) => void} [callback] gets the time the last long-poll runs until
+     * @param [callback] gets the time the last long-poll runs until
      */
-    unsubscribeAllEvents(callback) {
+    unsubscribeAllEvents(callback?: (lastPollEnd: number) => void): void {
         let lastPollEnd = 0;
         const channels = Object.keys(this.eventChannels).map(key => this.eventChannels[key]);
         let openChannels = channels.length;
@@ -889,7 +1000,7 @@ class DSS extends EventEmitter {
             return void (callback && callback(0));
         }
 
-        const finish = () => {
+        const finish = (): void => {
             if (!--openChannels) {
                 this.subscriptions = {};
                 this.eventChannels = {};
@@ -914,50 +1025,3 @@ class DSS extends EventEmitter {
         });
     }
 }
-
-/**
- * Allowlist of DSS endpoints that may be repeated once after a connection error.
- *
- * Deliberately a positive list: a newly used endpoint is not retried until its
- * semantics have been checked. Every entry is a pure read whose repetition cannot
- * change anything on the DSS or trigger an automation.
- */
-DSS.RETRYABLE_REQUESTS = new Set([
-    'apartment/getCircuits',
-    'apartment/getName',
-    // Pure read of the reachable groups of a zone, used once during startup.
-    // Repeating it changes nothing on the DSS (same semantics as zone/getReachableScenes).
-    'apartment/getReachableGroups',
-    'apartment/getSensorValues',
-    'apartment/getStructure',
-    'apartment/getTemperatureControlStatus',
-    // Pure read of the configured set points of one zone
-    'zone/getTemperatureControlValues',
-    'circuit/getConsumption',
-    'circuit/getEnergyMeterValue',
-    'device/getConfig',
-    'device/getConfigWord',
-    'device/getOutputChannelValue',
-    // The named channel read of vDC devices. Same pure read as the line above,
-    // and for a Sonos player it is the ONLY path to audioVolume and powerState.
-    'device/getOutputChannelValue2',
-    'device/getOutputValue',
-    'device/getSwitchThreshold',
-    // A subscription is a registration, not an action: subscribing the same id and name
-    // twice has no effect, so a lost answer during startup may be retried.
-    'event/subscribe',
-    'property/query',
-    // The same pure read as property/query, only with the answer keyed by node name.
-    // Used once at startup for the sensor states under /usr/addon-states.
-    'property/query2',
-    'system/version',
-    'zone/getLastCalledScene',
-    'zone/getReachableScenes',
-]);
-
-// DSSError hangs off the class so `require('./dss').DSSError` keeps working next to
-// `require('./dss')` itself. Written as a static instead of a second export assignment:
-// the two-assignment form is what an export-assignment module may not do.
-DSS.DSSError = DSSError;
-
-module.exports = DSS;

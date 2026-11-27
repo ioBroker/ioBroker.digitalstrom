@@ -1,5 +1,5 @@
-const dssConstants = require('./constants');
-const { errorMessage } = require('./configUtils');
+import * as dssConstants from './constants';
+import { errorMessage } from './configUtils';
 
 /**
  * Reads device output values through the Smart Home API - ONE apartment status request
@@ -37,45 +37,88 @@ const { errorMessage } = require('./configUtils');
  * The part of the DSSStructure this sync works with. Written down as the surface it
  * really touches instead of the whole class - it is exactly the surface the tests hand
  * in, and the optional members are the ones the code below guards before calling.
- *
- * @typedef {object} SyncStructure
- * @property {() => boolean} isAdapterStopping true while the adapter is shutting down
- * @property {(func: () => void, delay: number) => NodeJS.Timeout} setClearableTimeout timer that is also cancelled on stop
- * @property {(dev: any, outputType: string, prio?: 'high'|'medium'|'low', options?: {report?: boolean}) => void} queueClassicOutputRead the classic read of one output channel
- * @property {(id: string, value: any, options?: {skipUnchanged?: boolean}) => void} setStateSafe writes one ioBroker state
- * @property {Record<string, any>} initialObjectValues last written value per state id
- * @property {Set<any>} [pendingTimeouts] the timers the structure clears on stop
- * @property {Record<string, any>} [devicesByDsuid] the devices of the structure by dSUID
- * @property {(status: any) => any} [applyZoneTemperatureStatus] takes the zone temperature values out of a status answer
- * @property {(api: 'classic'|'smarthome') => void} [reportOutputApi] records which API delivered the last output values
  */
+export interface SyncStructure {
+    /** true while the adapter is shutting down */
+    isAdapterStopping: () => boolean;
+    /** timer that is also cancelled on stop */
+    setClearableTimeout: (func: () => void, delay: number) => NodeJS.Timeout;
+    /** the classic read of one output channel */
+    queueClassicOutputRead: (
+        dev: any,
+        outputType: string,
+        prio?: 'high' | 'medium' | 'low',
+        options?: { report?: boolean },
+    ) => void;
+    /** writes one ioBroker state */
+    setStateSafe: (id: string, value: any, options?: { skipUnchanged?: boolean }) => void;
+    /** last written value per state id */
+    initialObjectValues: Record<string, any>;
+    /** the timers the structure clears on stop */
+    pendingTimeouts?: Set<any>;
+    /** the devices of the structure by dSUID */
+    devicesByDsuid?: Record<string, any>;
+    /** takes the zone temperature values out of a status answer */
+    applyZoneTemperatureStatus?: (status: any) => any;
+    /** records which API delivered the last output values */
+    reportOutputApi?: (api: 'classic' | 'smarthome') => void;
+}
 
 /**
  * The part of the DSSSmartHome client this sync works with - one single request.
- *
- * @typedef {object} SyncSmartHome
- * @property {() => Promise<any>} getApartmentStatus all current values in one answer
  */
+export interface SyncSmartHome {
+    /** all current values in one answer */
+    getApartmentStatus: () => Promise<any>;
+}
 
 /**
  * One device waiting for its output values, as the flush works through them.
- *
- * @typedef {object} PendingRead
- * @property {any} dev the structure device the values belong to
- * @property {Set<string>} outputTypes channels still without an answer
- * @property {number} attempts status answers that did not carry them
- * @property {number} lastTriggeredAt when the last trigger restarted the budget
- * @property {number} travellingUntil a running travel does not burn the budget until then
- * @property {boolean} probeOnly true while every channel here is a probe of a learned gap
  */
+export interface PendingRead {
+    /** the structure device the values belong to */
+    dev: any;
+    /** channels still without an answer */
+    outputTypes: Set<string>;
+    /** status answers that did not carry them */
+    attempts: number;
+    /** when the last trigger restarted the budget */
+    lastTriggeredAt: number;
+    /** a running travel does not burn the budget until then */
+    travellingUntil: number;
+    /** true while every channel here is a probe of a learned gap */
+    probeOnly: boolean;
+}
 
 /**
  * The logging surface of the ioBroker adapter. Only the log is used here, so only the
  * log is asked for - the tests pass a recording logger instead of a real adapter.
- *
- * @typedef {object} SyncAdapter
- * @property {{debug: (message: string) => void, info: (message: string) => void, warn: (message: string) => void, error: (message: string) => void}} log the adapter logger
  */
+export interface SyncAdapter {
+    /** the adapter logger */
+    log: {
+        debug: (message: string) => void;
+        info: (message: string) => void;
+        warn: (message: string) => void;
+        error: (message: string) => void;
+    };
+}
+
+/** Options of the SmartHomeOutputSync */
+export interface SmartHomeOutputSyncOptions {
+    /** the DSSStructure instance */
+    structure: SyncStructure;
+    /** the DSSSmartHome client */
+    smartHome: SyncSmartHome;
+    /** the ioBroker adapter, for its log */
+    adapter: SyncAdapter;
+    debounce?: number;
+    followUpDelay?: number;
+    maxFollowUps?: number;
+    failureBackoff?: number;
+    learnAfterMisses?: number;
+    relearnInterval?: number;
+}
 
 /** Collect triggers for this long before the one status request */
 const DEFAULT_DEBOUNCE = 2000;
@@ -102,20 +145,26 @@ const TRAVEL_GRACE = 5000;
  */
 const DEFAULT_RELEARN_INTERVAL = 60 * 60 * 1000;
 
-class SmartHomeOutputSync {
-    /**
-     * @param {object} options
-     * @param {SyncStructure} options.structure the DSSStructure instance
-     * @param {SyncSmartHome} options.smartHome the DSSSmartHome client
-     * @param {SyncAdapter} options.adapter the ioBroker adapter, for its log
-     * @param {number} [options.debounce]
-     * @param {number} [options.followUpDelay]
-     * @param {number} [options.maxFollowUps]
-     * @param {number} [options.failureBackoff]
-     * @param {number} [options.learnAfterMisses]
-     * @param {number} [options.relearnInterval]
-     */
-    constructor(options) {
+export class SmartHomeOutputSync {
+    structure: SyncStructure;
+    smartHome: SyncSmartHome;
+    adapter: SyncAdapter;
+    debounce: number;
+    followUpDelay: number;
+    maxFollowUps: number;
+    failureBackoff: number;
+    learnAfterMisses: number;
+    relearnInterval: number;
+    pending: Map<string, PendingRead>;
+    missCounts: Map<string, number>;
+    undeliverable: Map<string, number>;
+    flushTimer: NodeJS.Timeout | null;
+    flushTimerFireAt: number;
+    flushInFlight: boolean;
+    disabledUntil: number;
+    warnedFailure: boolean;
+
+    constructor(options: SmartHomeOutputSyncOptions) {
         this.structure = options.structure;
         this.smartHome = options.smartHome;
         this.adapter = options.adapter;
@@ -127,13 +176,12 @@ class SmartHomeOutputSync {
             options.learnAfterMisses === undefined ? DEFAULT_LEARN_AFTER_MISSES : options.learnAfterMisses;
         this.relearnInterval = options.relearnInterval || DEFAULT_RELEARN_INTERVAL;
 
-        /** @type {Map<string, PendingRead>} */
         this.pending = new Map();
-        /** @type {Map<string, number>} "<dSUID>|<channel>" -> exhausted follow-up budgets in a row */
+        /** "<dSUID>|<channel>" -> exhausted follow-up budgets in a row */
         this.missCounts = new Map();
-        /** @type {Map<string, number>} learned "<dSUID>|<channel>" pairs the status never answers -> learned at */
+        /** learned "<dSUID>|<channel>" pairs the status never answers -> learned at */
         this.undeliverable = new Map();
-        /** @type {NodeJS.Timeout|null} the armed flush timer, null while none is armed */
+        /** the armed flush timer, null while none is armed */
         this.flushTimer = null;
         /** When the armed flush timer will fire - to let an earlier request pull it forward */
         this.flushTimerFireAt = 0;
@@ -143,28 +191,27 @@ class SmartHomeOutputSync {
         this.warnedFailure = false;
     }
 
-    /** @returns {number} */
-    now() {
+    now(): number {
         return Date.now();
     }
 
     /**
-     * @returns {boolean} false while a failed request keeps the classic path in charge
+     * @returns false while a failed request keeps the classic path in charge
      */
-    isAvailable() {
+    isAvailable(): boolean {
         return !!this.smartHome && this.disabledUntil <= this.now();
     }
 
     /**
      * Asks for a fresh read of the given output channels of a device.
      *
-     * @param {any} dev device object of the structure, with outputChannelList. Untyped
+     * @param dev device object of the structure, with outputChannelList. Untyped
      *   on purpose: this is the entry point every caller reaches with whatever the
      *   structure built, and the first line below is what validates it.
-     * @param {string[]} [outputTypes] channel types, default every channel of the device
-     * @returns {boolean} true when the sync takes care of it, false = use the classic path
+     * @param [outputTypes] channel types, default every channel of the device
+     * @returns true when the sync takes care of it, false = use the classic path
      */
-    requestDeviceSync(dev, outputTypes) {
+    requestDeviceSync(dev: any, outputTypes?: string[]): boolean {
         if (!dev || !dev.dSUID || !dev.outputChannelList || !this.isAvailable()) {
             return false;
         }
@@ -175,7 +222,7 @@ class SmartHomeOutputSync {
         if (!wanted.length) {
             return false;
         }
-        const askable = [];
+        const askable: string[] = [];
         let probes = 0;
         for (const type of wanted) {
             const key = `${dev.dSUID}|${type}`;
@@ -203,7 +250,7 @@ class SmartHomeOutputSync {
             return true;
         }
         const existing = this.pending.get(dev.dSUID);
-        const entry = existing || {
+        const entry: PendingRead = existing || {
             dev,
             outputTypes: new Set(),
             attempts: 0,
@@ -226,9 +273,9 @@ class SmartHomeOutputSync {
     }
 
     /**
-     * @param {number} delay ms until the pending devices are read
+     * @param delay ms until the pending devices are read
      */
-    scheduleFlush(delay) {
+    scheduleFlush(delay: number): void {
         const fireAt = this.now() + delay;
         if (this.flushTimer) {
             if (fireAt >= this.flushTimerFireAt) {
@@ -253,7 +300,7 @@ class SmartHomeOutputSync {
     /**
      * ONE status request for everything that piled up, then classic reads for the rest.
      */
-    async flush() {
+    async flush(): Promise<void> {
         if (this.structure.isAdapterStopping() || !this.pending.size) {
             return;
         }
@@ -268,7 +315,7 @@ class SmartHomeOutputSync {
         // by its answer - the answer shows the state from BEFORE that trigger
         const flightStart = this.now();
         this.flushInFlight = true;
-        let status;
+        let status: any;
         try {
             status = await this.smartHome.getApartmentStatus();
         } catch (err) {
@@ -357,13 +404,13 @@ class SmartHomeOutputSync {
     /**
      * Writes every pending output value the status answer carries.
      *
-     * @param {any} status answer of getApartmentStatus()
-     * @param {number} flightStart entries triggered after this moment are not touched
-     * @returns {number} when the earliest running travel ends, Infinity without one
+     * @param status answer of getApartmentStatus()
+     * @param flightStart entries triggered after this moment are not touched
+     * @returns when the earliest running travel ends, Infinity without one
      */
-    applyStatus(status, flightStart) {
+    applyStatus(status: any, flightStart: number): number {
         const statusDevices = (status && status.included && status.included.dsDevices) || [];
-        const devicesById = new Map();
+        const devicesById = new Map<string, any>();
         for (const device of statusDevices) {
             if (device && typeof device.id === 'string') {
                 devicesById.set(device.id, device);
@@ -454,14 +501,13 @@ class SmartHomeOutputSync {
     /**
      * The outputs of a device status, across all its function blocks.
      *
-     * @param {any} statusEntry one dsDeviceStatus entry
-     * @param {number} [now] clock for the interpolation of a travelling output
-     * @returns {Map<string, number>} output id (= channel type) to value
+     * @param statusEntry one dsDeviceStatus entry
+     * @param [now] clock for the interpolation of a travelling output
+     * @returns output id (= channel type) to value
      */
-    static collectOutputValues(statusEntry, now = Date.now()) {
-        const values = new Map();
-        /** @type {number|undefined} */
-        let powerStateLevel;
+    static collectOutputValues(statusEntry: any, now = Date.now()): Map<string, number> {
+        const values = new Map<string, number>();
+        let powerStateLevel: number | undefined;
         const blocks = (statusEntry && statusEntry.attributes && statusEntry.attributes.functionBlocks) || [];
         for (const block of blocks) {
             for (const output of (block && block.outputs) || []) {
@@ -507,7 +553,7 @@ class SmartHomeOutputSync {
             ['shadeOpeningAngleIndoor', 'shadeOpeningAngleOutside'],
         ]) {
             if (!values.has(indoor) && values.has(outside)) {
-                values.set(indoor, /** @type {number} */ (values.get(outside)));
+                values.set(indoor, values.get(outside) as number);
             }
         }
         return values;
@@ -527,11 +573,11 @@ class SmartHomeOutputSync {
      * Clock skew between dSS and ioBroker cannot do harm: the ratio is clamped, so
      * the worst case is the start or the target position.
      *
-     * @param {any} output one entry of a functionBlock outputs array
-     * @param {number} now
-     * @returns {number|undefined} the position now, or undefined if this is no travel
+     * @param output one entry of a functionBlock outputs array
+     * @param now current time in ms
+     * @returns the position now, or undefined if this is no travel
      */
-    static travelPosition(output, now) {
+    static travelPosition(output: any, now: number): number | undefined {
         if (!output || output.status !== 'moving') {
             return undefined;
         }
@@ -561,12 +607,12 @@ class SmartHomeOutputSync {
      * travel ends. They keep an interpolated value AND stay pending: only the answer
      * after the travel carries the real final position.
      *
-     * @param {any} statusEntry one dsDeviceStatus entry
-     * @param {number} now
-     * @returns {Map<string, number>} output id to the end of its travel
+     * @param statusEntry one dsDeviceStatus entry
+     * @param now current time in ms
+     * @returns output id to the end of its travel
      */
-    static collectTravellingChannels(statusEntry, now) {
-        const travelling = new Map();
+    static collectTravellingChannels(statusEntry: any, now: number): Map<string, number> {
+        const travelling = new Map<string, number>();
         const blocks = (statusEntry && statusEntry.attributes && statusEntry.attributes.functionBlocks) || [];
         for (const block of blocks) {
             for (const output of (block && block.outputs) || []) {
@@ -591,7 +637,7 @@ class SmartHomeOutputSync {
             ['shadeOpeningAngleIndoor', 'shadeOpeningAngleOutside'],
         ]) {
             if (!travelling.has(indoor) && travelling.has(outside)) {
-                travelling.set(indoor, /** @type {number} */ (travelling.get(outside)));
+                travelling.set(indoor, travelling.get(outside) as number);
             }
         }
         return travelling;
@@ -600,12 +646,11 @@ class SmartHomeOutputSync {
     /**
      * Writes one value the way the classic read callback would have written it.
      *
-     * @param {any} dev
-     * @param {string} outputType
-     * @param {number} value already in the ioBroker scale of the channel
-     * @returns {'applied'|'unsupported'}
+     * @param dev device object of the structure
+     * @param outputType channel type
+     * @param value already in the ioBroker scale of the channel
      */
-    applyValue(dev, outputType, value) {
+    applyValue(dev: any, outputType: string, value: number): 'applied' | 'unsupported' {
         const roleDef = dssConstants.outputChannelUnitRoleMap[outputType];
         const stateId = dev.outputChannelList && dev.outputChannelList[outputType];
         if (!roleDef || !stateId) {
@@ -639,23 +684,23 @@ class SmartHomeOutputSync {
      * request itself fails or the sync pauses - then the classic path really IS in
      * charge and its reads may report info.outputApi = classic.
      */
-    fallBackAll() {
+    fallBackAll(): void {
         const entries = [...this.pending.values()];
         this.pending.clear();
         entries.forEach(entry => this.fallBackEntry(entry, true));
     }
 
     /**
-     * @param {{dev: any, outputTypes: Set<string>}} entry
-     * @param {boolean} report whether the classic reads may flip info.outputApi
+     * @param entry device and the channels still pending for it
+     * @param report whether the classic reads may flip info.outputApi
      */
-    fallBackEntry(entry, report) {
+    fallBackEntry(entry: Pick<PendingRead, 'dev' | 'outputTypes'>, report: boolean): void {
         entry.outputTypes.forEach(outputType =>
             this.structure.queueClassicOutputRead(entry.dev, outputType, 'medium', { report }),
         );
     }
 
-    stop() {
+    stop(): void {
         if (this.flushTimer) {
             clearTimeout(this.flushTimer);
             this.flushTimer = null;
@@ -663,5 +708,3 @@ class SmartHomeOutputSync {
         this.pending.clear();
     }
 }
-
-module.exports = SmartHomeOutputSync;

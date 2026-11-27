@@ -1,7 +1,7 @@
-const EventEmitter = require('node:events');
-const net = require('node:net');
-const tls = require('node:tls');
-const crypto = require('node:crypto');
+import { EventEmitter } from 'node:events';
+import * as net from 'node:net';
+import * as tls from 'node:tls';
+import * as crypto from 'node:crypto';
 
 /**
  * Minimal websocket client (RFC 6455), just enough for the notification endpoint of the
@@ -14,9 +14,9 @@ const crypto = require('node:crypto');
  */
 
 /** Fixed by RFC 6455 for the handshake answer */
-const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+export const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 
-const OPCODE = {
+export const OPCODE = {
     continuation: 0x0,
     text: 0x1,
     binary: 0x2,
@@ -34,34 +34,62 @@ const PING_INTERVAL = 30 * 1000;
 /** No incoming data for this long - not even a pong - means the connection is dead */
 const IDLE_TIMEOUT = 90 * 1000;
 
-class WebsocketError extends Error {
-    /**
-     * @param {string} message
-     * @param {ErrorOptions} [options]
-     */
-    constructor(message, options) {
+export class WebsocketError extends Error {
+    constructor(message: string, options?: ErrorOptions) {
         super(message, options);
         this.name = 'WebsocketError';
     }
 }
 
+export interface MiniWebsocketOptions {
+    host: string;
+    port: number;
+    path: string;
+    /** additional handshake headers */
+    headers?: Record<string, string>;
+    /** use TLS */
+    secure?: boolean;
+    /** validate the certificate, default false */
+    rejectUnauthorized?: boolean;
+    /** ms until the handshake has to be through */
+    handshakeTimeout?: number;
+    /** ms of silence before the client pings */
+    pingInterval?: number;
+    /** ms of silence before the connection counts as dead */
+    idleTimeout?: number;
+}
+
 /**
  * Events: 'message' (string), 'close', 'error' (Error).
  */
-class MiniWebsocket extends EventEmitter {
-    /**
-     * @param {object} options
-     * @param {string} options.host
-     * @param {number} options.port
-     * @param {string} options.path
-     * @param {Record<string, string>} [options.headers] additional handshake headers
-     * @param {boolean} [options.secure] use TLS
-     * @param {boolean} [options.rejectUnauthorized] validate the certificate, default false
-     * @param {number} [options.handshakeTimeout] ms until the handshake has to be through
-     * @param {number} [options.pingInterval] ms of silence before the client pings
-     * @param {number} [options.idleTimeout] ms of silence before the connection counts as dead
-     */
-    constructor(options) {
+export class MiniWebsocket extends EventEmitter {
+    // The extras hang off the class so `require('./websocket').MiniWebsocket.OPCODE` keeps
+    // working next to the named exports of this module.
+    static WebsocketError = WebsocketError;
+    static OPCODE = OPCODE;
+    static WEBSOCKET_GUID = WEBSOCKET_GUID;
+
+    host: string;
+    port: number;
+    path: string;
+    headers: Record<string, string>;
+    secure: boolean;
+    rejectUnauthorized: boolean;
+    handshakeTimeout: number;
+    pingInterval: number;
+    idleTimeout: number;
+    socket: net.Socket | null;
+    buffer: Buffer;
+    handshakeDone: boolean;
+    closed: boolean;
+    /** Payload of a fragmented message that is still being received */
+    fragments: Buffer[];
+    fragmentsSize: number;
+    fragmentOpcode: number;
+    watchdogTimer: NodeJS.Timeout | null;
+    lastActivity: number;
+
+    constructor(options: MiniWebsocketOptions) {
         super();
         this.host = options.host;
         this.port = options.port;
@@ -73,26 +101,21 @@ class MiniWebsocket extends EventEmitter {
         this.pingInterval = options.pingInterval || PING_INTERVAL;
         this.idleTimeout = options.idleTimeout || IDLE_TIMEOUT;
 
-        /** @type {import('node:net').Socket|null} */
         this.socket = null;
         this.buffer = Buffer.alloc(0);
         this.handshakeDone = false;
         this.closed = false;
-        /** @type {Buffer[]} Payload of a fragmented message that is still being received */
         this.fragments = [];
         this.fragmentsSize = 0;
         this.fragmentOpcode = 0;
-        /** @type {NodeJS.Timeout|null} */
         this.watchdogTimer = null;
         this.lastActivity = 0;
     }
 
     /**
      * Opens the connection and resolves once the server answered with 101.
-     *
-     * @returns {Promise<void>}
      */
-    connect() {
+    connect(): Promise<void> {
         return new Promise((resolve, reject) => {
             const key = crypto.randomBytes(16).toString('base64');
             const expectedAccept = crypto
@@ -109,7 +132,7 @@ class MiniWebsocket extends EventEmitter {
             this.socket = socket;
 
             let settled = false;
-            const fail = err => {
+            const fail = (err: unknown): void => {
                 if (settled) {
                     return;
                 }
@@ -117,7 +140,7 @@ class MiniWebsocket extends EventEmitter {
                 socket.destroy();
                 reject(err instanceof Error ? err : new WebsocketError(String(err)));
             };
-            const succeed = () => {
+            const succeed = (): void => {
                 if (settled) {
                     return;
                 }
@@ -167,7 +190,7 @@ class MiniWebsocket extends EventEmitter {
                 }
             });
 
-            socket.on('data', chunk => {
+            socket.on('data', (chunk: Buffer | string) => {
                 this.lastActivity = Date.now();
                 this.buffer = Buffer.concat([this.buffer, Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)]);
                 if (!this.handshakeDone) {
@@ -210,7 +233,7 @@ class MiniWebsocket extends EventEmitter {
      * for idleTimeout the connection is declared dead so that 'close' fires and the
      * owner can reconnect.
      */
-    startWatchdog() {
+    startWatchdog(): void {
         this.stopWatchdog();
         this.watchdogTimer = setInterval(() => {
             const idle = Date.now() - this.lastActivity;
@@ -223,7 +246,7 @@ class MiniWebsocket extends EventEmitter {
         }, this.pingInterval);
     }
 
-    stopWatchdog() {
+    stopWatchdog(): void {
         if (this.watchdogTimer) {
             clearInterval(this.watchdogTimer);
             this.watchdogTimer = null;
@@ -234,7 +257,7 @@ class MiniWebsocket extends EventEmitter {
      * Reads every complete frame out of the buffer. Fragmented messages are collected
      * until their final frame arrives.
      */
-    drainFrames() {
+    drainFrames(): void {
         for (;;) {
             if (this.buffer.length < 2) {
                 return;
@@ -268,8 +291,8 @@ class MiniWebsocket extends EventEmitter {
                 throw new WebsocketError(`Frame of ${length} bytes exceeds the limit`);
             }
 
-            /** @type {Buffer|null} A server frame is unmasked as a rule, then there is no key */
-            let maskKey = null;
+            /** A server frame is unmasked as a rule, then there is no key */
+            let maskKey: Buffer | null = null;
             if (masked) {
                 if (this.buffer.length < offset + 4) {
                     return;
@@ -284,7 +307,8 @@ class MiniWebsocket extends EventEmitter {
             let payload = this.buffer.subarray(offset, offset + length);
             this.buffer = this.buffer.subarray(offset + length);
             if (maskKey) {
-                payload = Buffer.from(payload.map((byte, idx) => byte ^ maskKey[idx % 4]));
+                const key = maskKey;
+                payload = Buffer.from(payload.map((byte, idx) => byte ^ key[idx % 4]));
             }
 
             if (opcode === OPCODE.close) {
@@ -323,11 +347,7 @@ class MiniWebsocket extends EventEmitter {
         }
     }
 
-    /**
-     * @param {Buffer} payload
-     * @param {number} opcode
-     */
-    sendFrame(payload, opcode) {
+    sendFrame(payload: Buffer, opcode: number): void {
         if (!this.socket || this.closed) {
             return;
         }
@@ -355,14 +375,11 @@ class MiniWebsocket extends EventEmitter {
         this.socket.write(Buffer.concat([Buffer.from(header), maskKey, masked]));
     }
 
-    /**
-     * @param {string} text
-     */
-    send(text) {
+    send(text: string): void {
         this.sendFrame(Buffer.from(text, 'utf8'), OPCODE.text);
     }
 
-    close() {
+    close(): void {
         if (this.closed) {
             return;
         }
@@ -376,12 +393,3 @@ class MiniWebsocket extends EventEmitter {
         this.emit('close');
     }
 }
-
-// The extras hang off the class so `require('./websocket').OPCODE` keeps working next to
-// `require('./websocket')` itself. Written as statics instead of further export
-// assignments: the multi-assignment form is what an export-assignment module may not do.
-MiniWebsocket.WebsocketError = WebsocketError;
-MiniWebsocket.OPCODE = OPCODE;
-MiniWebsocket.WEBSOCKET_GUID = WEBSOCKET_GUID;
-
-module.exports = MiniWebsocket;

@@ -1,5 +1,3 @@
-'use strict';
-
 /*
  * Digitalstrom ioBroker Adapter
  */
@@ -16,17 +14,20 @@ Rule 10 The action command ”Set Output Value” must not be used for other tha
 Rule 13 Applications that automatically generate Call Scene action commands (see 6.1.1) must not execute the action commands at a rate faster than one request per second.
  */
 
-const utils = require('@iobroker/adapter-core');
-const ObjectHelper = require('@apollon/iobroker-tools'); // Get common adapter utils
+import { performance } from 'node:perf_hooks';
+import * as utils from '@iobroker/adapter-core';
+import { objectHelper as sharedObjectHelper } from '@apollon/iobroker-tools'; // Get common adapter utils
+import type { ObjectHelper } from '@apollon/iobroker-tools';
 
-const DSS = require('./lib/dss');
-const DSSQueue = require('./lib/dssQueue');
-const DSSStructure = require('./lib/dssStructure');
-const DSSSmartHome = require('./lib/dssSmartHome');
-const ActivityCounter = require('./lib/activityCounter');
-const configUtils = require('./lib/configUtils');
-const { performance } = require('node:perf_hooks');
-const dssConstants = require('./lib/constants');
+import { DSS } from './lib/dss';
+import type { DssEvent } from './lib/dss';
+import { DSSQueue } from './lib/dssQueue';
+import { DSSStructure } from './lib/dssStructure';
+import { DSSSmartHome } from './lib/dssSmartHome';
+import { ActivityCounter } from './lib/activityCounter';
+import * as configUtils from './lib/configUtils';
+import type { DssResponse } from './lib/configUtils';
+import * as dssConstants from './lib/constants';
 
 // Safety valve for the events parked during the startup, not a working limit: the busiest
 // 150 s of a three hour production log carried 88 of them, the whole run 2746. At roughly
@@ -46,18 +47,8 @@ const MOMENTARY_SCENE_RELEASE = 500;
 // switched off, and asking more often would buy nothing but log lines.
 const DSS_RETRY_DELAY = 5 * 60 * 1000;
 
-/**
- * The objectHelper of `@apollon/iobroker-tools`. The package ships no types, so the part
- * of it this adapter actually uses is written down here.
- *
- * @typedef {object} ObjectHelper
- * @property {(adapter: any) => void} init binds the helper to an adapter instance
- * @property {(id: string, obj: any, obtainCustomFields: string[], value?: any, stateChangeCallback?: (value: any) => void, createNow?: boolean) => void} setOrUpdateObject queues an object for creation or update
- * @property {(callback?: () => void) => void} processObjectQueue writes the queued objects and their values
- * @property {(callback?: () => void) => void} loadExistingObjects fills existingStates with the objects that already exist for this instance
- * @property {(id: string, state: ioBroker.State) => void} handleStateChange routes an unacknowledged state change to the onChange handler of that object
- * @property {Record<string, any>} existingStates objects of this instance, the ones left over after registerObjects() are the unknown ones
- */
+// The objectHelper of `@apollon/iobroker-tools`. The package ships no types, so the part
+// of it this adapter actually uses is written down in lib/apollon-iobroker-tools.d.ts.
 
 // DSS rules 8/9 (see above) allow at most one cyclic read per minute and circuit.
 // One cycle issues TWO reads per circuit (getConsumption + getEnergyMeterValue), and the
@@ -72,7 +63,60 @@ const DEFAULT_POLL_INTERVAL = 100000;
 const MIN_POLL_INTERVAL_SECONDS = 60;
 const MAX_POLL_INTERVAL_SECONDS = 24 * 60 * 60;
 
+/** The boolean options of the instance configuration */
+type BooleanOption = 'usePresetValues' | 'initializeOutputValues' | 'deleteUnknownObjects' | 'validateCertificate';
+
+/** Callback of a step that reports nothing but an error */
+type ErrorCallback = (err?: Error | string | null) => void;
+
 class Digitalstrom extends utils.Adapter {
+    /** True when js-controller started this instance in compact mode */
+    readonly compactMode: boolean;
+    readonly objectHelper: ObjectHelper;
+
+    dss: DSS | null;
+    /** Client der neuen API, nur wenn eingeschaltet */
+    smartHome: DSSSmartHome | null;
+    dssQueue: DSSQueue | null;
+    dssStruct: DSSStructure | null;
+    /** Last called scene by "<zone>.<group>" or by dSUID */
+    lastScenes: Record<string, string | number | undefined>;
+    unmappedBooleanStates: Set<string>;
+    unhandledStateNames: Set<string>;
+    unmappedSceneCalls: Set<string>;
+    sceneGroupCache: { stateMap: Record<string, string>; groups: Set<string> } | null;
+    momentaryReleases: Map<string, ioBroker.Timeout | undefined>;
+    momentaryReleaseDelay: number;
+    pendingEvents: Array<{ apply: () => void; at: number }> | null;
+    pendingEventsDropped: number;
+    pendingModelReady: boolean;
+    startupEventLimit: number;
+    eventSubscriptionStarted: boolean;
+    /** undefined while the early subscribe is in flight */
+    eventSubscriptionResult: Error | null | undefined;
+    eventSubscriptionWaiters: Array<(err: Error | null) => void>;
+
+    dataPollInterval: number;
+    dataPollTimeout: ioBroker.Timeout | undefined;
+
+    restartTimeout: ioBroker.Timeout | undefined;
+    startupTimeout: ioBroker.Timeout | undefined;
+    dssRetryTimeout: ioBroker.Timeout | undefined;
+    dssRetryDelay: number;
+    dssOutage: { since: number; failures: number; reported: Set<string> } | null;
+    stopping: boolean;
+    stopped: boolean;
+    stopCallbacks: Array<() => void>;
+    stopGuardTimeout: number | undefined;
+    tokenConnections: Set<DSS>;
+    smartHomeKeyControllers: Set<AbortController>;
+    eventHandlersRegistered: boolean;
+
+    /** Counts per path what really runs, see countClassicActivity() */
+    apiActivity?: ActivityCounter;
+    apiActivityTimer?: ioBroker.Interval;
+    lastApiActivityPayload?: string;
+
     /**
      * Returns an objectHelper that belongs to this adapter instance only.
      *
@@ -83,16 +127,16 @@ class Digitalstrom extends utils.Adapter {
      * Loading a private copy of the module per instance keeps them isolated without
      * reimplementing the helper.
      *
-     * @param {Partial<ioBroker.Logger>} [logger] adapter logger, used only if the private copy is not possible
-     * @returns {ObjectHelper} objectHelper instance
+     * @param [logger] adapter logger, used only if the private copy is not possible
+     * @returns objectHelper instance
      */
-    static createObjectHelper(logger) {
+    static createObjectHelper(logger?: Partial<ioBroker.Logger>): ObjectHelper {
         try {
             const modulePath = require.resolve('@apollon/iobroker-tools/lib/objectHelper');
             const cached = require.cache[modulePath];
             delete require.cache[modulePath];
             try {
-                return require('@apollon/iobroker-tools/lib/objectHelper');
+                return require('@apollon/iobroker-tools/lib/objectHelper') as ObjectHelper;
             } finally {
                 // Restore the module cache so other consumers keep their own copy
                 if (cached) {
@@ -110,14 +154,14 @@ class Digitalstrom extends utils.Adapter {
                         err,
                     )}). Running a second instance of this adapter in the same compact process is not safe.`,
                 );
-            return ObjectHelper.objectHelper;
+            return sharedObjectHelper;
         }
     }
 
     /**
-     * @param {Partial<import('@iobroker/adapter-core').AdapterOptions>} [options]
+     * @param [options] options of js-controller, {compact: true} for a compact instance
      */
-    constructor(options) {
+    constructor(options?: Partial<utils.AdapterOptions>) {
         super({
             ...options,
             name: 'digitalstrom',
@@ -136,38 +180,31 @@ class Digitalstrom extends utils.Adapter {
         this.objectHelper.init(this);
         // undefined (not null) so the type matches the connected flag of the base class.
         // The first setConnected() call writes the state in either case.
-        /** @type {boolean|undefined} */
         this.connected = undefined;
 
         this.dss = null;
-        /** @type {DSSSmartHome|null} Client der neuen API, nur wenn eingeschaltet */
+        // Client der neuen API, nur wenn eingeschaltet
         this.smartHome = null;
         this.dssQueue = null;
         this.dssStruct = null;
         this.lastScenes = {};
         // Boolean states whose declared valueTrue/valueFalse did not match what the dSS
         // sent. Each one is reported once per run, see coerceScalarValue().
-        /** @type {Set<string>} */
         this.unmappedBooleanStates = new Set();
         // dSS state names that have no object here. Each one is named once per run at info,
         // see handleStateChange in registerEventHandlers().
-        /** @type {Set<string>} */
         this.unhandledStateNames = new Set();
         // Scene calls that found no scene state. Each one is named once per run at info,
         // see logUnmappedSceneCall().
-        /** @type {Set<string>} */
         this.unmappedSceneCalls = new Set();
         // "<zone>.<group>" of every group that has scene states, see logUnmappedSceneCall()
-        /** @type {{stateMap: Record<string, string>, groups: Set<string>}|null} */
         this.sceneGroupCache = null;
         // Scene states waiting to be released again, by state id - see handleScene()
-        /** @type {Map<string, NodeJS.Timeout>} */
         this.momentaryReleases = new Map();
         // Overridable in tests so a release does not cost half a second there
         this.momentaryReleaseDelay = MOMENTARY_SCENE_RELEASE;
         // Events that arrived before the objects existed, in arrival order. null means the
         // live path, an array means the startup is still building - see replayStartupEvents()
-        /** @type {Array<{apply: () => void, at: number}>|null} */
         this.pendingEvents = null;
         this.pendingEventsDropped = 0;
         // A model_ready that arrived while the objects were being created - acted on once
@@ -178,9 +215,8 @@ class Digitalstrom extends utils.Adapter {
         // Set SYNCHRONOUSLY when the subscribe goes out, not when it comes back: the second
         // attempt is decided while the first is still in flight
         this.eventSubscriptionStarted = false;
-        /** @type {Error|null|undefined} undefined while the early subscribe is in flight */
+        // undefined while the early subscribe is in flight
         this.eventSubscriptionResult = undefined;
-        /** @type {Array<(err: Error|null) => void>} */
         this.eventSubscriptionWaiters = [];
 
         this.dataPollInterval = 60000;
@@ -189,21 +225,17 @@ class Digitalstrom extends utils.Adapter {
         this.restartTimeout = null;
         this.startupTimeout = null;
         // Next check of a dSS that did not answer at startup, see waitForDss()
-        /** @type {NodeJS.Timeout|null} */
         this.dssRetryTimeout = null;
         // Overridable in tests so a retry does not take five minutes
         this.dssRetryDelay = DSS_RETRY_DELAY;
         // The outage waitForDss() is riding out: since when (performance.now(), a clock NTP
         // does not set), how many checks failed and which errors were already reported. null
         // as long as the dSS answers.
-        /** @type {{since: number, failures: number, reported: Set<string>}|null} */
         this.dssOutage = null;
         this.stopping = false;
         this.stopped = false;
-        /** @type {Array<() => void>} */
         this.stopCallbacks = [];
         // Overridable in tests so the unsubscribe guard does not take four seconds
-        /** @type {number|undefined} */
         this.stopGuardTimeout = undefined;
         // DSS clients created by the App-Token dialog. They are not part of the normal
         // adapter lifecycle, so they have to be tracked to be closable on unload.
@@ -222,16 +254,16 @@ class Digitalstrom extends utils.Adapter {
      * requests, subscriptions or state subscriptions. Otherwise an answer that arrives
      * during or after the unload would revive an already stopped adapter.
      *
-     * @returns {boolean} true if the adapter is stopping or already stopped
+     * @returns true if the adapter is stopping or already stopped
      */
-    isStopping() {
+    isStopping(): boolean {
         return this.stopping || this.stopped;
     }
 
     /**
      * Is called when databases are connected and adapter received configuration.
      */
-    async onReady() {
+    private async onReady(): Promise<void> {
         await this.migratePlainTextSecrets();
         this.main();
     }
@@ -247,10 +279,10 @@ class Digitalstrom extends utils.Adapter {
      * token is never touched. Writing the instance object makes js-controller restart the
      * instance, which then reads the encrypted value.
      *
-     * @returns {Promise<boolean>} true if a value was migrated
+     * @returns true if a value was migrated
      */
-    async migratePlainTextSecrets() {
-        const fields = ['appToken', 'smartHomeApiKey'].filter(
+    async migratePlainTextSecrets(): Promise<boolean> {
+        const fields = (['appToken', 'smartHomeApiKey'] as const).filter(
             name => this.config[name] && !Digitalstrom.looksLikeAppToken(this.config[name]),
         );
         if (!fields.length) {
@@ -259,8 +291,7 @@ class Digitalstrom extends utils.Adapter {
         const id = `system.adapter.${this.namespace}`;
         try {
             const obj = await this.getForeignObjectAsync(id);
-            /** @type {Record<string, string>} */
-            const native = {};
+            const native: Record<string, string> = {};
             fields.forEach(name => {
                 const raw = obj && obj.native ? obj.native[name] : undefined;
                 if (typeof raw === 'string' && Digitalstrom.looksLikeAppToken(raw)) {
@@ -289,9 +320,9 @@ class Digitalstrom extends utils.Adapter {
     /**
      * Is called when adapter shuts down - callback has to be called under any circumstances!
      *
-     * @param {() => void} callback
+     * @param callback tells js-controller that the unload is done
      */
-    onUnload(callback) {
+    private onUnload(callback: () => void): void {
         try {
             this.stopAdapter(callback);
         } catch {
@@ -302,10 +333,10 @@ class Digitalstrom extends utils.Adapter {
     /**
      * Is called if a subscribed object changes
      *
-     * @param {string} id
-     * @param {ioBroker.Object | null | undefined} obj
+     * @param id ID of the object
+     * @param obj the object, null or undefined if it was deleted
      */
-    onObjectChange(id, obj) {
+    private onObjectChange(id: string, obj: ioBroker.Object | null | undefined): void {
         if (obj) {
             // The object was changed
             this.log.debug(`object ${id} changed: ${JSON.stringify(obj)}`);
@@ -318,10 +349,10 @@ class Digitalstrom extends utils.Adapter {
     /**
      * Is called if a subscribed state changes
      *
-     * @param {string} id
-     * @param {ioBroker.State | null | undefined} state
+     * @param id ID of the state
+     * @param state the state, null or undefined if it was deleted
      */
-    onStateChange(id, state) {
+    private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
         if (this.isStopping()) {
             // A control command during the unload would push a new queue entry after the
             // queues were already cleared and the DSS client is about to be closed
@@ -376,9 +407,9 @@ class Digitalstrom extends utils.Adapter {
      * Some message was sent to this instance over message box. Used by email, pushover, text2speech, ...
      * Using this method requires "common.message" property to be set to true in io-package.json
      *
-     * @param {ioBroker.Message} obj
+     * @param obj the message
      */
-    onMessage(obj) {
+    private onMessage(obj: ioBroker.Message): void {
         if (typeof obj === 'object' && obj.message) {
             if (obj.command === 'createSmartHomeKey') {
                 if (!obj.callback) {
@@ -453,7 +484,7 @@ class Digitalstrom extends utils.Adapter {
                 // The username is part of the credentials and is deliberately not logged
                 this.log.info(`Try to retrieve AppToken for host ${obj.message.host}`);
 
-                let tokenConnection;
+                let tokenConnection: DSS;
                 try {
                     tokenConnection = new DSS({
                         host: obj.message.host,
@@ -477,7 +508,7 @@ class Digitalstrom extends utils.Adapter {
                 // Tracked so that an unload can close a token dialog that is still running
                 this.tokenConnections.add(tokenConnection);
                 let tokenClientClosed = false;
-                const closeTokenClient = () => {
+                const closeTokenClient = (): void => {
                     if (tokenClientClosed) {
                         return;
                     }
@@ -514,7 +545,7 @@ class Digitalstrom extends utils.Adapter {
         }
     }
 
-    stopAdapter(callback) {
+    stopAdapter(callback?: () => void): void {
         // Every caller has to be answered exactly once, even if a stop is already running
         if (this.stopping) {
             if (this.stopped) {
@@ -530,28 +561,28 @@ class Digitalstrom extends utils.Adapter {
         this.setConnected(false);
 
         if (this.dataPollTimeout) {
-            clearTimeout(this.dataPollTimeout);
+            this.clearTimeout(this.dataPollTimeout);
             this.dataPollTimeout = null;
         }
         if (this.apiActivityTimer) {
-            clearInterval(this.apiActivityTimer);
+            this.clearInterval(this.apiActivityTimer);
             this.apiActivityTimer = null;
         }
         if (this.startupTimeout) {
-            clearTimeout(this.startupTimeout);
+            this.clearTimeout(this.startupTimeout);
             this.startupTimeout = null;
         }
         if (this.restartTimeout) {
-            clearTimeout(this.restartTimeout);
+            this.clearTimeout(this.restartTimeout);
             this.restartTimeout = null;
         }
         if (this.dssRetryTimeout) {
-            clearTimeout(this.dssRetryTimeout);
+            this.clearTimeout(this.dssRetryTimeout);
             this.dssRetryTimeout = null;
         }
         // A scene state that was about to be released stays true - the adapter is going
         // down, and writing after the stop barrier is what isStopping() exists to prevent
-        this.momentaryReleases?.forEach(timer => clearTimeout(timer));
+        this.momentaryReleases?.forEach(timer => this.clearTimeout(timer));
         this.momentaryReleases?.clear();
         // Anything still parked belongs to a startup that is not going to finish. Dropped
         // rather than carried into the next run, where it would be older than the fresh
@@ -581,15 +612,14 @@ class Digitalstrom extends utils.Adapter {
         this.dssQueue && this.dssQueue.stop();
 
         // Central cleanup, runs exactly once no matter which path finished first
-        /** @type {NodeJS.Timeout|null} */
-        let unsubscribeGuard = null;
-        const finish = time => {
+        let unsubscribeGuard: ioBroker.Timeout | undefined = null;
+        const finish = (time: number): void => {
             if (this.stopped) {
                 return;
             }
             this.stopped = true;
             if (unsubscribeGuard) {
-                clearTimeout(unsubscribeGuard);
+                this.clearTimeout(unsubscribeGuard);
                 unsubscribeGuard = null;
             }
             // Closes the agents and aborts still running requests/long-polls
@@ -618,7 +648,9 @@ class Digitalstrom extends utils.Adapter {
 
         // unsubscribe to all events
         if (this.dss) {
-            unsubscribeGuard = setTimeout(() => {
+            // A timer of adapter-core: js-controller clears its timers only after the unload
+            // callback ran, so this guard still fires while the unload is in progress
+            unsubscribeGuard = this.setTimeout(() => {
                 unsubscribeGuard = null;
                 this.log && this.log.info('unsubscribe did not finish in time, stopping anyway');
                 finish(0);
@@ -632,15 +664,15 @@ class Digitalstrom extends utils.Adapter {
     /**
      * Ends this instance so that js-controller starts it again.
      *
-     * @param {number} timeout ms until the restart
-     * @param {string} reason why, completing "restarting because ..." - js-controller logs
+     * @param timeout ms until the restart
+     * @param reason why, completing "restarting because ..." - js-controller logs
      *   it next to the exit code
      */
-    restartAdapter(timeout, reason) {
+    restartAdapter(timeout: number, reason: string): void {
         if (this.restartTimeout || this.isStopping()) {
             return;
         }
-        this.restartTimeout = setTimeout(() => {
+        this.restartTimeout = this.setTimeout(() => {
             this.restartTimeout = null;
             // START_IMMEDIATELY_AFTER_STOP is the code js-controller restarts after one second
             // and logs at info level together with the reason. The -100 used before only
@@ -671,9 +703,9 @@ class Digitalstrom extends utils.Adapter {
     }
 
     /**
-     * @param {boolean} isConnected
+     * @param isConnected the new value of info.connection
      */
-    setConnected(isConnected) {
+    setConnected(isConnected: boolean): void {
         if (isConnected && this.isStopping()) {
             // A late startup callback must never mark an already stopped adapter as connected
             this.log && this.log.debug('Ignoring connected = true, the adapter is stopping');
@@ -681,7 +713,7 @@ class Digitalstrom extends utils.Adapter {
         }
         if (this.connected !== isConnected) {
             this.connected = isConnected;
-            this.setState('info.connection', isConnected, true);
+            void this.setState('info.connection', isConnected, true);
         }
     }
 
@@ -693,16 +725,16 @@ class Digitalstrom extends utils.Adapter {
      * for deleteUnknownObjects that would silently enable deleting objects including their
      * custom settings (history, influxdb, ...).
      */
-    normalizeConfig() {
+    normalizeConfig(): void {
         // option name -> safe default, matching "native" in io-package.json
-        const booleanDefaults = {
+        const booleanDefaults: Record<BooleanOption, boolean> = {
             usePresetValues: true,
             initializeOutputValues: true,
             deleteUnknownObjects: false,
             validateCertificate: false,
         };
-        Object.keys(booleanDefaults).forEach(name => {
-            const raw = this.config[name];
+        (Object.keys(booleanDefaults) as BooleanOption[]).forEach(name => {
+            const raw: unknown = this.config[name];
             const normalized = configUtils.normalizeBoolean(raw, booleanDefaults[name]);
             if (raw !== undefined && !configUtils.isInterpretableBoolean(raw)) {
                 // Never fail silently - especially not for the certificate check
@@ -716,7 +748,7 @@ class Digitalstrom extends utils.Adapter {
         });
     }
 
-    main() {
+    main(): void {
         // Reset the connection indicator during startup
         this.setConnected(false);
         this.normalizeConfig();
@@ -735,13 +767,13 @@ class Digitalstrom extends utils.Adapter {
         // Zaehlt je Weg, was wirklich laeuft - der Status-Tab zeigt daraus
         // "x empfangen / y gesendet in den letzten 10 Minuten"
         this.apiActivity = new ActivityCounter();
-        let dss;
+        let dss: DSS;
         try {
             dss = new DSS({
                 host: this.config.host,
                 appToken: this.config.appToken,
                 validateCertificate: this.config.validateCertificate,
-                onActivity: (kind, detail) => this.countClassicActivity(kind, detail),
+                onActivity: (kind: string, detail: string) => this.countClassicActivity(kind, detail),
                 logger: {
                     silly: this.log.silly.bind(this),
                     debug: this.log.debug.bind(this),
@@ -762,7 +794,7 @@ class Digitalstrom extends utils.Adapter {
         this.dss = dss;
         this.smartHome = this.createSmartHomeClient();
         // 30 s Takt reicht: der Status-Tab zeigt ein 10-Minuten-Fenster
-        this.apiActivityTimer = setInterval(() => this.publishApiActivity(), 30000);
+        this.apiActivityTimer = this.setInterval(() => this.publishApiActivity(), 30000);
         const dssQueue = new DSSQueue({
             logger: {
                 silly: this.log.silly.bind(this),
@@ -796,7 +828,7 @@ class Digitalstrom extends utils.Adapter {
             // or a DSS that stops responding mid-init), restart the adapter. Armed only
             // now that the dSS answered - waitForDss() may wait for hours, and that is
             // not an initialization that got stuck.
-            this.startupTimeout = setTimeout(() => {
+            this.startupTimeout = this.setTimeout(() => {
                 this.startupTimeout = null;
                 this.log.warn('Initialization did not finish within 10 minutes, restarting adapter');
                 this.restartAdapter(1000, 'the initialization did not finish within 10 minutes');
@@ -819,7 +851,7 @@ class Digitalstrom extends utils.Adapter {
                         return;
                     }
                     if (err) {
-                        this.log.warn(`Error while initializing Data: ${err}`);
+                        this.log.warn(`Error while initializing Data: ${String(err)}`);
                         this.restartAdapter(60000, 'reading the DSS structure failed');
                         return;
                     }
@@ -850,7 +882,7 @@ class Digitalstrom extends utils.Adapter {
                                     this.log.error(`Could not subscribe to the DSS events: ${subscriptionErr.message}`);
                                     this.setConnected(false);
                                     if (this.startupTimeout) {
-                                        clearTimeout(this.startupTimeout);
+                                        this.clearTimeout(this.startupTimeout);
                                         this.startupTimeout = null;
                                     }
                                     // Drop the partially created subscriptions before restarting
@@ -862,7 +894,7 @@ class Digitalstrom extends utils.Adapter {
                                 this.subscribeStates('*');
                                 this.setConnected(true);
                                 if (this.startupTimeout) {
-                                    clearTimeout(this.startupTimeout);
+                                    this.clearTimeout(this.startupTimeout);
                                     this.startupTimeout = null;
                                 }
                                 this.log.info('Subscribed to states ...');
@@ -899,9 +931,9 @@ class Digitalstrom extends utils.Adapter {
      * to create twice. Never calls back after a stop - the unload clears the retry timer and
      * aborts a check that is still running.
      *
-     * @param {(dssName: import('./lib/configUtils').DssResponse) => void} callback
+     * @param callback receives the answer of apartment/getName
      */
-    waitForDss(callback) {
+    waitForDss(callback: (dssName: DssResponse) => void): void {
         const dss = this.dss;
         if (!dss || dss.stopped || this.isStopping()) {
             return;
@@ -921,7 +953,7 @@ class Digitalstrom extends utils.Adapter {
                     return;
                 }
                 this.noteDssUnreachable(err);
-                this.dssRetryTimeout = setTimeout(() => {
+                this.dssRetryTimeout = this.setTimeout(() => {
                     this.dssRetryTimeout = null;
                     this.waitForDss(callback);
                 }, this.dssRetryDelay || DSS_RETRY_DELAY);
@@ -942,9 +974,9 @@ class Digitalstrom extends utils.Adapter {
      * with "Cannot reach" sends the user to the network, while a revoked App-Token never
      * comes back by itself.
      *
-     * @param {unknown} err why the check failed
+     * @param err why the check failed
      */
-    noteDssUnreachable(err) {
+    noteDssUnreachable(err: unknown): void {
         const message = configUtils.errorMessage(err);
         const retryIn = Digitalstrom.formatDuration(this.dssRetryDelay || DSS_RETRY_DELAY);
         // loginApplication answered without a session token (see DSS.getSessionToken()).
@@ -991,7 +1023,7 @@ class Digitalstrom extends utils.Adapter {
     /**
      * Closes an outage noted by noteDssUnreachable() with one line saying how long it took.
      */
-    noteDssReachable() {
+    noteDssReachable(): void {
         const outage = this.dssOutage;
         if (!outage) {
             return;
@@ -1007,10 +1039,10 @@ class Digitalstrom extends utils.Adapter {
     /**
      * Formats a duration for a log line: "45 s", "5 min", "4 min 12 s", "8 h 37 min".
      *
-     * @param {number} ms duration in milliseconds
-     * @returns {string} readable duration, rounded to seconds
+     * @param ms duration in milliseconds
+     * @returns readable duration, rounded to seconds
      */
-    static formatDuration(ms) {
+    static formatDuration(ms: number): string {
         const total = Math.max(0, Math.round(ms / 1000));
         const hours = Math.floor(total / 3600);
         const minutes = Math.floor((total % 3600) / 60);
@@ -1035,9 +1067,9 @@ class Digitalstrom extends utils.Adapter {
      * it never delays a user command, and only a really changed scene is applied - through
      * the normal event path, so all follow up handling stays identical.
      *
-     * @param {() => void} [callback]
+     * @param [callback] called when every zone group was checked
      */
-    resyncSceneStates(callback) {
+    resyncSceneStates(callback?: () => void): void {
         // Group keys look like "<zoneId>.<groupId>", device keys are dSUIDs without a dot
         const groupKeys = Object.keys(this.lastScenes || {}).filter(key => /^\d+\.\d+$/.test(key));
         const dss = this.dss;
@@ -1047,7 +1079,7 @@ class Digitalstrom extends utils.Adapter {
         }
         this.log.debug(`Checking the scenes of ${groupKeys.length} zone groups for changes during the startup`);
         let open = groupKeys.length;
-        const done = () => {
+        const done = (): void => {
             if (!--open) {
                 callback && callback();
             }
@@ -1109,10 +1141,10 @@ class Digitalstrom extends utils.Adapter {
      * Deliberately only a plausibility check - it never blocks the login, it only produces a
      * helpful message.
      *
-     * @param {unknown} token configured app token
-     * @returns {boolean} true if the value can be a valid token
+     * @param token configured app token
+     * @returns true if the value can be a valid token
      */
-    static looksLikeAppToken(token) {
+    static looksLikeAppToken(token: unknown): boolean {
         return typeof token === 'string' && /^[0-9a-f]{32,}$/i.test(token.trim());
     }
 
@@ -1124,11 +1156,11 @@ class Digitalstrom extends utils.Adapter {
      * too. Those are lasting modes, and releasing one would clear the operation mode of a
      * room half a second after it was set.
      *
-     * @param {string|number|undefined} sceneId scene number of the event
-     * @param {string|number|undefined} groupId group of the event, undefined for a device
-     * @returns {boolean} true if the scene leaves no state behind
+     * @param sceneId scene number of the event
+     * @param groupId group of the event, undefined for a device
+     * @returns true if the scene leaves no state behind
      */
-    static isMomentaryScene(sceneId, groupId) {
+    static isMomentaryScene(sceneId: string | number | undefined, groupId: string | number | undefined): boolean {
         if (groupId !== undefined && dssConstants.ownSceneNumberGroups.includes(Number(groupId))) {
             return false;
         }
@@ -1142,10 +1174,10 @@ class Digitalstrom extends utils.Adapter {
      * window handle, the climate control "queue-active" while it works through its queue.
      * Neither is anything a user would read.
      *
-     * @param {string} statename name of the state in the dSS
-     * @returns {boolean} true if the state is logged at debug only
+     * @param statename name of the state in the dSS
+     * @returns true if the state is logged at debug only
      */
-    static isAddonHelperState(statename) {
+    static isAddonHelperState(statename: string): boolean {
         return statename === 'queue-active' || /_open-tilded$/.test(statename);
     }
 
@@ -1158,14 +1190,14 @@ class Digitalstrom extends utils.Adapter {
      * which only exists as a device scene state. Anything else is named once per run at
      * info, then at debug.
      *
-     * @param {any} data the callScene or undoScene event
+     * @param data the callScene or undoScene event
      */
-    logUnmappedSceneCall(data) {
+    logUnmappedSceneCall(data: any): void {
         const props = data.properties || {};
         const source = data.source || {};
         const stateMap = (this.dssStruct && this.dssStruct.stateMap) || {};
-        let key;
-        let what;
+        let key: string;
+        let what: string;
         let expected = false;
         if (source.isDevice) {
             key = `device ${source.dSUID}.${props.sceneID}`;
@@ -1178,7 +1210,7 @@ class Digitalstrom extends utils.Adapter {
             if (!this.sceneGroupCache || this.sceneGroupCache.stateMap !== stateMap) {
                 // Built once per structure, not per call: the climate control alone calls
                 // group 48 in every room at each of its switch times
-                const groups = new Set();
+                const groups = new Set<string>();
                 Object.keys(stateMap).forEach(id => {
                     const match = /^(\d+)\.(\d+)\.scenes\./.exec(id);
                     match && groups.add(`${match[1]}.${match[2]}`);
@@ -1226,10 +1258,10 @@ class Digitalstrom extends utils.Adapter {
      * switches report per device that is the common case. Such a scene state stays as it
      * was until the next call reaches it.
      *
-     * @param {(...args: any[]) => void} handler the live handler
-     * @returns {(...args: any[]) => void} the handler with the parking in front of it
+     * @param handler the live handler
+     * @returns the handler with the parking in front of it
      */
-    parkable(handler) {
+    parkable(handler: (...args: any[]) => void): (...args: any[]) => void {
         return (...args) => {
             if (!this.pendingEvents) {
                 return handler(...args);
@@ -1255,10 +1287,10 @@ class Digitalstrom extends utils.Adapter {
      * happened before the subscription was moved forward, and the scenes are re-read by
      * resyncSceneStates() at the end of the start anyway.
      *
-     * @param {(...args: any[]) => void} handler the live handler
-     * @returns {(...args: any[]) => void} the handler, silent until the objects are there
+     * @param handler the live handler
+     * @returns the handler, silent until the objects are there
      */
-    liveOnly(handler) {
+    liveOnly(handler: (...args: any[]) => void): (...args: any[]) => void {
         return (...args) => {
             if (this.pendingEvents) {
                 // Named, because this is the only trace such an event ever leaves - and
@@ -1279,7 +1311,7 @@ class Digitalstrom extends utils.Adapter {
      * would let the snapshot overwrite the newer value and leave exactly the stale state
      * this is meant to prevent.
      */
-    replayStartupEvents() {
+    replayStartupEvents(): void {
         const parked = this.pendingEvents;
         this.pendingEvents = null;
         if (!parked || !parked.length) {
@@ -1312,7 +1344,7 @@ class Digitalstrom extends utils.Adapter {
      * Acts on a model_ready that arrived while the objects were being created. Called at
      * the end of the startup, whether or not anything was parked.
      */
-    settlePendingModelReady() {
+    settlePendingModelReady(): void {
         if (!this.pendingModelReady) {
             return;
         }
@@ -1325,16 +1357,16 @@ class Digitalstrom extends utils.Adapter {
      * Lets a state that stands for a moment fall back to false after
      * MOMENTARY_SCENE_RELEASE - a momentary scene, or a button the dSS reports as pressed.
      *
-     * @param {string} stateId state that was just set to true
+     * @param stateId state that was just set to true
      */
-    releaseMomentaryState(stateId) {
+    releaseMomentaryState(stateId: string): void {
         const pending = this.momentaryReleases.get(stateId);
         // A repeat re-arms instead of adding a second release, so a wall switch that sends
         // its Stop three times still produces one true and one false
-        pending && clearTimeout(pending);
+        pending && this.clearTimeout(pending);
         this.momentaryReleases.set(
             stateId,
-            setTimeout(() => {
+            this.setTimeout(() => {
                 this.momentaryReleases.delete(stateId);
                 if (this.isStopping()) {
                     return;
@@ -1349,10 +1381,10 @@ class Digitalstrom extends utils.Adapter {
     /**
      * Sorts classic API activity into the counters of the status tab.
      *
-     * @param {string} kind 'request' | 'eventPoll' | 'event'
-     * @param {string} detail request path or event name
+     * @param kind 'request' | 'eventPoll' | 'event'
+     * @param detail request path or event name
      */
-    countClassicActivity(kind, detail) {
+    countClassicActivity(kind: string, detail: string): void {
         if (!this.apiActivity) {
             return;
         }
@@ -1386,10 +1418,10 @@ class Digitalstrom extends utils.Adapter {
     }
 
     /**
-     * @param {string} kind currently always 'request'
-     * @param {string} apiPath
+     * @param kind currently always 'request'
+     * @param apiPath path of the request
      */
-    countSmartHomeActivity(kind, apiPath) {
+    countSmartHomeActivity(kind: string, apiPath: string): void {
         if (!this.apiActivity || kind !== 'request') {
             return;
         }
@@ -1406,7 +1438,7 @@ class Digitalstrom extends utils.Adapter {
      * 30 seconds. The status tab of the settings renders it live - that is the
      * proof that a path really works, not just that it is configured.
      */
-    publishApiActivity() {
+    publishApiActivity(): void {
         if (this.isStopping() || !this.apiActivity) {
             return;
         }
@@ -1431,7 +1463,7 @@ class Digitalstrom extends utils.Adapter {
             return;
         }
         this.lastApiActivityPayload = payload;
-        this.setState('info.apiActivity', payload, true);
+        void this.setState('info.apiActivity', payload, true);
     }
 
     /**
@@ -1445,7 +1477,7 @@ class Digitalstrom extends utils.Adapter {
      * directly. The client reconnects on its own; a dSS without the websocket just
      * leaves the adapter running like before.
      */
-    startNotificationChannel() {
+    startNotificationChannel(): void {
         if (!this.smartHome || !this.dssStruct) {
             return;
         }
@@ -1486,9 +1518,9 @@ class Digitalstrom extends utils.Adapter {
      * classic API stays the fallback for everything, so a missing key or an unreachable
      * host must never keep the adapter from starting.
      *
-     * @returns {DSSSmartHome|null}
+     * @returns the client, or null when the classic API is used alone
      */
-    createSmartHomeClient() {
+    createSmartHomeClient(): DSSSmartHome | null {
         if (!configUtils.normalizeBoolean(this.config.useSmartHomeApi, false)) {
             return null;
         }
@@ -1524,14 +1556,14 @@ class Digitalstrom extends utils.Adapter {
                 // The session of the classic client, renewed by it: serves without a
                 // key, and catches a key the dSS revoked without taking the path down
                 getSessionToken: this.dss
-                    ? forceRenew => {
-                          const dss = /** @type {any} */ (this.dss);
+                    ? (forceRenew?: boolean) => {
+                          const dss = this.dss as DSS;
                           forceRenew && dss.invalidateSession();
                           return dss.getSessionToken();
                       }
                     : undefined,
                 validateCertificate: this.config.validateCertificate,
-                onActivity: (kind, apiPath) => this.countSmartHomeActivity(kind, apiPath),
+                onActivity: (kind: string, apiPath: string) => this.countSmartHomeActivity(kind, apiPath),
                 logger: {
                     silly: this.log.silly.bind(this),
                     debug: this.log.debug.bind(this),
@@ -1557,10 +1589,10 @@ class Digitalstrom extends utils.Adapter {
      * Validates the configured polling interval independently of the admin UI.
      * Invalid values must never produce an aggressive timer.
      *
-     * @param {unknown} configuredSeconds raw value from the instance config
-     * @returns {number} interval in ms, 0 means polling is disabled
+     * @param configuredSeconds raw value from the instance config
+     * @returns interval in ms, 0 means polling is disabled
      */
-    static normalizePollInterval(configuredSeconds) {
+    static normalizePollInterval(configuredSeconds: unknown): number {
         if (configuredSeconds === undefined || configuredSeconds === null || configuredSeconds === '') {
             return DEFAULT_POLL_INTERVAL;
         }
@@ -1574,7 +1606,7 @@ class Digitalstrom extends utils.Adapter {
         return Math.min(Math.max(Math.round(seconds), MIN_POLL_INTERVAL_SECONDS), MAX_POLL_INTERVAL_SECONDS) * 1000;
     }
 
-    initializeDSSData(callback) {
+    initializeDSSData(callback?: ErrorCallback): void {
         const dss = this.dss;
         const dssStruct = this.dssStruct;
         if (!dss || !dssStruct) {
@@ -1599,9 +1631,9 @@ class Digitalstrom extends utils.Adapter {
         );
     }
 
-    startDataPolling(fromTimeout) {
+    startDataPolling(fromTimeout?: boolean): void {
         if (this.dataPollTimeout) {
-            !fromTimeout && clearTimeout(this.dataPollTimeout);
+            !fromTimeout && this.clearTimeout(this.dataPollTimeout);
             this.dataPollTimeout = null;
         }
         if (this.isStopping()) {
@@ -1615,7 +1647,7 @@ class Digitalstrom extends utils.Adapter {
         if (!dssStruct) {
             return;
         }
-        dssStruct.updateMeterData((failed, total) => {
+        dssStruct.updateMeterData((failed: number, total: number) => {
             if (this.isStopping()) {
                 return;
             }
@@ -1623,7 +1655,7 @@ class Digitalstrom extends utils.Adapter {
             if (total > 0) {
                 this.setConnected(failed < total);
             }
-            this.dataPollTimeout = setTimeout(() => this.startDataPolling(true), this.dataPollInterval);
+            this.dataPollTimeout = this.setTimeout(() => this.startDataPolling(true), this.dataPollInterval);
         });
     }
 
@@ -1636,13 +1668,13 @@ class Digitalstrom extends utils.Adapter {
      * running one buys nothing - and if the early one failed it tries again, because
      * failing the whole start on a transient early error would be a regression.
      *
-     * @param {(err: Error|null) => void} callback
+     * @param callback receives null as soon as the events are subscribed, else the error
      */
-    ensureEventSubscription(callback) {
+    ensureEventSubscription(callback: (err: Error | null) => void): void {
         if (!this.eventSubscriptionStarted) {
             return void this.initializeSubscriptions(callback);
         }
-        const useResult = err => {
+        const useResult = (err: Error | null): void => {
             if (err) {
                 this.eventSubscriptionStarted = false;
                 return void this.initializeSubscriptions(callback);
@@ -1659,7 +1691,7 @@ class Digitalstrom extends utils.Adapter {
      * Starts the subscription before the objects exist. Errors are not fatal here - see
      * ensureEventSubscription(), which decides the start.
      */
-    startEarlyEventSubscription() {
+    startEarlyEventSubscription(): void {
         this.eventSubscriptionStarted = true;
         this.eventSubscriptionResult = undefined;
         this.initializeSubscriptions(err => {
@@ -1674,9 +1706,9 @@ class Digitalstrom extends utils.Adapter {
      * Lets the early subscription count as failed, so the authoritative attempt subscribes
      * again instead of trusting a channel that is not delivering.
      *
-     * @param {Error|null} err what the event channel reported, may be nothing usable
+     * @param err what the event channel reported, may be nothing usable
      */
-    failEarlyEventSubscription(err) {
+    failEarlyEventSubscription(err: Error | null): void {
         this.eventSubscriptionStarted = false;
         this.eventSubscriptionResult = undefined;
         const waiting = this.eventSubscriptionWaiters;
@@ -1684,7 +1716,7 @@ class Digitalstrom extends utils.Adapter {
         waiting.forEach(cb => cb(err));
     }
 
-    initializeSubscriptions(callback) {
+    initializeSubscriptions(callback?: (err: Error | null) => void): void {
         const eventNames = Object.keys(dssConstants.availableEvents).filter(name => dssConstants.availableEvents[name]);
         if (!this.dss) {
             return void (callback && callback(new Error('No DSS connection available')));
@@ -1692,8 +1724,7 @@ class Digitalstrom extends utils.Adapter {
         // Handlers first, subscriptions second - see registerEventHandlers()
         this.registerEventHandlers(eventNames);
         this.dss.subscribeEvents(eventNames, errs => {
-            /** @type {Error|null} */
-            let subscriptionError = null;
+            let subscriptionError: Error | null = null;
             if (errs && Array.isArray(errs) && errs.length) {
                 this.log.warn(`Error to subscribe to ${errs.length} events. See the following log lines.`);
                 errs.forEach((err, idx) => this.log.warn(`${idx}: ${(err && err.message) || err}`));
@@ -1721,9 +1752,9 @@ class Digitalstrom extends utils.Adapter {
      *
      * Idempotent: a second call must not add a second set of listeners.
      *
-     * @param {string[]} eventNames all subscribed event names
+     * @param eventNames all subscribed event names
      */
-    registerEventHandlers(eventNames) {
+    registerEventHandlers(eventNames: string[]): void {
         if (this.eventHandlersRegistered || !this.dss || !this.dssStruct) {
             return;
         }
@@ -1734,7 +1765,7 @@ class Digitalstrom extends utils.Adapter {
         const dssStruct = this.dssStruct;
         dss.on(
             'deviceSensorValue',
-            this.parkable(data => {
+            this.parkable((data: DssEvent) => {
                 this.eventLog(data.name, data, true);
                 if (!data.source || !data.source.isDevice || data.properties.sensorValueFloat === undefined) {
                     this.log.info(`--INVALID ${JSON.stringify(data)}`);
@@ -1752,7 +1783,7 @@ class Digitalstrom extends utils.Adapter {
 
         dss.on(
             'deviceBinaryInputEvent',
-            this.parkable(data => {
+            this.parkable((data: DssEvent) => {
                 this.eventLog(data.name, data, true);
                 if (!data.source || !data.source.isDevice || data.properties.inputType === undefined) {
                     this.log.info(`--INVALID ${JSON.stringify(data)}`);
@@ -1768,13 +1799,13 @@ class Digitalstrom extends utils.Adapter {
             }),
         );
 
-        const handleStateChange = data => {
+        const handleStateChange = (data: DssEvent): void => {
             this.eventLog(data.name, data, true);
             if (!data.properties || !data.properties.statename) {
                 this.log.info(`--INVALID ${JSON.stringify(data)}`);
                 return;
             }
-            const statename = data.properties.statename;
+            const statename: string = data.properties.statename;
             const sourceDeviceId = dssStruct.stateMap[statename];
             if (!sourceDeviceId) {
                 // Helper states of dSS addons (e.g. "<dsuid>_open-tilded" of the
@@ -1807,7 +1838,7 @@ class Digitalstrom extends utils.Adapter {
 
         dss.on(
             'buttonClick',
-            this.liveOnly(data => {
+            this.liveOnly((data: DssEvent) => {
                 this.eventLog(data.name, data, true);
                 if (!data.source || !data.source.isDevice) {
                     this.log.info(`--INVALID ${JSON.stringify(data)}`);
@@ -1818,7 +1849,7 @@ class Digitalstrom extends utils.Adapter {
                     this.log.info('INVALID Button click');
                     return;
                 }
-                this.setState(dssStruct.stateMap[`${data.source.dSUID}.${buttonIndex}.button`], true, true);
+                void this.setState(dssStruct.stateMap[`${data.source.dSUID}.${buttonIndex}.button`], true, true);
                 this.releaseMomentaryState(dssStruct.stateMap[`${data.source.dSUID}.${buttonIndex}.button`]);
                 // setDssState, not setState: the DSS delivers the click type and the hold count as
                 // strings while both objects are declared as numbers. The ids can be missing on
@@ -1832,7 +1863,7 @@ class Digitalstrom extends utils.Adapter {
 
         dss.on(
             'zoneSensorValue',
-            this.parkable(data => {
+            this.parkable((data: DssEvent) => {
                 this.eventLog(data.name, data, true);
                 if (
                     !data.source ||
@@ -1865,11 +1896,11 @@ class Digitalstrom extends utils.Adapter {
          * arrives with groupID "0" and has to be fanned out over every group of that room,
          * exactly like the apartment wide broadcast does.
          *
-         * @param {string} zoneId zone of the scene event
-         * @param {string} groupId group of the scene event, "0" means the whole room
-         * @param {import('./lib/dss').DssEvent} data the scene event itself
+         * @param zoneId zone of the scene event
+         * @param groupId group of the scene event, "0" means the whole room
+         * @param data the scene event itself
          */
-        const emitSceneToDevices = (zoneId, groupId, data) => {
+        const emitSceneToDevices = (zoneId: string, groupId: string, data: DssEvent): void => {
             const groups = dssStruct.zoneDevices[zoneId];
             if (!groups) {
                 return;
@@ -1878,7 +1909,7 @@ class Digitalstrom extends utils.Adapter {
                 (groups[groupId] || []).forEach(dSUID => dss.emit(dSUID, data));
                 return;
             }
-            const handledDevices = {};
+            const handledDevices: Record<string, boolean> = {};
             Object.keys(groups).forEach(group =>
                 groups[group].forEach(dSUID => {
                     if (!handledDevices[dSUID]) {
@@ -1889,14 +1920,14 @@ class Digitalstrom extends utils.Adapter {
             );
         };
 
-        const handleScene = (data, value, forwarded) => {
+        const handleScene = (data: DssEvent, value: boolean, forwarded?: boolean): void => {
             this.eventLog(data.name + (forwarded ? ' (forwarded)' : ''), data, true);
             if (!data.source) {
                 this.log.info(`--INVALID ${JSON.stringify(data)}`);
                 return;
             }
-            let sourceDeviceId;
-            let lastSourceDeviceId;
+            let sourceDeviceId: string | undefined;
+            let lastSourceDeviceId: string | undefined;
 
             if (data.source.isDevice) {
                 sourceDeviceId = dssStruct.stateMap[`${data.source.dSUID}.scenes.${data.properties.sceneID}`];
@@ -1951,7 +1982,7 @@ class Digitalstrom extends utils.Adapter {
                 }
 
                 if (!forwarded) {
-                    const handledDevices = {};
+                    const handledDevices: Record<string, boolean> = {};
                     Object.keys(dssStruct.zoneDevices).forEach(zoneId => {
                         Object.keys(dssStruct.zoneDevices[zoneId]).forEach(groupId => {
                             dssStruct.zoneDevices[zoneId][groupId].forEach(dSUID => {
@@ -2009,7 +2040,7 @@ class Digitalstrom extends utils.Adapter {
                     });
                 }
             } else if (data.source.isGroup && data.properties.zoneID === '0' && data.properties.groupID === '0') {
-                dssStruct.apartmentStructure.zones.forEach(zone => {
+                dssStruct.apartmentStructure.zones.forEach((zone: { id: number | string }) => {
                     if (!dssStruct.zoneDevices[zone.id]) {
                         return;
                     }
@@ -2027,33 +2058,41 @@ class Digitalstrom extends utils.Adapter {
             // the same defect the momentary scenes had, on the state right next to them.
             if (!forwarded && data.properties.callOrigin === '9') {
                 if (data.properties.originDSUID && dssStruct.stateMap[`${data.properties.originDSUID}.0.button`]) {
-                    this.setState(dssStruct.stateMap[`${data.properties.originDSUID}.0.button`], true, true);
+                    void this.setState(dssStruct.stateMap[`${data.properties.originDSUID}.0.button`], true, true);
                     this.releaseMomentaryState(dssStruct.stateMap[`${data.properties.originDSUID}.0.button`]);
-                    dssStruct.stateMap[`${data.properties.originDSUID}.0.buttonClickType`] &&
-                        this.setState(dssStruct.stateMap[`${data.properties.originDSUID}.0.buttonClickType`], 0, true);
-                    dssStruct.stateMap[`${data.properties.originDSUID}.0.buttonHoldCount`] &&
-                        this.setState(dssStruct.stateMap[`${data.properties.originDSUID}.0.buttonHoldCount`], 0, true);
+                    void (
+                        dssStruct.stateMap[`${data.properties.originDSUID}.0.buttonClickType`] &&
+                        this.setState(dssStruct.stateMap[`${data.properties.originDSUID}.0.buttonClickType`], 0, true)
+                    );
+                    void (
+                        dssStruct.stateMap[`${data.properties.originDSUID}.0.buttonHoldCount`] &&
+                        this.setState(dssStruct.stateMap[`${data.properties.originDSUID}.0.buttonHoldCount`], 0, true)
+                    );
                 } else if (data.source.dSUID && dssStruct.stateMap[`${data.source.dSUID}.0.button`]) {
-                    this.setState(dssStruct.stateMap[`${data.source.dSUID}.0.button`], true, true);
+                    void this.setState(dssStruct.stateMap[`${data.source.dSUID}.0.button`], true, true);
                     this.releaseMomentaryState(dssStruct.stateMap[`${data.source.dSUID}.0.button`]);
-                    dssStruct.stateMap[`${data.source.dSUID}.0.buttonClickType`] &&
-                        this.setState(dssStruct.stateMap[`${data.source.dSUID}.0.buttonClickType`], 0, true);
-                    dssStruct.stateMap[`${data.source.dSUID}.0.buttonHoldCount`] &&
-                        this.setState(dssStruct.stateMap[`${data.source.dSUID}.0.buttonHoldCount`], 0, true);
+                    void (
+                        dssStruct.stateMap[`${data.source.dSUID}.0.buttonClickType`] &&
+                        this.setState(dssStruct.stateMap[`${data.source.dSUID}.0.buttonClickType`], 0, true)
+                    );
+                    void (
+                        dssStruct.stateMap[`${data.source.dSUID}.0.buttonHoldCount`] &&
+                        this.setState(dssStruct.stateMap[`${data.source.dSUID}.0.buttonHoldCount`], 0, true)
+                    );
                 }
             }
         };
 
         dss.on(
             'callScene',
-            this.liveOnly(data => handleScene(data, true)),
+            this.liveOnly((data: DssEvent) => handleScene(data, true)),
         );
         dss.on(
             'undoScene',
-            this.liveOnly(data => handleScene(data, false)),
+            this.liveOnly((data: DssEvent) => handleScene(data, false)),
         );
 
-        dss.on('eventError', (eventName, errorCount, err) => {
+        dss.on('eventError', (eventName: string, errorCount: number, err: string) => {
             if (this.pendingEvents) {
                 // The objects do not exist yet. Restarting here would loop an adapter that
                 // never writes a single value - before the early subscription this state
@@ -2091,7 +2130,8 @@ class Digitalstrom extends utils.Adapter {
         // Log unhandled Events to see what happens so at all
         eventNames.forEach(
             eventName =>
-                dss.listenerCount(eventName) === 0 && dss.on(eventName, data => this.eventLog(eventName, data, false)),
+                dss.listenerCount(eventName) === 0 &&
+                dss.on(eventName, (data: DssEvent) => this.eventLog(eventName, data, false)),
         );
     }
 
@@ -2101,23 +2141,25 @@ class Digitalstrom extends utils.Adapter {
      * The DSS delivers numeric values as strings in many places, so js-controller would
      * otherwise complain about the type of every sensor value, scene id and state.
      *
-     * @param {string} id
-     * @param {unknown} value
-     * @returns {ioBroker.StateValue} value converted to the declared type
+     * @param id ID of the state
+     * @param value value as the DSS delivered it
+     * @returns value converted to the declared type
      */
-    coerceScalarValue(id, value) {
+    coerceScalarValue(id: string, value: unknown): ioBroker.StateValue {
         if (value === null || value === undefined) {
             return null;
         }
         const obj = this.dssStruct && this.dssStruct.dssObjects && this.dssStruct.dssObjects[id];
         const type = obj && obj.common && obj.common.type;
         if (type === 'number' && typeof value !== 'number') {
+            // Whatever the DSS delivered is read as text first, exactly like parseFloat() would
+            // eslint-disable-next-line @typescript-eslint/no-base-to-string
             const numeric = parseFloat(String(value));
             return Number.isNaN(numeric) ? null : numeric;
         }
         if (type === 'boolean' && typeof value !== 'boolean') {
             // Prefer the value mapping the DSS reported for this state
-            const native = obj.native || {};
+            const native = (obj && obj.native) || {};
             if (native.valueTrue !== undefined && value === native.valueTrue) {
                 return true;
             }
@@ -2146,6 +2188,8 @@ class Digitalstrom extends utils.Adapter {
                 if (!this.unmappedBooleanStates.has(id)) {
                     this.unmappedBooleanStates.add(id);
                     this.log.warn(
+                        // The raw DSS value is logged as it arrived
+                        // eslint-disable-next-line @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-template-expressions
                         `Unmapped value "${value}" for boolean state ${id} (expected "${native.valueTrue}"/"${native.valueFalse}") - the value was interpreted, please report this state and value so the mapping can be corrected`,
                     );
                 }
@@ -2153,6 +2197,8 @@ class Digitalstrom extends utils.Adapter {
             return DSSStructure.toBoolean(value);
         }
         if (type === 'string' && typeof value !== 'string') {
+            // A text state takes whatever the DSS delivered as text
+            // eslint-disable-next-line @typescript-eslint/no-base-to-string
             return String(value);
         }
         if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
@@ -2169,11 +2215,11 @@ class Digitalstrom extends utils.Adapter {
      * sensors carry the timestamp of the DSS, which has to be preserved. Only the value
      * itself is converted in that case.
      *
-     * @param {string} id
-     * @param {unknown} value
-     * @returns {ioBroker.SettableState|ioBroker.StateValue|undefined} converted value, undefined stays undefined
+     * @param id ID of the state
+     * @param value value or whole state as the DSS delivered it
+     * @returns converted value, undefined stays undefined
      */
-    coerceStateValue(id, value) {
+    coerceStateValue(id: string, value: unknown): ioBroker.SettableState | ioBroker.StateValue | undefined {
         if (value === undefined) {
             // Kept as undefined on purpose: the callers use it as "no value at all"
             return undefined;
@@ -2182,7 +2228,7 @@ class Digitalstrom extends utils.Adapter {
             return null;
         }
         if (typeof value === 'object' && !Array.isArray(value) && 'val' in value && value.val !== undefined) {
-            const state = /** @type {ioBroker.SettableState} */ (value);
+            const state = value as ioBroker.SettableState;
             return { ...state, val: this.coerceScalarValue(id, state.val) };
         }
         return this.coerceScalarValue(id, value);
@@ -2191,10 +2237,10 @@ class Digitalstrom extends utils.Adapter {
     /**
      * Writes an acknowledged value that came from the DSS, converted to the declared type.
      *
-     * @param {string} id
-     * @param {unknown} value
+     * @param id ID of the state
+     * @param value value or whole state as the DSS delivered it
      */
-    setDssState(id, value) {
+    setDssState(id: string, value: unknown): void {
         if (!id) {
             return;
         }
@@ -2214,10 +2260,10 @@ class Digitalstrom extends utils.Adapter {
         if (this.dssStruct && typeof this.dssStruct.notePublishedValue === 'function') {
             this.dssStruct.notePublishedValue(id, converted);
         }
-        this.setState(id, converted, true);
+        void this.setState(id, converted, true);
     }
 
-    eventLog(eventName, event, handled) {
+    eventLog(eventName: string, event: unknown, handled: boolean): void {
         this.log.debug(`${handled ? '' : 'UNHANDLED '}EVENT: ${eventName}: ${JSON.stringify(event)}`);
     }
 
@@ -2226,10 +2272,10 @@ class Digitalstrom extends utils.Adapter {
      * DSSStructure.decodeDssEntities(). The structure applies it to every name it builds,
      * so the names handed to registerObjects() are already decoded.
      *
-     * @param {string} text name as it was stored
-     * @returns {string} the name as it was typed in the dSS
+     * @param text name as it was stored
+     * @returns the name as it was typed in the dSS
      */
-    static decodeDssEntities(text) {
+    static decodeDssEntities(text: string): string {
         return DSSStructure.decodeDssEntities(text);
     }
 
@@ -2239,11 +2285,11 @@ class Digitalstrom extends utils.Adapter {
      * Nobody chose such a name, so it may be replaced. Any other difference is a rename by
      * the user, and that one is kept.
      *
-     * @param {unknown} storedName common.name of the existing object
-     * @param {unknown} wantedName name the dSS reports now
-     * @returns {boolean} true if the stored name has to be replaced once
+     * @param storedName common.name of the existing object
+     * @param wantedName name the dSS reports now
+     * @returns true if the stored name has to be replaced once
      */
-    static isDssEscapedName(storedName, wantedName) {
+    static isDssEscapedName(storedName: unknown, wantedName: unknown): boolean {
         return (
             typeof storedName === 'string' &&
             typeof wantedName === 'string' &&
@@ -2252,7 +2298,7 @@ class Digitalstrom extends utils.Adapter {
         );
     }
 
-    registerObjects() {
+    registerObjects(): void {
         const dssStruct = this.dssStruct;
         if (!dssStruct) {
             return;
@@ -2296,7 +2342,7 @@ class Digitalstrom extends utils.Adapter {
         });
     }
 
-    setInitialValues(callback, list) {
+    setInitialValues(callback?: () => void, list?: string[]): void {
         const dssStruct = this.dssStruct;
         if (!dssStruct) {
             return void (callback && callback());
@@ -2307,7 +2353,7 @@ class Digitalstrom extends utils.Adapter {
         if (list && !list.length) {
             return callback && callback();
         }
-        const id = list.shift();
+        const id = list.shift() as string;
         const value = dssStruct.initialObjectValues[id];
         if (value === undefined) {
             // undefined values would only produce js-controller warnings
@@ -2317,10 +2363,10 @@ class Digitalstrom extends utils.Adapter {
         if (converted === undefined) {
             return void setImmediate(() => this.setInitialValues(callback, list));
         }
-        this.setState(id, converted, true, () => this.setInitialValues(callback, list));
+        void this.setState(id, converted, true, () => this.setInitialValues(callback, list));
     }
 
-    clearAdditionalObjects(delIds, callback) {
+    clearAdditionalObjects(delIds?: string[] | null | (() => void), callback?: () => void): void {
         if (typeof delIds === 'function') {
             callback = delIds;
             delIds = null;
@@ -2347,7 +2393,8 @@ class Digitalstrom extends utils.Adapter {
         if (!delIds || !delIds.length) {
             return void (callback && callback());
         }
-        const del = delIds.shift();
+        const remaining = delIds;
+        const del = remaining.shift() as string;
         this.delObject(del, err => {
             if (err) {
                 this.log.info(` Could not delete ${del}: ${err}`);
@@ -2355,7 +2402,7 @@ class Digitalstrom extends utils.Adapter {
             if (this.objectHelper.existingStates) {
                 delete this.objectHelper.existingStates[del];
             }
-            setImmediate(() => this.clearAdditionalObjects(delIds, callback));
+            setImmediate(() => this.clearAdditionalObjects(remaining, callback));
         });
     }
 }
@@ -2364,16 +2411,12 @@ if (require.main !== module) {
     // Export the constructor in compact mode. The class rides along on the factory BEFORE
     // it becomes module.exports: assigning to module.exports twice is what a module with
     // an export assignment may not do, and the object js-controller receives is the same
-    // either way.
-    /**
-     * @param {Partial<import('@iobroker/adapter-core').AdapterOptions>} [options]
-     */
-    const factory = options => new Digitalstrom(options);
-    // Additionally exposed for unit tests - js-controller only uses the function itself
-    factory.Digitalstrom = Digitalstrom;
-
-    module.exports = factory;
+    // either way. Additionally exposed for unit tests - js-controller only uses the
+    // function itself.
+    module.exports = Object.assign((options?: Partial<utils.AdapterOptions>) => new Digitalstrom(options), {
+        Digitalstrom,
+    });
 } else {
     // otherwise start the instance directly
-    new Digitalstrom();
+    (() => new Digitalstrom())();
 }

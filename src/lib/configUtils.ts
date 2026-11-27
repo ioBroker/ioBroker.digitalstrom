@@ -17,24 +17,25 @@ const FALSE_WORDS = ['false', '0', 'no', 'off', 'nein'];
  * - `timeout`: request timeout produced by our own client
  * - `shutdown`: the request was cancelled because the adapter is stopping
  * - `superseded`: a queued value was replaced by a newer one before it was sent
- *
- * @typedef {Error & {
- *     code?: string,
- *     status?: number,
- *     status_code?: number,
- *     timeout?: boolean,
- *     shutdown?: boolean,
- *     superseded?: boolean,
- *     cause?: unknown,
- * }} AdapterError
  */
+export type AdapterError = Error & {
+    code?: string;
+    status?: number;
+    status_code?: number;
+    timeout?: boolean;
+    shutdown?: boolean;
+    superseded?: boolean;
+    cause?: unknown;
+};
 
 /**
  * Answer of the DSS JSON API. Every endpoint returns at least `ok`, plus `result` on
  * success and `message` on failure.
  *
- * @typedef {{ok?: boolean, message?: string, status_code?: number, result?: any} & Record<string, any>} DssResponse
+ * The DSS JSON API is untyped by nature: `result` carries a different shape for every
+ * endpoint, so it is modelled as `any` deliberately.
  */
+export type DssResponse = { ok?: boolean; message?: string; status_code?: number; result?: any } & Record<string, any>;
 
 /**
  * Readable text of a value that was thrown or handed over as an error.
@@ -43,14 +44,16 @@ const FALSE_WORDS = ['false', '0', 'no', 'off', 'nein'];
  * This keeps the previously used `(err && err.message) || err` output but works for
  * every input type.
  *
- * @param {unknown} err thrown value, error object, string or nothing at all
- * @returns {string} message of the error, or the value itself as text
+ * @param err thrown value, error object, string or nothing at all
+ * @returns message of the error, or the value itself as text
  */
-function errorMessage(err) {
+export function errorMessage(err: unknown): string {
     if (err instanceof Error) {
         return err.message || String(err);
     }
     if (err && typeof err === 'object' && 'message' in err && err.message) {
+        // Whatever the message is, it is turned into text - that is the point of this function
+        // eslint-disable-next-line @typescript-eslint/no-base-to-string
         return String(err.message);
     }
     return String(err);
@@ -62,21 +65,21 @@ function errorMessage(err) {
  * Everything that is not an Error (strings, DSS answer objects) returns null, so the
  * caller has to handle that case explicitly instead of accessing properties blindly.
  *
- * @param {unknown} err thrown value
- * @returns {AdapterError|null} the same object, typed, or null
+ * @param err thrown value
+ * @returns the same object, typed, or null
  */
-function asError(err) {
-    return err instanceof Error ? /** @type {AdapterError} */ (err) : null;
+export function asError(err: unknown): AdapterError | null {
+    return err instanceof Error ? err : null;
 }
 
 /**
  * Marks an error as caused by the adapter stop and returns it unchanged.
  * Values that are not errors are passed through untouched.
  *
- * @param {unknown} err thrown value
- * @returns {unknown} the same value
+ * @param err thrown value
+ * @returns the same value
  */
-function markShutdown(err) {
+export function markShutdown(err: unknown): unknown {
     const error = asError(err);
     if (error) {
         error.shutdown = true;
@@ -90,11 +93,11 @@ function markShutdown(err) {
  * Anything that cannot be interpreted unambiguously falls back to defaultValue - an
  * invalid value must never enable a function on its own.
  *
- * @param {unknown} value raw value from the instance configuration
- * @param {boolean} [defaultValue] value used for empty or uninterpretable input
- * @returns {boolean} normalized value
+ * @param value raw value from the instance configuration
+ * @param [defaultValue] value used for empty or uninterpretable input
+ * @returns normalized value
  */
-function normalizeBoolean(value, defaultValue = false) {
+export function normalizeBoolean(value: unknown, defaultValue = false): boolean {
     if (typeof value === 'boolean') {
         return value;
     }
@@ -131,10 +134,10 @@ function normalizeBoolean(value, defaultValue = false) {
  * True when the value can be interpreted as a boolean at all. Used to warn about
  * configuration values that silently fall back to their default.
  *
- * @param {unknown} value raw value from the instance configuration
- * @returns {boolean} true if normalizeBoolean() derives the result from the value itself
+ * @param value raw value from the instance configuration
+ * @returns true if normalizeBoolean() derives the result from the value itself
  */
-function isInterpretableBoolean(value) {
+export function isInterpretableBoolean(value: unknown): boolean {
     if (typeof value === 'boolean') {
         return true;
     }
@@ -147,11 +150,3 @@ function isInterpretableBoolean(value) {
     }
     return false;
 }
-
-module.exports = {
-    normalizeBoolean,
-    isInterpretableBoolean,
-    errorMessage,
-    asError,
-    markShutdown,
-};

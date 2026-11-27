@@ -9,27 +9,34 @@
 const DEFAULT_WINDOW = 10 * 60 * 1000;
 const DEFAULT_BUCKET = 60 * 1000;
 
-class ActivityCounter {
-    /**
-     * @param {object} [options]
-     * @param {number} [options.windowMs] Fensterbreite, Standard 10 Minuten
-     * @param {number} [options.bucketMs] Eimerbreite, Standard 1 Minute
-     * @param {() => number} [options.now] fuer Tests
-     */
-    constructor(options) {
+export interface ActivityCounterOptions {
+    /** Fensterbreite, Standard 10 Minuten */
+    windowMs?: number;
+    /** Eimerbreite, Standard 1 Minute */
+    bucketMs?: number;
+    /** fuer Tests */
+    now?: () => number;
+}
+
+export class ActivityCounter {
+    readonly windowMs: number;
+    readonly bucketMs: number;
+    readonly now: () => number;
+    /** Kennung -> (Eimerstart -> Anzahl) */
+    readonly buckets = new Map<string, Map<number, number>>();
+
+    constructor(options?: ActivityCounterOptions) {
         const opts = options || {};
         this.windowMs = opts.windowMs || DEFAULT_WINDOW;
         this.bucketMs = opts.bucketMs || DEFAULT_BUCKET;
         this.now = opts.now || Date.now;
-        /** @type {Map<string, Map<number, number>>} Kennung -> (Eimerstart -> Anzahl) */
-        this.buckets = new Map();
     }
 
     /**
-     * @param {string} metric z.B. "classic.events"
-     * @param {number} [amount]
+     * @param metric z.B. "classic.events"
+     * @param [amount] Anzahl der Ereignisse, Standard 1
      */
-    count(metric, amount = 1) {
+    count(metric: string, amount = 1): void {
         const bucketStart = Math.floor(this.now() / this.bucketMs) * this.bucketMs;
         let perMetric = this.buckets.get(metric);
         if (!perMetric) {
@@ -59,12 +66,11 @@ class ActivityCounter {
      * Gleichverteilung innerhalb dieser einen Minute - viel weniger falsch als ein
      * systematischer Fehlbetrag, und die Anzeige bleibt live.
      *
-     * @returns {Record<string, number>} Summe je Kennung innerhalb des Fensters
+     * @returns Summe je Kennung innerhalb des Fensters
      */
-    snapshot() {
+    snapshot(): Record<string, number> {
         const windowStart = this.now() - this.windowMs;
-        /** @type {Record<string, number>} */
-        const result = {};
+        const result: Record<string, number> = {};
         for (const [metric, perMetric] of this.buckets) {
             let sum = 0;
             for (const [start, amount] of perMetric) {
@@ -83,5 +89,3 @@ class ActivityCounter {
         return result;
     }
 }
-
-module.exports = ActivityCounter;

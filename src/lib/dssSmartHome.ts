@@ -1,9 +1,12 @@
-const EventEmitter = require('node:events');
-const http = require('node:http');
-const https = require('node:https');
-const { normalizeBoolean, errorMessage } = require('./configUtils');
-const DSS = require('./dss');
-const MiniWebsocket = require('./websocket');
+import { EventEmitter } from 'node:events';
+import * as http from 'node:http';
+import * as https from 'node:https';
+import { normalizeBoolean, errorMessage } from './configUtils';
+import { DSS } from './dss';
+import type { DssLogger } from './dss';
+import { MiniWebsocket } from './websocket';
+
+export type { AdapterError } from './configUtils';
 
 /**
  * Client for the digitalSTROM "Smart Home API" (/api/v1) plus its notification websocket.
@@ -17,8 +20,6 @@ const MiniWebsocket = require('./websocket');
  * device sensor values, binary inputs, button presses and scene call details. The
  * notification websocket only knows apartmentStatusChanged and apartmentStructureChanged
  * and carries no payload at all.
- *
- * @typedef {import('./configUtils').AdapterError} AdapterError
  */
 
 /**
@@ -26,16 +27,61 @@ const MiniWebsocket = require('./websocket');
  * exist is up to the owner - the ioBroker adapter logger brings all of them, a script
  * may pass nothing but `debug` - so this is a record by level name and not a fixed
  * shape. The client itself uses `debug` and `warn`.
- *
- * @typedef {Record<string, (message: string) => void>} SmartHomeLogger
  */
+export type SmartHomeLogger = Record<string, (message: string) => void>;
 
 /**
  * Query parameters of a request, appended to the URL as they are. Every value goes
  * through String(), so anything that has a sensible text form is allowed.
- *
- * @typedef {Record<string, string|number|boolean>} QueryParams
  */
+export type QueryParams = Record<string, string | number | boolean>;
+
+/** Options of the Smart Home API client */
+export interface DSSSmartHomeOptions {
+    /** dSS host, with or without scheme and port */
+    host: string;
+    /** the bearer key from System > Access Authorization */
+    apiKey: string;
+    /**
+     * session of the classic interface, used as a cookie when there is no key or the key
+     * is rejected
+     */
+    getSessionToken?: (forceRenew?: boolean) => Promise<string>;
+    logger?: SmartHomeLogger;
+    validateCertificate?: boolean;
+    requestTimeout?: number;
+    /** default 8090 */
+    notificationPort?: number;
+    /** ms, default 5000, 0 disables */
+    notificationDebounce?: number;
+    /** ms, default 15000, 0 disables the cap */
+    notificationMaxDelay?: number;
+    /** Zaehl-Haken je Request */
+    onActivity?: (kind: string, detail: string) => void;
+}
+
+/** Options of DSSSmartHome.createApiKey() */
+export interface CreateApiKeyOptions {
+    host: string;
+    /** existing app token of the classic API */
+    appToken?: string;
+    /** alternatively user and password */
+    user?: string;
+    password?: string;
+    /** name shown in the dSS, default "ioBroker.digitalstrom" */
+    name?: string;
+    validateCertificate?: boolean;
+    /** handed to both temporary clients, so it has to serve the classic one as well */
+    logger?: SmartHomeLogger & DssLogger;
+    /** aborts both temporary clients */
+    signal?: AbortSignal;
+}
+
+/** The part of node:http and node:https this client uses - both modules fit it */
+interface Transport {
+    request(options: https.RequestOptions, callback: (res: http.IncomingMessage) => void): http.ClientRequest;
+    Agent: new (options: https.AgentOptions) => http.Agent;
+}
 
 const DEFAULT_REQUEST_TIMEOUT = 30 * 1000;
 const DEFAULT_NOTIFICATION_PORT = 8090;
@@ -72,52 +118,69 @@ const APARTMENT_INCLUDES = [
 /** Everything the status resource can deliver in one request */
 const STATUS_INCLUDES = ['dsDevices', 'zones', 'clusters', 'userDefinedStates'].join(',');
 
-class SmartHomeError extends Error {
+export class SmartHomeError extends Error {
+    status: number | undefined;
+    /** node style error code, e.g. ETIMEDOUT */
+    code: string | undefined;
+    /** true when the request was cancelled by stop() */
+    shutdown: boolean | undefined;
+
     /**
-     * @param {string} message
-     * @param {number} [status] HTTP status code, if the dSS answered at all
-     * @param {ErrorOptions} [options]
+     * @param message error text
+     * @param [status] HTTP status code, if the dSS answered at all
+     * @param [options] error options, e.g. the cause
      */
-    constructor(message, status, options) {
+    constructor(message: string, status?: number, options?: ErrorOptions) {
         super(message, options);
         this.name = 'SmartHomeError';
-        /** @type {number|undefined} */
         this.status = status;
-        /** @type {string|undefined} node style error code, e.g. ETIMEDOUT */
         this.code = undefined;
-        /** @type {boolean|undefined} true when the request was cancelled by stop() */
         this.shutdown = undefined;
     }
 }
 
-/**
- * @param {string} message
- * @returns {SmartHomeError}
- */
-function stoppedError(message) {
+function stoppedError(message: string): SmartHomeError {
     const err = new SmartHomeError(message);
     err.shutdown = true;
     return err;
 }
 
-class DSSSmartHome extends EventEmitter {
-    /**
-     * @param {object} options
-     * @param {string} options.host dSS host, with or without scheme and port
-     * @param {string} options.apiKey the bearer key from System > Access Authorization
-     * @param {(forceRenew?: boolean) => Promise<string>} [options.getSessionToken] session of the
-     *   classic interface, used as a cookie when there is no key or the key is rejected
-     * @param {SmartHomeLogger} [options.logger]
-     * @param {boolean} [options.validateCertificate]
-     * @param {number} [options.requestTimeout]
-     * @param {number} [options.notificationPort] default 8090
-     * @param {number} [options.notificationDebounce] ms, default 5000, 0 disables
-     * @param {number} [options.notificationMaxDelay] ms, default 15000, 0 disables the cap
-     * @param {(kind: string, detail: string) => void} [options.onActivity] Zaehl-Haken je Request
-     */
-    constructor(options) {
+export class DSSSmartHome extends EventEmitter {
+    // The extras hang off the class so `require('./dssSmartHome').DSSSmartHome.SmartHomeError`
+    // keeps working next to the named exports of this module.
+    static SmartHomeError = SmartHomeError;
+    static APARTMENT_INCLUDES = APARTMENT_INCLUDES;
+    static STATUS_INCLUDES = STATUS_INCLUDES;
+    static RECORD_SEPARATOR = RECORD_SEPARATOR;
+
+    options: DSSSmartHomeOptions;
+    logger: SmartHomeLogger | null;
+    apiKey: string;
+    getSessionToken: ((forceRenew?: boolean) => Promise<string>) | null;
+    apiKeyRejected: boolean;
+    baseUrl: string;
+    isSecure: boolean;
+    transport: Transport;
+    requestTimeout: number;
+    notificationPort: number;
+    notificationDebounce: number;
+    notificationMaxDelay: number;
+    rejectUnauthorized: boolean;
+    onActivity: ((kind: string, detail: string) => void) | null;
+    agent: http.Agent;
+    activeRequests: Set<http.ClientRequest>;
+    stopped: boolean;
+    websocket: MiniWebsocket | null;
+    reconnectTimer: NodeJS.Timeout | null;
+    notificationsStarting: boolean;
+    reconnectAttempts: number;
+    pendingNotifications: Set<string>;
+    debounceTimer: NodeJS.Timeout | null;
+    maxDelayTimer: NodeJS.Timeout | null;
+
+    constructor(options: DSSSmartHomeOptions) {
         super();
-        this.options = options || {};
+        this.options = options || ({} as DSSSmartHomeOptions);
         this.logger = this.options.logger || null;
         this.apiKey = this.options.apiKey;
         /**
@@ -146,8 +209,6 @@ class DSSSmartHome extends EventEmitter {
         this.rejectUnauthorized = normalizeBoolean(this.options.validateCertificate, false);
         /**
          * Optionaler Zaehl-Haken fuer die Aktivitaetsanzeige: ('request', apiPath).
-         *
-         * @type {((kind: string, detail: string) => void)|null}
          */
         this.onActivity = typeof this.options.onActivity === 'function' ? this.options.onActivity : null;
 
@@ -161,7 +222,6 @@ class DSSSmartHome extends EventEmitter {
         this.activeRequests = new Set();
         this.stopped = false;
 
-        /** @type {MiniWebsocket|null} */
         this.websocket = null;
         this.reconnectTimer = null;
         this.notificationsStarting = false;
@@ -173,9 +233,9 @@ class DSSSmartHome extends EventEmitter {
     }
 
     /**
-     * @returns {string} host and port of the notification websocket
+     * @returns host and port of the notification websocket
      */
-    get notificationHost() {
+    get notificationHost(): string {
         const url = new URL(this.baseUrl);
         return url.hostname;
     }
@@ -187,10 +247,9 @@ class DSSSmartHome extends EventEmitter {
      * and needs no renewal. Without a key (or after the dSS rejected it) the session
      * of the classic interface serves as a cookie; DSS.getSessionToken() renews it.
      *
-     * @param {boolean} [forceRenew] fetch a fresh session instead of the cached one
-     * @returns {Promise<Record<string, string>>}
+     * @param [forceRenew] fetch a fresh session instead of the cached one
      */
-    async authHeaders(forceRenew) {
+    async authHeaders(forceRenew?: boolean): Promise<Record<string, string>> {
         if (this.apiKey && !this.apiKeyRejected) {
             return { Authorization: `Bearer ${this.apiKey}` };
         }
@@ -206,13 +265,13 @@ class DSSSmartHome extends EventEmitter {
      * retried once: a rejected key switches to the session, a stale session is
      * renewed. Only then does the error reach the caller.
      *
-     * @param {string} method
-     * @param {string} apiPath e.g. /api/v1/apartment
-     * @param {QueryParams} [params] query parameters
-     * @param {any} [body] json body
-     * @returns {Promise<any>} the `data` field of the answer, or null for an empty body
+     * @param method HTTP method
+     * @param apiPath e.g. /api/v1/apartment
+     * @param [params] query parameters
+     * @param [body] json body
+     * @returns the `data` field of the answer, or null for an empty body
      */
-    async request(method, apiPath, params, body) {
+    async request(method: string, apiPath: string, params?: QueryParams, body?: any): Promise<any> {
         const usedKey = !!(this.apiKey && !this.apiKeyRejected);
         try {
             return await this.send(method, apiPath, params, body, await this.authHeaders());
@@ -238,16 +297,14 @@ class DSSSmartHome extends EventEmitter {
         }
     }
 
-    /**
-     * @param {string} method
-     * @param {string} apiPath
-     * @param {QueryParams|undefined} params
-     * @param {any} body
-     * @param {Record<string, string>} authHeaders
-     * @returns {Promise<any>}
-     */
-    send(method, apiPath, params, body, authHeaders) {
-        return new Promise((resolve, reject) => {
+    send(
+        method: string,
+        apiPath: string,
+        params: QueryParams | undefined,
+        body: any,
+        authHeaders: Record<string, string>,
+    ): Promise<any> {
+        return new Promise<any>((resolve, reject) => {
             if (this.stopped) {
                 const err = new SmartHomeError(`Client is stopped, not requesting ${apiPath}`);
                 err.shutdown = true;
@@ -258,15 +315,15 @@ class DSSSmartHome extends EventEmitter {
                 url.searchParams.set(key, String(value));
             }
             const payload = body === undefined ? null : JSON.stringify(body);
-            /** @type {Record<string, string|number>} */
-            const headers = { ...authHeaders };
+            const headers: Record<string, string | number> = { ...authHeaders };
             if (payload !== null) {
                 headers['Content-Type'] = 'application/json';
                 headers['Content-Length'] = Buffer.byteLength(payload);
             }
 
-            let req;
-            const done = (err, value) => {
+            // Declared before done(), which has to see the request it belongs to
+            let req: http.ClientRequest | undefined = undefined;
+            const done = (err: Error | null, value?: any): void => {
                 if (req) {
                     this.activeRequests.delete(req);
                 }
@@ -307,13 +364,13 @@ class DSSSmartHome extends EventEmitter {
                             // PATCH and POST answer without a body
                             return done(null, null);
                         }
-                        let parsed;
+                        let parsed: any;
                         try {
                             parsed = JSON.parse(data);
                         } catch (err) {
                             return done(
                                 new SmartHomeError(`Invalid JSON answer for ${apiPath}: ${errorMessage(err)}`, status, {
-                                    cause: /** @type {Error} */ (err),
+                                    cause: err as Error,
                                 }),
                             );
                         }
@@ -332,7 +389,7 @@ class DSSSmartHome extends EventEmitter {
                                 `Response error for ${method} ${apiPath}: ${errorMessage(err)}`,
                                 undefined,
                                 {
-                                    cause: /** @type {Error} */ (err),
+                                    cause: err,
                                 },
                             ),
                         );
@@ -361,20 +418,16 @@ class DSSSmartHome extends EventEmitter {
 
     /**
      * The complete structure in one request. About 260 KB for a flat with 96 devices.
-     *
-     * @returns {Promise<any>}
      */
-    getApartment() {
+    getApartment(): Promise<any> {
         return this.request('GET', '/api/v1/apartment', { include: APARTMENT_INCLUDES });
     }
 
     /**
      * All current values in one request: apartment level, device outputs, zone
      * measurements, cluster locks and the user defined states.
-     *
-     * @returns {Promise<any>}
      */
-    getApartmentStatus() {
+    getApartmentStatus(): Promise<any> {
         return this.request('GET', '/api/v1/apartment/status', { include: STATUS_INCLUDES });
     }
 
@@ -382,36 +435,31 @@ class DSSSmartHome extends EventEmitter {
      * Status of a single zone, about 1 KB. Cheaper than the full status when only one
      * zone is of interest.
      *
-     * @param {string|number} zoneId
-     * @returns {Promise<any>}
+     * @param zoneId id of the zone
      */
-    getZoneStatus(zoneId) {
+    getZoneStatus(zoneId: string | number): Promise<any> {
         return this.request('GET', `/api/v1/apartment/zones/${encodeURIComponent(String(zoneId))}/status`);
     }
 
     /**
      * All scenarios with the names the user gave them in digitalSTROM. The id encodes
      * zone, group and scene: applicationZone-z1-g1-s17.
-     *
-     * @returns {Promise<any>}
      */
-    getScenarios() {
+    getScenarios(): Promise<any> {
         return this.request('GET', '/api/v1/apartment/scenarios');
     }
 
     /**
-     * @returns {Promise<any>} the metering points, including their unit and origin
+     * @returns the metering points, including their unit and origin
      */
-    getMeterings() {
+    getMeterings(): Promise<any> {
         return this.request('GET', '/api/v1/apartment/meterings');
     }
 
     /**
      * All meter values in ONE request - the classic API needs two per circuit.
-     *
-     * @returns {Promise<any>}
      */
-    getMeteringValues() {
+    getMeteringValues(): Promise<any> {
         return this.request('GET', '/api/v1/apartment/meterings/values');
     }
 
@@ -420,13 +468,12 @@ class DSSSmartHome extends EventEmitter {
     /**
      * Sets one output of a device.
      *
-     * @param {string} deviceId dSUID of the device
-     * @param {string} functionBlockId usually identical to the device id
-     * @param {string} outputId e.g. brightness, shadePositionOutside
-     * @param {number} value in the range the function block declares, usually 0..100
-     * @returns {Promise<any>}
+     * @param deviceId dSUID of the device
+     * @param functionBlockId usually identical to the device id
+     * @param outputId e.g. brightness, shadePositionOutside
+     * @param value in the range the function block declares, usually 0..100
      */
-    setOutputValue(deviceId, functionBlockId, outputId, value) {
+    setOutputValue(deviceId: string, functionBlockId: string, outputId: string, value: number): Promise<any> {
         return this.request('PATCH', `/api/v1/apartment/dsDevices/${encodeURIComponent(deviceId)}/status`, undefined, [
             {
                 op: 'replace',
@@ -439,11 +486,10 @@ class DSSSmartHome extends EventEmitter {
     /**
      * Sets the set point of the room temperature control of a zone.
      *
-     * @param {string|number} zoneId
-     * @param {number} value in degrees celsius
-     * @returns {Promise<any>}
+     * @param zoneId id of the zone
+     * @param value in degrees celsius
      */
-    setZoneSetpoint(zoneId, value) {
+    setZoneSetpoint(zoneId: string | number, value: number): Promise<any> {
         return this.request(
             'PATCH',
             `/api/v1/apartment/zones/${encodeURIComponent(String(zoneId))}/status`,
@@ -456,10 +502,9 @@ class DSSSmartHome extends EventEmitter {
      * Calls a scenario. Its id encodes zone, group and scene, for example
      * applicationZone-z2274-g1-s18.
      *
-     * @param {string} scenarioId
-     * @returns {Promise<any>}
+     * @param scenarioId id of the scenario
      */
-    invokeScenario(scenarioId) {
+    invokeScenario(scenarioId: string): Promise<any> {
         return this.request(
             'POST',
             `/api/v1/apartment/scenarios/${encodeURIComponent(scenarioId)}/invoke`,
@@ -482,17 +527,17 @@ class DSSSmartHome extends EventEmitter {
      * socket already exists and when another start is still waiting for the login. The
      * caller therefore has to look at the socket before reporting an open channel.
      *
-     * @returns {Promise<void>} resolves once the socket is connected, or immediately in
+     * @returns resolves once the socket is connected, or immediately in
      *   the cases above
      */
-    async startNotifications() {
+    async startNotifications(): Promise<void> {
         if (this.stopped || this.websocket || this.notificationsStarting) {
             return;
         }
         // Same credentials as the REST calls, so the channel keeps working when the key
         // is missing or rejected. A failing session login must plan the next attempt
         // just like a failing connect, otherwise the reconnects end here for good.
-        let headers;
+        let headers: Record<string, string>;
         this.notificationsStarting = true;
         try {
             headers = await this.authHeaders();
@@ -519,8 +564,8 @@ class DSSSmartHome extends EventEmitter {
         });
         this.websocket = socket;
 
-        socket.on('message', text => this.handleNotification(text));
-        socket.on('error', err => {
+        socket.on('message', (text: string) => this.handleNotification(text));
+        socket.on('error', (err: Error) => {
             this.logger && this.logger.debug(`Notification websocket error: ${errorMessage(err)}`);
         });
         socket.on('close', () => {
@@ -551,21 +596,21 @@ class DSSSmartHome extends EventEmitter {
     }
 
     /**
-     * @param {string} text one or more SignalR messages
+     * @param text one or more SignalR messages
      */
-    handleNotification(text) {
+    handleNotification(text: string): void {
         for (const part of text.split(RECORD_SEPARATOR)) {
             if (!part.trim()) {
                 continue;
             }
-            let message;
+            let message: any;
             try {
                 message = JSON.parse(part);
             } catch (err) {
                 this.logger && this.logger.debug(`Unreadable notification: ${errorMessage(err)}`);
                 continue;
             }
-            const args = Array.isArray(message && message.arguments) ? message.arguments : [];
+            const args: any[] = Array.isArray(message && message.arguments) ? message.arguments : [];
             for (const argument of args) {
                 if (argument && argument.type) {
                     this.pendingNotifications.add(argument.type);
@@ -584,7 +629,7 @@ class DSSSmartHome extends EventEmitter {
      * Collects notifications and reports them at most every notificationDebounce ms,
      * and at the latest after notificationMaxDelay.
      */
-    scheduleFlush() {
+    scheduleFlush(): void {
         if (!this.notificationDebounce) {
             return void this.flushNotifications();
         }
@@ -597,7 +642,7 @@ class DSSSmartHome extends EventEmitter {
         }
     }
 
-    flushNotifications() {
+    flushNotifications(): void {
         if (this.debounceTimer) {
             clearTimeout(this.debounceTimer);
             this.debounceTimer = null;
@@ -620,7 +665,7 @@ class DSSSmartHome extends EventEmitter {
         }
     }
 
-    scheduleReconnect() {
+    scheduleReconnect(): void {
         if (this.reconnectTimer || this.stopped) {
             return;
         }
@@ -637,7 +682,7 @@ class DSSSmartHome extends EventEmitter {
         }, delay);
     }
 
-    stopNotifications() {
+    stopNotifications(): void {
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
@@ -662,7 +707,7 @@ class DSSSmartHome extends EventEmitter {
         }
     }
 
-    stop() {
+    stop(): void {
         this.stopped = true;
         this.stopNotifications();
         this.activeRequests.forEach(req => req.destroy());
@@ -680,28 +725,19 @@ class DSSSmartHome extends EventEmitter {
      * therefore does not have to enter the password again if the adapter is already
      * configured.
      *
-     * @param {object} options
-     * @param {string} options.host
-     * @param {string} [options.appToken] existing app token of the classic API
-     * @param {string} [options.user] alternatively user and password
-     * @param {string} [options.password]
-     * @param {string} [options.name] name shown in the dSS, default "ioBroker.digitalstrom"
-     * @param {boolean} [options.validateCertificate]
-     * @param {SmartHomeLogger} [options.logger]
-     * @param {AbortSignal} [options.signal] aborts both temporary clients
-     * @returns {Promise<string>} the bearer key
+     * @param options host, credentials and name of the key
+     * @returns the bearer key
      */
-    static async createApiKey(options) {
+    static async createApiKey(options: CreateApiKeyOptions): Promise<string> {
         const dss = new DSS({
             host: options.host,
             appToken: options.appToken,
             validateCertificate: options.validateCertificate,
             logger: options.logger,
         });
-        /** @type {DSSSmartHome|null} */
-        let client = null;
+        let client: DSSSmartHome | null = null;
         const signal = options.signal;
-        const abort = () => {
+        const abort = (): void => {
             dss.stop();
             client && client.stop();
         };
@@ -710,7 +746,7 @@ class DSSSmartHome extends EventEmitter {
             if (signal && signal.aborted) {
                 throw stoppedError('Smart Home API key creation was cancelled');
             }
-            let sessionToken;
+            let sessionToken: string | undefined;
             if (options.appToken) {
                 // The DSS client already keeps a session, asking it avoids a second login
                 sessionToken = await dss.getSessionToken();
@@ -757,12 +793,12 @@ class DSSSmartHome extends EventEmitter {
      * POST /api/v1/apartment/applicationTokens. Answers with 201 and the key in the
      * Location header.
      *
-     * @param {string} sessionToken session token of the classic API
-     * @param {string} name name of the application, visible in the dSS
-     * @returns {Promise<string>} the bearer key
+     * @param sessionToken session token of the classic API
+     * @param name name of the application, visible in the dSS
+     * @returns the bearer key
      */
-    requestApplicationToken(sessionToken, name) {
-        return new Promise((resolve, reject) => {
+    requestApplicationToken(sessionToken: string, name: string): Promise<string> {
+        return new Promise<string>((resolve, reject) => {
             if (this.stopped) {
                 return void reject(stoppedError('Smart Home API client is stopped'));
             }
@@ -772,12 +808,9 @@ class DSSSmartHome extends EventEmitter {
                 data: { type: 'applicationToken', attributes: { name } },
             });
             let settled = false;
-            let req;
-            /**
-             * @param {unknown} err
-             * @param {string} [value]
-             */
-            const done = (err, value) => {
+            // Declared before done(), which has to see the request it belongs to
+            let req: http.ClientRequest | undefined = undefined;
+            const done = (err: Error | null, value?: string): void => {
                 if (settled) {
                     return;
                 }
@@ -842,7 +875,7 @@ class DSSSmartHome extends EventEmitter {
                                 `Response error while creating the application token: ${errorMessage(err)}`,
                                 undefined,
                                 {
-                                    cause: /** @type {Error} */ (err),
+                                    cause: err,
                                 },
                             ),
                         );
@@ -862,14 +895,3 @@ class DSSSmartHome extends EventEmitter {
         });
     }
 }
-
-// The extras hang off the class so `require('./dssSmartHome').SmartHomeError` keeps
-// working next to `require('./dssSmartHome')` itself. Written as statics instead of
-// further export assignments: the multi-assignment form is what an export-assignment
-// module may not do.
-DSSSmartHome.SmartHomeError = SmartHomeError;
-DSSSmartHome.APARTMENT_INCLUDES = APARTMENT_INCLUDES;
-DSSSmartHome.STATUS_INCLUDES = STATUS_INCLUDES;
-DSSSmartHome.RECORD_SEPARATOR = RECORD_SEPARATOR;
-
-module.exports = DSSSmartHome;
