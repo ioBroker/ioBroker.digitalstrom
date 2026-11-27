@@ -1,4 +1,6 @@
 # Dependabot will run on day 11 of each month at 01:26 (Europe/Berlin timezone)
+# Cooldown delays updating normal npm dependencies by 7 days but allows security updates to be processed immediately.
+# Note: Cooldown is not supported for the github-actions ecosystem.
 version: 2
 updates:
 
@@ -18,7 +20,25 @@ updates:
       cronjob: '26 1 11 * *'
     open-pull-requests-limit: 20
     versioning-strategy: 'increase'
+    cooldown:
+      default-days: 7
+    # @iobroker/adapter-react-v5 pins the admin UI stack through its peer dependencies:
+    # react and react-dom ^18.3.1, @mui/material and @mui/icons-material ^6.5.0. A major
+    # bump of any of the four cannot be installed (npm ci ends in ERESOLVE), so they stay
+    # ignored until adapter-react-v5 moves; patch and minor updates keep coming.
     ignore:
       - dependency-name: '@types/node'
+        update-types:
+          - 'version-update:semver-major'
+      - dependency-name: 'react'
+        update-types:
+          - 'version-update:semver-major'
+      - dependency-name: 'react-dom'
+        update-types:
+          - 'version-update:semver-major'
+      - dependency-name: '@mui/material'
+        update-types:
+          - 'version-update:semver-major'
+      - dependency-name: '@mui/icons-material'
         update-types:
           - 'version-update:semver-major'

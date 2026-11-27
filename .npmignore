@@ -4,6 +4,7 @@ node_modules/
 nbproject/
 .vs*/
 *.code-workspace
+.DS_Store
 Thumbs.db
 gulpfile.js
 
@@ -16,6 +17,10 @@ appveyor.yaml
 
 .eslintrc.json
 .eslintrc.js
+
+# Output of the probe scripts: contains the API key and the complete apartment structure.
+# .gitignore only protects Git - npm pack reads this file exclusively.
+ds-probe/
 
 # npm package files
 iobroker.*.tgz
@@ -31,3 +36,20 @@ maintenance/**
 test.js
 tsconfig.json
 main.test.js
+# sources of the admin interface - the built result in admin/ is what ships
+src-admin/
+scripts/
+
+# lint/format configs
+eslint.config.mjs
+prettier.config.mjs
+.prettierignore
+.releaseconfig.json
+
+# digitalSTROM documentation - copyrighted, stays local
+API-dss-json.pdf
+*.pdf
+
+# README material - needed in the repo, not in the installed package
+docs/
+img/

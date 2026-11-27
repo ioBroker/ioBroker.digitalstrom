@@ -1,0 +1,7 @@
+node_modules
+package-lock.json
+package.json
+io-package.json
+admin
+img
+*.md

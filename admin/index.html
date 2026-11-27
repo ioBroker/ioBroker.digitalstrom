@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>digitalSTROM</title>
+        <script>
+            // @iobroker/socket-client does not bring socket.io along, it expects the page to
+            // provide it as a global. Admin serves the library at /lib/js/socket.io.js, and
+            // the config page lives at /adapter/digitalstrom/, hence the two levels up.
+            // Without this the dialog only says "Socket library could not be loaded!".
+            (function () {
+                var pending = null;
+                var loaded = false;
+
+                // socket-client calls this to learn when the library is there instead of polling
+                window.registerSocketOnLoad = function (callback) {
+                    if (loaded) {
+                        callback();
+                    } else {
+                        pending = callback;
+                    }
+                };
+
+                var script = document.createElement('script');
+                script.onload = function () {
+                    loaded = true;
+                    if (pending) {
+                        pending();
+                    }
+                };
+                // Port 5199 is the development preview, which has no admin behind it
+                script.src =
+                    window.location.port === '5199'
+                        ? window.location.protocol + '//' + window.location.hostname + ':8081/lib/js/socket.io.js'
+                        : './../../lib/js/socket.io.js';
+                document.head.appendChild(script);
+            })();
+        </script>
+      <script type="module" crossorigin src="./assets/index.js"></script>
+    </head>
+    <body>
+        <div id="root"></div>
+    </body>
+</html>

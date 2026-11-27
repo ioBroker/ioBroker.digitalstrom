@@ -1,3 +1,8 @@
+// Type checking configuration. Nothing is compiled from here.
+//
+// The project is free of type errors: `npm run typecheck` (tsc --noEmit) is part of the
+// CI pipeline and must stay green. strict and checkJs are enabled, the types are declared
+// with JSDoc - see the AdapterError and DssResponse typedefs in lib/configUtils.js.
 {
     "compileOnSave": true,
     "compilerOptions": {
@@ -8,10 +13,22 @@
         "allowJs": true,
         "checkJs": true,
 
-        "module": "commonjs",
-        "moduleResolution": "node",
+        // node20, not node16: this adapter requires Node 22, and from Node 22.12 a CommonJS
+        // file may require() an ES module. chai and its two plugins are ESM since version 5,
+        // and node16 rejects every require() of them although it works at runtime.
+        // The resolution has no node20 of its own, nodenext is its current equivalent.
+        "module": "node20",
+        "moduleResolution": "nodenext",
         // this is necessary for the automatic typing of the adapter config
         "resolveJsonModule": true,
+
+        // The types of the dependencies are not part of this project. Checking them would
+        // only report errors that cannot be fixed here - the project code itself stays
+        // fully checked.
+        "skipLibCheck": true,
+
+        // Without this the mocha/chai globals of the tests are not found
+        "types": ["node", "mocha", "chai"],
 
         // Set this to false if you want to disable the very strict rules (not recommended)
         "strict": true,
@@ -23,16 +40,10 @@
         // "noUnusedLocals": true,
         // "noUnusedParameters": true,
 
-        // Consider targetting es2017 or higher if you require the new NodeJS 8+ features
-        "target": "es2017",
-
+        // Node 22 is the minimum supported runtime, so the ES2022 library (Error.cause,
+        // Array.at, ...) is available
+        "target": "es2022"
     },
-    "include": [
-        "**/*.js",
-        "**/*.d.ts"
-    ],
-    "exclude": [
-        "node_modules/**",
-        "admin/**"
-    ]
+    "include": ["**/*.js", "**/*.d.ts"],
+    "exclude": ["node_modules/**", "admin/**", "src-admin/**"]
 }
