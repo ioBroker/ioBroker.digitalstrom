@@ -42,3 +42,6 @@ updates:
       - dependency-name: '@mui/icons-material'
         update-types:
           - 'version-update:semver-major'
+      # TypeScript stays on 6.0.3 (pinned in package.json): no TypeScript 7 and no other
+      # update until that is decided deliberately
+      - dependency-name: 'typescript'
