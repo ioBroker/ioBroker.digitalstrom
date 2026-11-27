@@ -232,7 +232,7 @@ MIT license; the original copyright notice is kept unchanged in [LICENSE](LICENS
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-### **WORK IN PROGRESS**
+### 3.0.0 (2026-11-27)
 
 * The maintained fork (https://github.com/mrandreschmitz/ioBroker.digitalstrom) was brought back
   into this repository. Repository URLs point here again, the Sentry plugin is configured again,
@@ -882,7 +882,7 @@ existed in 2.4.2 and earlier - they fail silently, which is why they never showe
 * (Apollon77) BREAKING: binaryInput are now numbers intead of booleans because it can have values other then true/false
 * (Apollon77) BREAKING: Some states are converted to strings to allow all values to be passed
 * (Apollon77) Fixes on some outputValues 
-* (Apollon77) add new sunelevation and sunazimuth values 
+* (Apollon77) add new sunelevation and sunazimuth values
 
 ### 1.0.2 (2020-02-10)
 * (Apollon77) trigger buttons on scene calls also if scene is normally not allowed but came from the device
@@ -911,7 +911,7 @@ existed in 2.4.2 and earlier - they fail silently, which is why they never showe
 ### 0.4.9 (2020-01-18)
 * (Apollon77) add unknown weather sensor "windgust"
 * (Apollon77) change handling of Input types
-* (Apollon77) Fix controlling of shaders 
+* (Apollon77) Fix controlling of shaders
 
 ### 0.4.7 (2020-01-17)
 * (Apollon77) fix error when writing vdc output values
@@ -937,7 +937,7 @@ existed in 2.4.2 and earlier - they fail silently, which is why they never showe
 
 ### 0.3.3 (2020-01-15)
 * (Apollon77) fixes for scene lists
-* (Apollon77) add some special szenes to more groups 
+* (Apollon77) add some special szenes to more groups
 
 ### 0.3.2 (2020-01-14)
 * (Apollon77) fixes for adapter start
