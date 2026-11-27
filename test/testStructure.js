@@ -1,9 +1,9 @@
 const EventEmitter = require('node:events');
-const { expect } = require('chai');
-const DSSStructure = require('../lib/dssStructure');
+const assert = require('node:assert');
+const { DSSStructure } = require('../build/lib/dssStructure');
 
-const DSSQueue = require('../lib/dssQueue');
-const dssConstants = require('../lib/constants');
+const { DSSQueue } = require('../build/lib/dssQueue');
+const dssConstants = require('../build/lib/constants');
 
 const silentLogger = { silly: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
@@ -23,9 +23,9 @@ function createStructure(overrides) {
 describe('DSSStructure', () => {
     it('convertSceneName strips bracket suffixes and spaces', () => {
         const struct = createStructure();
-        expect(struct.convertSceneName('Deep Off')).to.equal('DeepOff');
-        expect(struct.convertSceneName('Preset 2 (Standard)')).to.equal('Preset2');
-        expect(struct.convertSceneName('')).to.equal('');
+        assert.strictEqual(struct.convertSceneName('Deep Off'), 'DeepOff');
+        assert.strictEqual(struct.convertSceneName('Preset 2 (Standard)'), 'Preset2');
+        assert.strictEqual(struct.convertSceneName(''), '');
     });
 
     it('convertObject maps arrays by the given name field', () => {
@@ -37,15 +37,15 @@ describe('DSSStructure', () => {
             ],
             'id',
         );
-        expect(res).to.have.property('1');
-        expect(res[2].name).to.equal('two');
+        assert.ok('1' in res);
+        assert.strictEqual(res[2].name, 'two');
     });
 
     it('convertObject tolerates invalid input', () => {
         const struct = createStructure();
-        expect(struct.convertObject(null, 'id')).to.deep.equal({});
-        expect(struct.convertObject('nope', 'id')).to.deep.equal({});
-        expect(struct.convertObject([{ noIdField: true }], 'id')).to.deep.equal({});
+        assert.deepStrictEqual(struct.convertObject(null, 'id'), {});
+        assert.deepStrictEqual(struct.convertObject('nope', 'id'), {});
+        assert.deepStrictEqual(struct.convertObject([{ noIdField: true }], 'id'), {});
     });
 
     it('clearTimeouts cancels pending timeouts', done => {
@@ -55,9 +55,9 @@ describe('DSSStructure', () => {
             fired = true;
         }, 5);
         struct.clearTimeouts();
-        expect(struct.pendingTimeouts.size).to.equal(0);
+        assert.strictEqual(struct.pendingTimeouts.size, 0);
         setTimeout(() => {
-            expect(fired).to.equal(false);
+            assert.strictEqual(fired, false);
             done();
         }, 15);
     });
@@ -85,8 +85,8 @@ describe('DSSStructure', () => {
             { hasMetering: false, dSUID: 'meter2' },
         ];
         struct.updateMeterData((failed, total) => {
-            expect(total).to.equal(2);
-            expect(failed).to.equal(1);
+            assert.strictEqual(total, 2);
+            assert.strictEqual(failed, 1);
             done();
         });
     });
@@ -108,26 +108,25 @@ describe('DSSStructure', () => {
                 { temperature: { value: 13.275, time: '2026-09-17T21:00:30.962Z' } },
                 { 'apartment.sensors.outdoor.brightness': { common: {} } },
             );
-            expect(struct.dssObjects, 'the known sensor keeps its object').to.have.property(
-                'apartment.sensors.outdoor.brightness',
-            );
-            expect(
+            assert.ok('apartment.sensors.outdoor.brightness' in struct.dssObjects, 'the known sensor keeps its object');
+            assert.strictEqual(
                 struct.initialObjectValues['apartment.sensors.outdoor.brightness'],
+                undefined,
                 'and no value is written over the old one',
-            ).to.equal(undefined);
-            expect(struct.initialObjectValues['apartment.sensors.outdoor.temperature'].val).to.equal(13.275);
+            );
+            assert.strictEqual(struct.initialObjectValues['apartment.sensors.outdoor.temperature'].val, 13.275);
         });
 
         it('creates nothing for a sensor ioBroker does not know either', () => {
             const struct = createWithOutdoor({ temperature: { value: 13.275, time: 0 } }, {});
-            expect(struct.dssObjects).to.not.have.property('apartment.sensors.outdoor.brightness');
-            expect(struct.dssObjects).to.have.property('apartment.sensors.outdoor.temperature');
+            assert.ok(!('apartment.sensors.outdoor.brightness' in struct.dssObjects));
+            assert.ok('apartment.sensors.outdoor.temperature' in struct.dssObjects);
         });
 
         it('keeps a known state even when the answer carries no outdoor block at all', () => {
             const struct = createWithOutdoor(null, { 'apartment.sensors.outdoor.brightness': { common: {} } });
-            expect(struct.dssObjects).to.have.property('apartment.sensors.outdoor');
-            expect(struct.dssObjects).to.have.property('apartment.sensors.outdoor.brightness');
+            assert.ok('apartment.sensors.outdoor' in struct.dssObjects);
+            assert.ok('apartment.sensors.outdoor.brightness' in struct.dssObjects);
         });
 
         it('still reports a sensor name the adapter does not know', () => {
@@ -141,7 +140,7 @@ describe('DSSStructure', () => {
             });
             struct.sensorValues = { outdoor: { nonsense: { value: 1, time: 0 } } };
             struct.createOutdoorSensors();
-            expect(warnings.join(' ')).to.contain('nonsense');
+            assert.ok(warnings.join(' ').includes('nonsense'));
         });
     });
 
@@ -150,14 +149,15 @@ describe('DSSStructure', () => {
     describe('apartment state heating_water_system', () => {
         it('carries the wording of the DSS instead of a flag', () => {
             const map = dssConstants.apartmentStateRoleMap.heating_water_system;
-            expect(map.type).to.equal('string');
-            expect(map.native, 'no flag mapping that could not match').to.equal(undefined);
+            assert.strictEqual(map.type, 'string');
+            assert.strictEqual(map.native, undefined, 'no flag mapping that could not match');
         });
 
         it('passes the DSS wording through as the initial value', () => {
-            expect(
+            assert.strictEqual(
                 DSSStructure.initialStateValue({ name: 'heating_water_system', value: 1, state: 'hot water' }),
-            ).to.equal('hot water');
+                'hot water',
+            );
         });
     });
 
@@ -178,8 +178,8 @@ describe('DSSStructure', () => {
             const struct = writingStructure(written);
             struct.objectsReady = false;
             struct.setStateSafe('devices.m1.dev1.shadePositionOutside', 42);
-            expect(written, 'must not write to a not yet existing object').to.deep.equal([]);
-            expect(struct.initialObjectValues['devices.m1.dev1.shadePositionOutside']).to.equal(42);
+            assert.deepStrictEqual(written, [], 'must not write to a not yet existing object');
+            assert.strictEqual(struct.initialObjectValues['devices.m1.dev1.shadePositionOutside'], 42);
         });
 
         it('writes via the type conversion once the objects are created', () => {
@@ -187,7 +187,7 @@ describe('DSSStructure', () => {
             const struct = writingStructure(written);
             struct.objectsReady = true;
             struct.setStateSafe('devices.m1.dev1.shadePositionOutside', 42);
-            expect(written).to.deep.equal([['devices.m1.dev1.shadePositionOutside', 42]]);
+            assert.deepStrictEqual(written, [['devices.m1.dev1.shadePositionOutside', 42]]);
         });
 
         it('ignores undefined values', () => {
@@ -195,8 +195,8 @@ describe('DSSStructure', () => {
             const struct = writingStructure(written);
             struct.objectsReady = true;
             struct.setStateSafe('devices.m1.dev1.x', undefined);
-            expect(written).to.deep.equal([]);
-            expect(struct.initialObjectValues).to.not.have.property('devices.m1.dev1.x');
+            assert.deepStrictEqual(written, []);
+            assert.ok(!('devices.m1.dev1.x' in struct.initialObjectValues));
         });
 
         it('repeats a value that a poll re-asserts only when it really moved', () => {
@@ -212,10 +212,14 @@ describe('DSSStructure', () => {
             struct.setStateSafe(id, 42, poll);
             struct.setStateSafe(id, 43, poll);
 
-            expect(written, 'the second poll of an unchanged value must not reach ioBroker').to.deep.equal([
-                [id, 42],
-                [id, 43],
-            ]);
+            assert.deepStrictEqual(
+                written,
+                [
+                    [id, 42],
+                    [id, 43],
+                ],
+                'the second poll of an unchanged value must not reach ioBroker',
+            );
         });
 
         it('never suppresses a write that carries no skipUnchanged', () => {
@@ -230,7 +234,7 @@ describe('DSSStructure', () => {
             // value again is a message of its own and has to be published
             struct.setStateSafe(id, 42);
 
-            expect(written).to.deep.equal([
+            assert.deepStrictEqual(written, [
                 [id, 42],
                 [id, 42],
             ]);
@@ -249,10 +253,14 @@ describe('DSSStructure', () => {
             struct.notePublishedValue(id, 7);
             struct.setStateSafe(id, 42, poll);
 
-            expect(written, 'the reconciliation has to be able to correct a foreign value').to.deep.equal([
-                [id, 42],
-                [id, 42],
-            ]);
+            assert.deepStrictEqual(
+                written,
+                [
+                    [id, 42],
+                    [id, 42],
+                ],
+                'the reconciliation has to be able to correct a foreign value',
+            );
         });
     });
 
@@ -280,17 +288,19 @@ describe('DSSStructure', () => {
             struct.logOutputReadError(dev, 'shadeOpeningAngleOutside', err);
             struct.logOutputReadError(dev, 'shadeOpeningAngleOutside', err);
 
-            expect(
+            assert.deepStrictEqual(
                 entries.map(e => e[0]),
+                ['info', 'debug', 'debug'],
                 'only the first one is visible',
-            ).to.deep.equal(['info', 'debug', 'debug']);
-            expect(entries[0][1]).to.contain('Wohnen Rollladen');
-            expect(entries[0][1]).to.contain('shadeOpeningAngleOutside');
-            expect(entries[0][1]).to.contain('HTTP 500');
-            expect(
+            );
+            assert.ok(entries[0][1].includes('Wohnen Rollladen'));
+            assert.ok(entries[0][1].includes('shadeOpeningAngleOutside'));
+            assert.ok(entries[0][1].includes('HTTP 500'));
+            assert.strictEqual(
                 entries.some(e => e[0] === 'warn'),
+                false,
                 'never a warning',
-            ).to.equal(false);
+            );
         });
 
         it('keeps devices and channels apart', () => {
@@ -300,13 +310,16 @@ describe('DSSStructure', () => {
             struct.logOutputReadError(dev, 'shadeOpeningAngleOutside', err);
             struct.logOutputReadError(dev, 'shadePositionOutside', err);
             struct.logOutputReadError({ dSUID: 'dev2' }, 'shadeOpeningAngleOutside', err);
-            expect(entries.map(e => e[0])).to.deep.equal(['info', 'info', 'info']);
+            assert.deepStrictEqual(
+                entries.map(e => e[0]),
+                ['info', 'info', 'info'],
+            );
         });
 
         it('falls back to the dSUID when the device has no name', () => {
             const entries = [];
             loggingStructure(entries).logOutputReadError({ dSUID: 'dev9' }, 'brightness', new Error('boom'));
-            expect(entries[0][1]).to.contain('dev9');
+            assert.ok(entries[0][1].includes('dev9'));
         });
     });
 
@@ -329,13 +342,13 @@ describe('DSSStructure', () => {
             const err = new Error('Queue cleared');
             err.shutdown = true;
             loggingStructure(levels).logQueueError('Err getReachableScenes for zone 2 group 1', err);
-            expect(levels).to.deep.equal(['debug']);
+            assert.deepStrictEqual(levels, ['debug']);
         });
 
         it('still warns about real errors', () => {
             const levels = [];
             loggingStructure(levels).logQueueError('Err getReachableScenes for zone 2 group 1', new Error('boom'));
-            expect(levels).to.deep.equal(['warn']);
+            assert.deepStrictEqual(levels, ['warn']);
         });
     });
 
@@ -343,46 +356,48 @@ describe('DSSStructure', () => {
         // Regression: five apartment states carried no value at all from the first start
         // onwards, because the property dump describes them with a raw value and no word.
         it('takes the word when the dSS sends one', () => {
-            expect(DSSStructure.initialStateValue({ name: 'presence', state: 'present', value: 'present' })).to.equal(
+            assert.strictEqual(
+                DSSStructure.initialStateValue({ name: 'presence', state: 'present', value: 'present' }),
                 'present',
             );
         });
 
         it('falls back to the raw value when there is no word', () => {
-            expect(
+            assert.strictEqual(
                 DSSStructure.initialStateValue({ name: 'daylight', value: true, script_id: 'solar_computer' }),
+                true,
                 'measured against a dSS20 1.19.13',
-            ).to.equal(true);
-            expect(DSSStructure.initialStateValue({ name: 'holiday', value: 'off' })).to.equal('off');
+            );
+            assert.strictEqual(DSSStructure.initialStateValue({ name: 'holiday', value: 'off' }), 'off');
         });
 
         it('stays undefined when the entry carries neither', () => {
-            expect(DSSStructure.initialStateValue({ name: 'nothing' })).to.equal(undefined);
-            expect(DSSStructure.initialStateValue(null)).to.equal(undefined);
+            assert.strictEqual(DSSStructure.initialStateValue({ name: 'nothing' }), undefined);
+            assert.strictEqual(DSSStructure.initialStateValue(null), undefined);
         });
 
         it('keeps a word that means false', () => {
-            expect(DSSStructure.initialStateValue({ state: 'inactive', value: 2 })).to.equal('inactive');
+            assert.strictEqual(DSSStructure.initialStateValue({ state: 'inactive', value: 2 }), 'inactive');
         });
     });
 
     describe('toBoolean', () => {
         it('maps the common DSS off words to false', () => {
             ['', '0', 'false', 'off', 'inactive', 'no', 'INACTIVE', ' Off '].forEach(v =>
-                expect(DSSStructure.toBoolean(v), `${v} must be false`).to.equal(false),
+                assert.strictEqual(DSSStructure.toBoolean(v), false, `${v} must be false`),
             );
         });
 
         it('maps the common DSS on words to true', () => {
             ['1', 'true', 'on', 'active', 'yes'].forEach(v =>
-                expect(DSSStructure.toBoolean(v), `${v} must be true`).to.equal(true),
+                assert.strictEqual(DSSStructure.toBoolean(v), true, `${v} must be true`),
             );
         });
 
         it('keeps non string values working', () => {
-            expect(DSSStructure.toBoolean(0)).to.equal(false);
-            expect(DSSStructure.toBoolean(1)).to.equal(true);
-            expect(DSSStructure.toBoolean(null)).to.equal(false);
+            assert.strictEqual(DSSStructure.toBoolean(0), false);
+            assert.strictEqual(DSSStructure.toBoolean(1), true);
+            assert.strictEqual(DSSStructure.toBoolean(null), false);
         });
     });
 
@@ -390,21 +405,21 @@ describe('DSSStructure', () => {
         it('resolves zone/room scenes that only exist in zoneSceneCommands', () => {
             const struct = createStructure();
             // 0, 5 and 17 are basic room scenes
-            expect(struct.resolveSceneStateName(0)).to.equal('Preset0');
-            expect(struct.resolveSceneStateName(5)).to.equal('Preset1');
-            expect(struct.resolveSceneStateName(17)).to.equal('Preset2');
+            assert.strictEqual(struct.resolveSceneStateName(0), 'Preset0');
+            assert.strictEqual(struct.resolveSceneStateName(5), 'Preset1');
+            assert.strictEqual(struct.resolveSceneStateName(17), 'Preset2');
         });
 
         it('resolves apartment scenes', () => {
             const struct = createStructure();
-            expect(struct.resolveSceneStateName(67)).to.equal('Standby');
-            expect(struct.resolveSceneStateName(72)).to.equal('Absent');
+            assert.strictEqual(struct.resolveSceneStateName(67), 'Standby');
+            assert.strictEqual(struct.resolveSceneStateName(72), 'Absent');
         });
 
         it('returns null for an unknown scene instead of an undefined path', () => {
             const struct = createStructure();
-            expect(struct.resolveSceneStateName(9999)).to.equal(null);
-            expect(struct.resolveSceneStateName(undefined)).to.equal(null);
+            assert.strictEqual(struct.resolveSceneStateName(9999), null);
+            assert.strictEqual(struct.resolveSceneStateName(undefined), null);
         });
     });
 
@@ -412,11 +427,11 @@ describe('DSSStructure', () => {
         it('findStates survives missing property states', () => {
             const struct = createStructure();
             struct.propertyStates = undefined;
-            expect(struct.findStates('^zone\\.1\\.(.*)$')).to.deep.equal([]);
+            assert.deepStrictEqual(struct.findStates('^zone\\.1\\.(.*)$'), []);
             struct.propertyStates = [null, { noName: true }, { name: 'zone.1.heating' }];
             const res = struct.findStates('^zone\\.1\\.(.*)$');
-            expect(res).to.have.lengthOf(1);
-            expect(res[0].matchedName).to.equal('heating');
+            assert.strictEqual(res.length, 1);
+            assert.strictEqual(res[0].matchedName, 'heating');
         });
 
         it('processZone tolerates a zone without sensor values and with temperature control', done => {
@@ -434,10 +449,10 @@ describe('DSSStructure', () => {
             const zone = { id: 5, isPresent: true, isValid: true, name: 'Living', groups: [] };
             // sensorValues intentionally undefined, temperature control present
             struct.processZone('apartment.1', zone, [], undefined, { ControlMode: 1 }, err => {
-                expect(err).to.equal(null);
+                assert.strictEqual(err, null);
                 // the initial zone scene must be resolved via zoneSceneCommands
-                expect(struct.initialObjectValues['apartment.1.5.scenes.sceneId']).to.equal(5);
-                expect(struct.initialScenes['5.0']).to.equal(5);
+                assert.strictEqual(struct.initialObjectValues['apartment.1.5.scenes.sceneId'], 5);
+                assert.strictEqual(struct.initialScenes['5.0'], 5);
                 done();
             });
         });
@@ -457,11 +472,11 @@ describe('DSSStructure', () => {
             const zone = { id: 5, isPresent: true, isValid: true, name: 'Living', groups: [] };
             struct.processZone('apartment.1', zone, [], undefined, undefined, () => {
                 const obj = struct.dssObjects['apartment.1.5.states.heating'];
-                expect(obj.common.type, 'the object must stay boolean').to.equal('boolean');
-                expect(obj.native).to.deep.equal({ valueTrue: 'active', valueFalse: 'inactive' });
+                assert.strictEqual(obj.common.type, 'boolean', 'the object must stay boolean');
+                assert.deepStrictEqual(obj.native, { valueTrue: 'active', valueFalse: 'inactive' });
                 // Converted centrally when written, so the raw DSS value is kept here
-                expect(obj.value).to.equal('inactive');
-                expect(struct.initialObjectValues['apartment.1.5.states.heating']).to.equal('inactive');
+                assert.strictEqual(obj.value, 'inactive');
+                assert.strictEqual(struct.initialObjectValues['apartment.1.5.states.heating'], 'inactive');
                 done();
             });
         });
@@ -469,7 +484,7 @@ describe('DSSStructure', () => {
         it('processZone skips a zone that is not part of the structure', done => {
             const struct = createStructure();
             struct.processZone('apartment.1', undefined, [], undefined, undefined, err => {
-                expect(err).to.equal(null);
+                assert.strictEqual(err, null);
                 done();
             });
         });
@@ -528,12 +543,18 @@ describe('DSSStructure', () => {
             it(`forwards a position write to the DSS with initializeOutputValues=${initializeOutputValues}`, done => {
                 const { struct, dev, writes } = shaderContext(initializeOutputValues);
                 struct.createShaderDevice(dev, 'devices.m1.dev1', () => {
-                    expect(struct.dssObjects[POSITION_ID].onChange, 'a write handler must exist').to.be.a('function');
+                    assert.strictEqual(
+                        typeof struct.dssObjects[POSITION_ID].onChange,
+                        'function',
+                        'a write handler must exist',
+                    );
                     struct.dssObjects[POSITION_ID].onChange(50);
                     setTimeout(() => {
-                        expect(writes, 'the position must reach the DSS').to.deep.equal([
-                            { index: 2, length: 65535, value: Math.round((50 * 65535) / 100) },
-                        ]);
+                        assert.deepStrictEqual(
+                            writes,
+                            [{ index: 2, length: 65535, value: Math.round((50 * 65535) / 100) }],
+                            'the position must reach the DSS',
+                        );
                         done();
                     }, 10);
                 });
@@ -542,10 +563,16 @@ describe('DSSStructure', () => {
             it(`forwards an angle write to the DSS with initializeOutputValues=${initializeOutputValues}`, done => {
                 const { struct, dev, writes } = shaderContext(initializeOutputValues);
                 struct.createShaderDevice(dev, 'devices.m1.dev1', () => {
-                    expect(struct.dssObjects[ANGLE_ID].onChange, 'a write handler must exist').to.be.a('function');
+                    assert.strictEqual(
+                        typeof struct.dssObjects[ANGLE_ID].onChange,
+                        'function',
+                        'a write handler must exist',
+                    );
                     struct.dssObjects[ANGLE_ID].onChange(40);
                     setTimeout(() => {
-                        expect(writes).to.deep.equal([{ index: 4, length: 255, value: Math.round((40 * 255) / 100) }]);
+                        assert.deepStrictEqual(writes, [
+                            { index: 4, length: 255, value: Math.round((40 * 255) / 100) },
+                        ]);
                         done();
                     }, 10);
                 });
@@ -558,7 +585,7 @@ describe('DSSStructure', () => {
                 struct.dssObjects[POSITION_ID].onChange(100);
                 struct.dssObjects[POSITION_ID].onChange(0);
                 setTimeout(() => {
-                    expect(scenes, 'open = scene 14, close = scene 13').to.deep.equal([14, 13]);
+                    assert.deepStrictEqual(scenes, [14, 13], 'open = scene 14, close = scene 13');
                     done();
                 }, 10);
             });
@@ -570,8 +597,8 @@ describe('DSSStructure', () => {
                 const off = shaderContext(false);
                 off.struct.createShaderDevice(off.dev, 'devices.m1.dev1', () => {
                     setTimeout(() => {
-                        expect(on.reads.length, 'position and angle are read').to.equal(2);
-                        expect(off.reads, 'no read at all when switched off').to.deep.equal([]);
+                        assert.strictEqual(on.reads.length, 2, 'position and angle are read');
+                        assert.deepStrictEqual(off.reads, [], 'no read at all when switched off');
                         done();
                     }, 10);
                 });
@@ -588,8 +615,8 @@ describe('DSSStructure', () => {
                     on.struct.dss.emit('dev1', event);
                     off.struct.dss.emit('dev1', event);
                     setTimeout(() => {
-                        expect(on.reads.length, 'the real values are re-read').to.be.above(0);
-                        expect(off.reads, 'no DSS read when switched off').to.deep.equal([]);
+                        assert.ok(on.reads.length > 0, 'the real values are re-read');
+                        assert.deepStrictEqual(off.reads, [], 'no DSS read when switched off');
                         on.struct.clearTimeouts();
                         off.struct.clearTimeouts();
                         done();
@@ -648,8 +675,8 @@ describe('DSSStructure', () => {
                 struct.dssObjects[STATE_ID].onChange(true);
                 struct.dssObjects[STATE_ID].onChange(false);
                 setTimeout(() => {
-                    expect(writes, 'the DSS representation of the boolean channel').to.deep.equal([1, 0]);
-                    expect(warnings, 'a valid boolean must not warn').to.deep.equal([]);
+                    assert.deepStrictEqual(writes, [1, 0], 'the DSS representation of the boolean channel');
+                    assert.deepStrictEqual(warnings, [], 'a valid boolean must not warn');
                     done();
                 }, 10);
             });
@@ -661,7 +688,7 @@ describe('DSSStructure', () => {
                 struct.dssObjects[STATE_ID].onChange('true');
                 struct.dssObjects[STATE_ID].onChange('off');
                 setTimeout(() => {
-                    expect(writes).to.deep.equal([1, 0]);
+                    assert.deepStrictEqual(writes, [1, 0]);
                     done();
                 }, 10);
             });
@@ -672,8 +699,8 @@ describe('DSSStructure', () => {
             struct.createDevice(dev, () => {
                 struct.dssObjects[STATE_ID].onChange({ some: 'object' });
                 setTimeout(() => {
-                    expect(writes, 'nothing may be sent').to.deep.equal([]);
-                    expect(warnings.join(' '), 'the rejection must be visible').to.contain(STATE_ID);
+                    assert.deepStrictEqual(writes, [], 'nothing may be sent');
+                    assert.ok(warnings.join(' ').includes(STATE_ID), 'the rejection must be visible');
                     done();
                 }, 10);
             });
@@ -734,12 +761,15 @@ describe('DSSStructure', () => {
             const { struct, dev, reads, written, infoStates } = vdcContext(SONOS_ANSWER);
             struct.queueClassicOutputRead(dev, 'audioVolume', 'medium');
             setTimeout(() => {
-                expect(reads).to.deep.equal([{ dSUID: 'sonos1', prio: 'medium' }]);
-                expect(written.sort((a, b) => a.id.localeCompare(b.id))).to.deep.equal([
-                    { id: 'devices.m1.sonos1.audioVolume', value: 14 },
-                    { id: 'devices.m1.sonos1.powerState', value: 0 },
-                ]);
-                expect(infoStates).to.deep.equal([{ id: 'info.outputApi', value: 'classic', ack: true }]);
+                assert.deepStrictEqual(reads, [{ dSUID: 'sonos1', prio: 'medium' }]);
+                assert.deepStrictEqual(
+                    written.sort((a, b) => a.id.localeCompare(b.id)),
+                    [
+                        { id: 'devices.m1.sonos1.audioVolume', value: 14 },
+                        { id: 'devices.m1.sonos1.powerState', value: 0 },
+                    ],
+                );
+                assert.deepStrictEqual(infoStates, [{ id: 'info.outputApi', value: 'classic', ack: true }]);
                 done();
             }, 20);
         });
@@ -749,8 +779,8 @@ describe('DSSStructure', () => {
             struct.queueClassicOutputRead(dev, 'audioVolume', 'medium');
             struct.queueClassicOutputRead(dev, 'powerState', 'medium');
             setTimeout(() => {
-                expect(reads, 'one answer serves every channel').to.have.lengthOf(1);
-                expect(written).to.have.lengthOf(2);
+                assert.strictEqual(reads.length, 1, 'one answer serves every channel');
+                assert.strictEqual(written.length, 2);
                 done();
             }, 20);
         });
@@ -759,8 +789,8 @@ describe('DSSStructure', () => {
             const { struct, dev, infoStates, written } = vdcContext(SONOS_ANSWER);
             struct.queueClassicOutputRead(dev, 'audioVolume', 'medium', { report: false });
             setTimeout(() => {
-                expect(written).to.have.lengthOf(2);
-                expect(infoStates).to.have.lengthOf(0);
+                assert.strictEqual(written.length, 2);
+                assert.strictEqual(infoStates.length, 0);
                 done();
             }, 20);
         });
@@ -777,7 +807,7 @@ describe('DSSStructure', () => {
             setTimeout(() => {
                 struct.queueClassicOutputRead(dev, 'audioVolume', 'medium');
                 setTimeout(() => {
-                    expect(reads, 'after the rejection no further request').to.have.lengthOf(1);
+                    assert.strictEqual(reads.length, 1, 'after the rejection no further request');
                     done();
                 }, 20);
             }, 20);
@@ -809,14 +839,17 @@ describe('DSSStructure', () => {
             };
             struct.queueClassicOutputRead(light, 'hue', 'medium');
             setTimeout(() => {
-                expect(reads).to.have.lengthOf(1);
-                expect(written.sort((a, b) => a.id.localeCompare(b.id))).to.deep.equal([
-                    { id: 'devices.m1.hue1.colortemp', value: 100 },
-                    { id: 'devices.m1.hue1.hue', value: 168 },
-                    { id: 'devices.m1.hue1.saturation', value: 100 },
-                    { id: 'devices.m1.hue1.x', value: 2250 },
-                    { id: 'devices.m1.hue1.y', value: 3944 },
-                ]);
+                assert.strictEqual(reads.length, 1);
+                assert.deepStrictEqual(
+                    written.sort((a, b) => a.id.localeCompare(b.id)),
+                    [
+                        { id: 'devices.m1.hue1.colortemp', value: 100 },
+                        { id: 'devices.m1.hue1.hue', value: 168 },
+                        { id: 'devices.m1.hue1.saturation', value: 100 },
+                        { id: 'devices.m1.hue1.x', value: 2250 },
+                        { id: 'devices.m1.hue1.y', value: 3944 },
+                    ],
+                );
                 done();
             }, 20);
         });
@@ -827,8 +860,8 @@ describe('DSSStructure', () => {
             // Springt auf den laufenden Read auf und darf melden - der Read uebernimmt das
             struct.queueClassicOutputRead(dev, 'powerState', 'medium');
             setTimeout(() => {
-                expect(reads).to.have.lengthOf(1);
-                expect(infoStates).to.deep.equal([{ id: 'info.outputApi', value: 'classic', ack: true }]);
+                assert.strictEqual(reads.length, 1);
+                assert.deepStrictEqual(infoStates, [{ id: 'info.outputApi', value: 'classic', ack: true }]);
                 done();
             }, 20);
         });
@@ -841,7 +874,7 @@ describe('DSSStructure', () => {
                 'medium',
             );
             setTimeout(() => {
-                expect(reads, 'no named read for a native terminal').to.have.lengthOf(0);
+                assert.strictEqual(reads.length, 0, 'no named read for a native terminal');
                 done();
             }, 20);
         });
@@ -908,13 +941,16 @@ describe('DSSStructure', () => {
             const { struct, namedReads, offsetReads, written } = genericContext();
             struct.createDevice(vdcDevice(['brightness', 'colortemp']), () => {
                 setTimeout(() => {
-                    expect(namedReads).to.deep.equal([{ dSUID: 'hue1', prio: 'medium' }]);
-                    expect(offsetReads, 'no offset read a vDC cannot answer').to.have.lengthOf(0);
+                    assert.deepStrictEqual(namedReads, [{ dSUID: 'hue1', prio: 'medium' }]);
+                    assert.strictEqual(offsetReads.length, 0, 'no offset read a vDC cannot answer');
                     // Eine Antwort, beide Kanaele - in der Kanalskala der States
-                    expect(written.sort((a, b) => a.id.localeCompare(b.id))).to.deep.equal([
-                        { id: 'devices.vdc1.hue1.brightness', value: 50 },
-                        { id: 'devices.vdc1.hue1.colortemp', value: 370 },
-                    ]);
+                    assert.deepStrictEqual(
+                        written.sort((a, b) => a.id.localeCompare(b.id)),
+                        [
+                            { id: 'devices.vdc1.hue1.brightness', value: 50 },
+                            { id: 'devices.vdc1.hue1.colortemp', value: 370 },
+                        ],
+                    );
                     struct.clearTimeouts();
                     done();
                 }, 30);
@@ -927,8 +963,8 @@ describe('DSSStructure', () => {
             const { struct, namedReads, offsetReads } = genericContext();
             struct.createDevice(vdcDevice(['brightness'], 'Dimmable light: LWV001'), () => {
                 setTimeout(() => {
-                    expect(namedReads).to.have.lengthOf(1);
-                    expect(offsetReads).to.have.lengthOf(0);
+                    assert.strictEqual(namedReads.length, 1);
+                    assert.strictEqual(offsetReads.length, 0);
                     struct.clearTimeouts();
                     done();
                 }, 30);
@@ -947,9 +983,9 @@ describe('DSSStructure', () => {
             });
             struct.createDevice(vdcDevice(['brightness', 'colortemp']), () => {
                 setTimeout(() => {
-                    expect(syncRequests).to.deep.equal(['hue1']);
-                    expect(namedReads, 'the status already carries every channel').to.have.lengthOf(0);
-                    expect(offsetReads).to.have.lengthOf(0);
+                    assert.deepStrictEqual(syncRequests, ['hue1']);
+                    assert.strictEqual(namedReads.length, 0, 'the status already carries every channel');
+                    assert.strictEqual(offsetReads.length, 0);
                     struct.clearTimeouts();
                     done();
                 }, 30);
@@ -971,7 +1007,7 @@ describe('DSSStructure', () => {
                 struct.dss.emit('hue1', { name: 'callScene', source: { isDevice: true }, properties: {} });
                 struct.dss.emit('hue1', { name: 'deviceSensorValue', source: { isDevice: true }, properties: {} });
                 setTimeout(() => {
-                    expect(syncRequests, 'only scene calls trigger a re-read').to.deep.equal(['hue1']);
+                    assert.deepStrictEqual(syncRequests, ['hue1'], 'only scene calls trigger a re-read');
                     struct.clearTimeouts();
                     done();
                 }, 30);
@@ -1006,11 +1042,13 @@ describe('DSSStructure', () => {
             };
             struct.createDevice(native, () => {
                 setTimeout(() => {
-                    expect(syncRequests, 'a native terminal must not hand its read over').to.deep.equal([]);
-                    expect(namedReads).to.have.lengthOf(0);
-                    expect(offsetReads, 'the channelIndex the device declares').to.deep.equal([
-                        { dSUID: 'blkm200', index: 15 },
-                    ]);
+                    assert.deepStrictEqual(syncRequests, [], 'a native terminal must not hand its read over');
+                    assert.strictEqual(namedReads.length, 0);
+                    assert.deepStrictEqual(
+                        offsetReads,
+                        [{ dSUID: 'blkm200', index: 15 }],
+                        'the channelIndex the device declares',
+                    );
                     struct.clearTimeouts();
                     done();
                 }, 30);
@@ -1022,7 +1060,7 @@ describe('DSSStructure', () => {
         // vorgezogenen Named Read landet auch brightness dort statt im Offset-Read
         it('serves a learned vDC device through one named read, brightness included', async () => {
             const { struct, namedReads, offsetReads, written } = genericContext();
-            const SmartHomeOutputSync = require('../lib/dssSmartHomeSync');
+            const { SmartHomeOutputSync } = require('../build/lib/dssSmartHomeSync');
             struct.smartHomeSync = new SmartHomeOutputSync({
                 structure: struct,
                 smartHome: { getApartmentStatus: async () => ({ included: { dsDevices: [] } }) },
@@ -1036,9 +1074,9 @@ describe('DSSStructure', () => {
             struct.createDevice(dev, () => {});
             await new Promise(resolve => setTimeout(resolve, 200));
 
-            expect(namedReads.length, 'the learned channels went to ONE named read').to.be.above(0);
-            expect(offsetReads, 'brightness must not take the offset path on a vDC').to.have.lengthOf(0);
-            expect(written.map(w => w.id).sort()).to.deep.equal([
+            assert.ok(namedReads.length > 0, 'the learned channels went to ONE named read');
+            assert.strictEqual(offsetReads.length, 0, 'brightness must not take the offset path on a vDC');
+            assert.deepStrictEqual(written.map(w => w.id).sort(), [
                 'devices.vdc1.hue1.brightness',
                 'devices.vdc1.hue1.colortemp',
             ]);
@@ -1052,8 +1090,8 @@ describe('DSSStructure', () => {
             native.isVdcDevice = false;
             struct.createDevice(native, () => {
                 setTimeout(() => {
-                    expect(namedReads, 'no named read for a native terminal').to.have.lengthOf(0);
-                    expect(offsetReads, 'multi channel natives have no read path').to.have.lengthOf(0);
+                    assert.strictEqual(namedReads.length, 0, 'no named read for a native terminal');
+                    assert.strictEqual(offsetReads.length, 0, 'multi channel natives have no read path');
                     struct.clearTimeouts();
                     done();
                 }, 30);
@@ -1112,7 +1150,7 @@ describe('DSSStructure', () => {
                     properties: { sceneID: '5' },
                 });
                 setTimeout(() => {
-                    expect(written).to.deep.equal([{ id: positionId, value: 100 }]);
+                    assert.deepStrictEqual(written, [{ id: positionId, value: 100 }]);
                     struct.clearTimeouts();
                     done();
                 }, 20);
@@ -1129,7 +1167,7 @@ describe('DSSStructure', () => {
                     properties: { sceneID: '5' },
                 });
                 setTimeout(() => {
-                    expect(written, 'kein geratener Wert vor dem echten').to.deep.equal([]);
+                    assert.deepStrictEqual(written, [], 'kein geratener Wert vor dem echten');
                     struct.clearTimeouts();
                     done();
                 }, 20);
@@ -1168,14 +1206,14 @@ describe('DSSStructure', () => {
             const onChange = struct.dssObjects[stateId].onChange;
 
             onChange('inactive');
-            expect(sent, 'derselbe Wert wie im dSS - nichts gesendet').to.deep.equal([]);
-            expect(written, 'trotzdem quittiert').to.deep.equal([{ id: stateId, value: 'inactive' }]);
+            assert.deepStrictEqual(sent, [], 'derselbe Wert wie im dSS - nichts gesendet');
+            assert.deepStrictEqual(written, [{ id: stateId, value: 'inactive' }], 'trotzdem quittiert');
 
             onChange('active');
-            expect(sent, 'die echte Aenderung geht raus').to.deep.equal(['active']);
+            assert.deepStrictEqual(sent, ['active'], 'die echte Aenderung geht raus');
 
             onChange('active');
-            expect(sent, 'die Wiederholung nicht').to.deep.equal(['active']);
+            assert.deepStrictEqual(sent, ['active'], 'die Wiederholung nicht');
         });
 
         it('sends again after the dSS reported something else', () => {
@@ -1184,11 +1222,11 @@ describe('DSSStructure', () => {
             const onChange = struct.dssObjects[stateId].onChange;
 
             onChange('active');
-            expect(sent).to.deep.equal(['active']);
+            assert.deepStrictEqual(sent, ['active']);
             // Jemand hat den State im dSS umgestellt - das Ereignis kommt hier an
             struct.noteUserStateValue(stateId, 'inactive');
             onChange('active');
-            expect(sent, 'jetzt ist der Wert wieder eine Aenderung').to.deep.equal(['active', 'active']);
+            assert.deepStrictEqual(sent, ['active', 'active'], 'jetzt ist der Wert wieder eine Aenderung');
         });
     });
 
@@ -1243,7 +1281,7 @@ describe('DSSStructure', () => {
         it('reads its output at startup and again after a scene', done => {
             const { struct, dev, syncRequests } = jokerContext(true);
             struct.createDevice(dev, () => {
-                expect(syncRequests, 'einmal beim Anlegen').to.deep.equal(['socket1']);
+                assert.deepStrictEqual(syncRequests, ['socket1'], 'einmal beim Anlegen');
                 struct.dss.emit('socket1', {
                     name: 'callScene',
                     source: { isDevice: true },
@@ -1251,7 +1289,7 @@ describe('DSSStructure', () => {
                 });
                 struct.dss.emit('socket1', { name: 'buttonClick', source: { isDevice: true }, properties: {} });
                 setTimeout(() => {
-                    expect(syncRequests, 'nur der Szenenaufruf liest nach').to.deep.equal(['socket1', 'socket1']);
+                    assert.deepStrictEqual(syncRequests, ['socket1', 'socket1'], 'nur der Szenenaufruf liest nach');
                     struct.clearTimeouts();
                     done();
                 }, 20);
@@ -1263,7 +1301,7 @@ describe('DSSStructure', () => {
             struct.createDevice(dev, () => {
                 struct.dss.emit('socket1', { name: 'callScene', source: { isDevice: true }, properties: {} });
                 setTimeout(() => {
-                    expect(struct.sceneRefreshDevices.size, 'nichts registriert').to.equal(0);
+                    assert.strictEqual(struct.sceneRefreshDevices.size, 0, 'nichts registriert');
                     struct.clearTimeouts();
                     done();
                 }, 20);
@@ -1279,7 +1317,7 @@ describe('DSSStructure', () => {
                 syncRequests.length = 0;
                 struct.dss.emit('socket1', { name: 'callScene', source: { isDevice: true }, properties: {} });
                 setTimeout(() => {
-                    expect(syncRequests, 'ein Handler, eine Anfrage').to.deep.equal(['socket1']);
+                    assert.deepStrictEqual(syncRequests, ['socket1'], 'ein Handler, eine Anfrage');
                     struct.clearTimeouts();
                     done();
                 }, 20);
@@ -1342,8 +1380,8 @@ describe('DSSStructure', () => {
             ]);
             struct.createDevice(dev, () => {
                 setTimeout(() => {
-                    expect(sensorReads).to.deep.equal([{ dSUID: 'dev1', sensorIndex: 0, prio: 'low' }]);
-                    expect(written).to.deep.equal([{ id: 'devices.meter1.dev1.sensors.0', value: 30 }]);
+                    assert.deepStrictEqual(sensorReads, [{ dSUID: 'dev1', sensorIndex: 0, prio: 'low' }]);
+                    assert.deepStrictEqual(written, [{ id: 'devices.meter1.dev1.sensors.0', value: 30 }]);
                     struct.clearTimeouts();
                     done();
                 }, 20);
@@ -1354,8 +1392,8 @@ describe('DSSStructure', () => {
             const { struct, dev, sensorReads } = sensorContext([{ type: 4, valid: true, value: 42 }]);
             struct.createDevice(dev, () => {
                 setTimeout(() => {
-                    expect(sensorReads, 'no bus read for a valid sensor').to.have.lengthOf(0);
-                    expect(struct.initialObjectValues['devices.meter1.dev1.sensors.0']).to.equal(42);
+                    assert.strictEqual(sensorReads.length, 0, 'no bus read for a valid sensor');
+                    assert.strictEqual(struct.initialObjectValues['devices.meter1.dev1.sensors.0'], 42);
                     struct.clearTimeouts();
                     done();
                 }, 20);
@@ -1368,14 +1406,14 @@ describe('DSSStructure', () => {
         // other than 0 into "true" and lost the difference between malfunction and service.
         it('is a numeric state with the DSS status codes', () => {
             const definition = dssConstants.sensorUnitRoleMap[60];
-            expect(definition.type, 'the constants declare a status code').to.equal('number');
+            assert.strictEqual(definition.type, 'number', 'the constants declare a status code');
             [0, 2, 4, 6].forEach(code =>
-                expect(definition.states, `status code ${code} must be named`).to.have.property(String(code)),
+                assert.ok(String(code) in definition.states, `status code ${code} must be named`),
             );
-            expect(definition.states[0]).to.equal('OK');
-            expect(definition.states[2]).to.equal('Malfunction');
-            expect(definition.states[4]).to.equal('Service');
-            expect(definition.states[6]).to.equal('Malfunction+Service');
+            assert.strictEqual(definition.states[0], 'OK');
+            assert.strictEqual(definition.states[2], 'Malfunction');
+            assert.strictEqual(definition.states[4], 'Service');
+            assert.strictEqual(definition.states[6], 'Malfunction+Service');
         });
 
         it('creates the apartment state with the numeric definition', () => {
@@ -1387,9 +1425,9 @@ describe('DSSStructure', () => {
                 write: false,
             });
             const obj = struct.dssObjects['apartment.sensors.VentilationStatusValue'];
-            expect(obj.common.type, 'a boolean would collapse 2, 4 and 6 to true').to.equal('number');
-            expect(obj.common.states[6]).to.equal('Malfunction+Service');
-            expect(struct.stateMap['0.sensors.60']).to.equal('apartment.sensors.VentilationStatusValue');
+            assert.strictEqual(obj.common.type, 'number', 'a boolean would collapse 2, 4 and 6 to true');
+            assert.strictEqual(obj.common.states[6], 'Malfunction+Service');
+            assert.strictEqual(struct.stateMap['0.sensors.60'], 'apartment.sensors.VentilationStatusValue');
         });
     });
 
@@ -1404,7 +1442,11 @@ describe('DSSStructure', () => {
             const seen = {};
             Object.keys(dssConstants.zoneSceneCommands).forEach(sceneId => {
                 const stateName = convert(dssConstants.zoneSceneCommands[sceneId]);
-                expect(seen[stateName], `scene ${sceneId} collides with scene ${seen[stateName]}`).to.equal(undefined);
+                assert.strictEqual(
+                    seen[stateName],
+                    undefined,
+                    `scene ${sceneId} collides with scene ${seen[stateName]}`,
+                );
                 seen[stateName] = sceneId;
             });
         });
@@ -1413,7 +1455,11 @@ describe('DSSStructure', () => {
             const seen = {};
             Object.keys(dssConstants.apartmentScenes).forEach(sceneId => {
                 const stateName = convert(dssConstants.apartmentScenes[sceneId]);
-                expect(seen[stateName], `scene ${sceneId} collides with scene ${seen[stateName]}`).to.equal(undefined);
+                assert.strictEqual(
+                    seen[stateName],
+                    undefined,
+                    `scene ${sceneId} collides with scene ${seen[stateName]}`,
+                );
                 seen[stateName] = sceneId;
             });
         });
@@ -1423,19 +1469,21 @@ describe('DSSStructure', () => {
                 const seen = {};
                 Object.keys(dssConstants[mapName]).forEach(sceneId => {
                     const stateName = convert(dssConstants[mapName][sceneId]);
-                    expect(
+                    assert.strictEqual(
                         seen[stateName],
+                        undefined,
                         `${mapName}: scene ${sceneId} collides with scene ${seen[stateName]}`,
-                    ).to.equal(undefined);
+                    );
                     seen[stateName] = sceneId;
                 });
             });
         });
 
         it('keeps scene 22 and scene 25 apart and maps them to the right presets', () => {
-            expect(dssConstants.zoneSceneCommands[22]).to.equal('Preset 14');
-            expect(dssConstants.zoneSceneCommands[25]).to.equal('Preset 24');
-            expect(convert(dssConstants.zoneSceneCommands[22])).to.not.equal(
+            assert.strictEqual(dssConstants.zoneSceneCommands[22], 'Preset 14');
+            assert.strictEqual(dssConstants.zoneSceneCommands[25], 'Preset 24');
+            assert.notStrictEqual(
+                convert(dssConstants.zoneSceneCommands[22]),
                 convert(dssConstants.zoneSceneCommands[25]),
             );
         });
@@ -1453,23 +1501,31 @@ describe('DSSStructure', () => {
             struct.stateMap['5.48.scenes.0'] = `${groupBaseId}.scenes.HeatingOff`;
 
             const stateId = struct.resolveSceneStateId('5.48.scenes.0', 0, groupBaseId);
-            expect(stateId, 'the special scene state must win').to.equal(`${groupBaseId}.scenes.HeatingOff`);
-            expect(struct.resolveSceneStateName(0), 'the generic name still resolves to Preset0').to.equal('Preset0');
+            assert.strictEqual(stateId, `${groupBaseId}.scenes.HeatingOff`, 'the special scene state must win');
+            assert.strictEqual(
+                struct.resolveSceneStateName(0),
+                'Preset0',
+                'the generic name still resolves to Preset0',
+            );
         });
 
         it('does the same for the ventilation groups', () => {
             const struct = createStructure();
             const groupBaseId = 'apartment.zones.7.groups.10';
             struct.stateMap['7.10.scenes.0'] = `${groupBaseId}.scenes.Off`;
-            expect(struct.resolveSceneStateId('7.10.scenes.0', 0, groupBaseId)).to.equal(`${groupBaseId}.scenes.Off`);
+            assert.strictEqual(
+                struct.resolveSceneStateId('7.10.scenes.0', 0, groupBaseId),
+                `${groupBaseId}.scenes.Off`,
+            );
         });
 
         it('falls back to the generic name when the scene is not in the state map', () => {
             const struct = createStructure();
-            expect(struct.resolveSceneStateId('5.1.scenes.0', 0, 'apartment.zones.5.groups.1')).to.equal(
+            assert.strictEqual(
+                struct.resolveSceneStateId('5.1.scenes.0', 0, 'apartment.zones.5.groups.1'),
                 'apartment.zones.5.groups.1.scenes.Preset0',
             );
-            expect(struct.resolveSceneStateId('5.1.scenes.9999', 9999, 'apartment.zones.5.groups.1')).to.equal(null);
+            assert.strictEqual(struct.resolveSceneStateId('5.1.scenes.9999', 9999, 'apartment.zones.5.groups.1'), null);
         });
 
         it('activates only the special state of group 48 during processGroup', done => {
@@ -1487,14 +1543,16 @@ describe('DSSStructure', () => {
             const group = { id: 48, name: 'Temperature Control', isPresent: true, isValid: true, devices: ['dev1'] };
             struct.processGroup('apartment.zones.5.groups.48', 5, group, () => {
                 const base = 'apartment.zones.5.groups.48';
-                expect(
+                assert.strictEqual(
                     struct.initialObjectValues[`${base}.scenes.HeatingOff`],
+                    true,
                     'the state the events use must be the active one',
-                ).to.equal(true);
-                expect(
+                );
+                assert.strictEqual(
                     struct.initialObjectValues[`${base}.scenes.Preset0`],
+                    false,
                     'the generic state must not be active at the same time',
-                ).to.equal(false);
+                );
                 done();
             });
         });
@@ -1547,9 +1605,9 @@ describe('DSSStructure', () => {
             const struct = structure();
             struct.createDevice(binaryInputDevice(15), () => {
                 const obj = struct.dssObjects['devices.m1.dev1.binaryInputs.0'];
-                expect(obj.common.name).to.equal('Window is tilted');
-                expect(obj.common.states).to.deep.equal({ 1: 'closed', 2: 'open', 3: 'tilted' });
-                expect(obj.common.type, 'the raw number stays, history keeps working').to.equal('number');
+                assert.strictEqual(obj.common.name, 'Window is tilted');
+                assert.deepStrictEqual(obj.common.states, { 1: 'closed', 2: 'open', 3: 'tilted' });
+                assert.strictEqual(obj.common.type, 'number', 'the raw number stays, history keeps working');
                 done();
             });
         });
@@ -1558,8 +1616,8 @@ describe('DSSStructure', () => {
             const struct = structure();
             struct.createDevice(binaryInputDevice(5), () => {
                 const obj = struct.dssObjects['devices.m1.dev1.binaryInputs.0'];
-                expect(obj.common.name).to.equal('Motion');
-                expect(obj.common.states).to.deep.equal({ 1: 'inactive', 2: 'active' });
+                assert.strictEqual(obj.common.name, 'Motion');
+                assert.deepStrictEqual(obj.common.states, { 1: 'inactive', 2: 'active' });
                 done();
             });
         });
@@ -1612,12 +1670,18 @@ describe('DSSStructure', () => {
             it(`creates the button state for buttonActiveGroup ${group}`, done => {
                 const struct = deviceStructure();
                 struct.createDevice(jokerDevice(group), () => {
-                    expect(struct.stateMap['dev1.0.button'], 'the handler in main.js needs this entry').to.equal(
+                    assert.strictEqual(
+                        struct.stateMap['dev1.0.button'],
                         'devices.m1.dev1.button',
+                        'the handler in main.js needs this entry',
                     );
-                    expect(struct.stateMap['dev1.0.buttonClickType']).to.be.a('string');
-                    expect(struct.stateMap['dev1.0.buttonHoldCount']).to.be.a('string');
-                    expect(struct.stateMap['dev1.1.button'], 'the further buttons stay as they were').to.be.a('string');
+                    assert.strictEqual(typeof struct.stateMap['dev1.0.buttonClickType'], 'string');
+                    assert.strictEqual(typeof struct.stateMap['dev1.0.buttonHoldCount'], 'string');
+                    assert.strictEqual(
+                        typeof struct.stateMap['dev1.1.button'],
+                        'string',
+                        'the further buttons stay as they were',
+                    );
                     done();
                 });
             });
@@ -1626,8 +1690,8 @@ describe('DSSStructure', () => {
         it('keeps working for the groups that were already correct', done => {
             const struct = deviceStructure();
             struct.createDevice(jokerDevice(1), () => {
-                expect(struct.stateMap['dev1.0.button']).to.equal('devices.m1.dev1.button');
-                expect(struct.initialObjectValues['devices.m1.dev1.button']).to.equal(false);
+                assert.strictEqual(struct.stateMap['dev1.0.button'], 'devices.m1.dev1.button');
+                assert.strictEqual(struct.initialObjectValues['devices.m1.dev1.button'], false);
                 done();
             });
         });
@@ -1673,10 +1737,11 @@ describe('DSSStructure', () => {
                 },
                 {},
                 () => {
-                    expect(
+                    assert.deepStrictEqual(
                         warnings.filter(w => w.includes('EXTRANOUS')),
+                        [],
                         'no false alarm',
-                    ).to.deep.equal([]);
+                    );
                     struct.clearTimeouts();
                     done();
                 },
@@ -1699,8 +1764,8 @@ describe('DSSStructure', () => {
                 {},
                 () => {
                     const extraneous = warnings.filter(w => w.includes('EXTRANOUS'));
-                    expect(extraneous, 'the unassigned zone must still be found').to.have.lengthOf(1);
-                    expect(extraneous[0]).to.contain('9');
+                    assert.strictEqual(extraneous.length, 1, 'the unassigned zone must still be found');
+                    assert.ok(extraneous[0].includes('9'));
                     struct.clearTimeouts();
                     done();
                 },
@@ -1723,7 +1788,10 @@ describe('DSSStructure', () => {
                 },
                 {},
                 () => {
-                    expect(warnings.filter(w => w.includes('EXTRANOUS'))).to.deep.equal([]);
+                    assert.deepStrictEqual(
+                        warnings.filter(w => w.includes('EXTRANOUS')),
+                        [],
+                    );
                     struct.clearTimeouts();
                     done();
                 },
@@ -1743,8 +1811,8 @@ describe('DSSStructure', () => {
                 {},
                 () => {
                     const extraneous = warnings.filter(w => w.includes('EXTRANOUS'));
-                    expect(extraneous, 'exactly the unassigned zone').to.have.lengthOf(1);
-                    expect(extraneous[0]).to.contain('9');
+                    assert.strictEqual(extraneous.length, 1, 'exactly the unassigned zone');
+                    assert.ok(extraneous[0].includes('9'));
                     struct.clearTimeouts();
                     done();
                 },
@@ -1754,17 +1822,17 @@ describe('DSSStructure', () => {
 
     describe('output channel definitions', () => {
         it('names the indoor shade channels as indoor', () => {
-            expect(dssConstants.outputChannelUnitRoleMap.shadePositionIndoor.name).to.contain('Indoor');
-            expect(dssConstants.outputChannelUnitRoleMap.shadePositionOutside.name).to.contain('Outside');
-            expect(dssConstants.outputChannelUnitRoleMap.shadeOpeningAngleIndoor.name).to.contain('Indoor');
-            expect(dssConstants.outputChannelUnitRoleMap.shadeOpeningAngleOutside.name).to.contain('Outside');
+            assert.ok(dssConstants.outputChannelUnitRoleMap.shadePositionIndoor.name.includes('Indoor'));
+            assert.ok(dssConstants.outputChannelUnitRoleMap.shadePositionOutside.name.includes('Outside'));
+            assert.ok(dssConstants.outputChannelUnitRoleMap.shadeOpeningAngleIndoor.name.includes('Indoor'));
+            assert.ok(dssConstants.outputChannelUnitRoleMap.shadeOpeningAngleOutside.name.includes('Outside'));
         });
 
         it('gives every output channel a unique name', () => {
             const seen = {};
             Object.keys(dssConstants.outputChannelUnitRoleMap).forEach(key => {
                 const name = dssConstants.outputChannelUnitRoleMap[key].name;
-                expect(seen[name], `${key} shares its name with ${seen[name]}`).to.equal(undefined);
+                assert.strictEqual(seen[name], undefined, `${key} shares its name with ${seen[name]}`);
                 seen[name] = key;
             });
         });
@@ -1806,25 +1874,30 @@ describe('DSSStructure', () => {
 
         it('only regulates zones the DSS really controls', () => {
             const { struct } = tempStructure({ ok: false });
-            expect(struct.hasTemperatureControl(REGULATED), 'ControlMode 1 is a real controller').to.equal(true);
-            expect(struct.hasTemperatureControl(UNREGULATED), 'ControlMode 0 has no values at all').to.equal(false);
-            expect(struct.hasTemperatureControl(undefined)).to.equal(false);
-            expect(struct.hasTemperatureControl({}), 'a zone without ControlMode').to.equal(false);
+            assert.strictEqual(struct.hasTemperatureControl(REGULATED), true, 'ControlMode 1 is a real controller');
+            assert.strictEqual(struct.hasTemperatureControl(UNREGULATED), false, 'ControlMode 0 has no values at all');
+            assert.strictEqual(struct.hasTemperatureControl(undefined), false);
+            assert.strictEqual(struct.hasTemperatureControl({}), false, 'a zone without ControlMode');
         });
 
         it('creates the controller states with the values of the DSS', done => {
             const { struct } = tempStructure({ ok: false });
             struct.createTemperatureControl('apartment.0.2', { id: 2, name: 'Wohnen' }, REGULATED, () => {
                 const base = 'apartment.0.2.temperatureControl';
-                expect(struct.dssObjects[`${base}.ControlMode`].common.write, 'reported by the DSS').to.equal(false);
-                expect(struct.initialObjectValues[`${base}.ControlMode`]).to.equal(1);
-                expect(struct.initialObjectValues[`${base}.ControlState`]).to.equal(0);
-                expect(struct.initialObjectValues[`${base}.OperationMode`]).to.equal(0);
-                expect(
+                assert.strictEqual(struct.dssObjects[`${base}.ControlMode`].common.write, false, 'reported by the DSS');
+                assert.strictEqual(struct.initialObjectValues[`${base}.ControlMode`], 1);
+                assert.strictEqual(struct.initialObjectValues[`${base}.ControlState`], 0);
+                assert.strictEqual(struct.initialObjectValues[`${base}.OperationMode`], 0);
+                assert.strictEqual(
                     struct.dssObjects[`${base}.OperationMode`].common.states[0],
+                    'Heating Off',
                     'the modes are the scenes of group 48',
-                ).to.equal('Heating Off');
-                expect(struct.stateMap['2.48.operationMode'], 'events must find it').to.equal(`${base}.OperationMode`);
+                );
+                assert.strictEqual(
+                    struct.stateMap['2.48.operationMode'],
+                    `${base}.OperationMode`,
+                    'events must find it',
+                );
                 done();
             });
         });
@@ -1835,9 +1908,9 @@ describe('DSSStructure', () => {
                 asked.length = 0;
                 struct.dssObjects['apartment.0.2.temperatureControl.OperationMode'].onChange(1);
                 setTimeout(() => {
-                    expect(asked).to.have.lengthOf(1);
-                    expect(asked[0].dssFunction).to.equal('callScene');
-                    expect(asked[0].params).to.deep.equal({ id: 2, groupID: 48, sceneNumber: 1 });
+                    assert.strictEqual(asked.length, 1);
+                    assert.strictEqual(asked[0].dssFunction, 'callScene');
+                    assert.deepStrictEqual(asked[0].params, { id: 2, groupID: 48, sceneNumber: 1 });
                     done();
                 }, 10);
             });
@@ -1851,8 +1924,8 @@ describe('DSSStructure', () => {
                 asked.length = 0;
                 struct.dssObjects['apartment.0.2.temperatureControl.OperationMode'].onChange(99);
                 setTimeout(() => {
-                    expect(asked, 'nothing may be sent').to.deep.equal([]);
-                    expect(warnings.join(' ')).to.contain('Invalid operation mode');
+                    assert.deepStrictEqual(asked, [], 'nothing may be sent');
+                    assert.ok(warnings.join(' ').includes('Invalid operation mode'));
                     done();
                 }, 10);
             });
@@ -1863,16 +1936,16 @@ describe('DSSStructure', () => {
             const { struct, asked } = tempStructure(answer);
             struct.createTemperatureControl('apartment.0.2', { id: 2, name: 'Wohnen' }, REGULATED, () => {
                 const base = 'apartment.0.2.temperatureControl.setpoints';
-                expect(struct.initialObjectValues[`${base}.Comfort`]).to.equal(21);
-                expect(struct.initialObjectValues[`${base}.Off`]).to.equal(6);
-                expect(struct.dssObjects[`${base}.Comfort`].common.unit).to.equal('°C');
+                assert.strictEqual(struct.initialObjectValues[`${base}.Comfort`], 21);
+                assert.strictEqual(struct.initialObjectValues[`${base}.Off`], 6);
+                assert.strictEqual(struct.dssObjects[`${base}.Comfort`].common.unit, '°C');
 
                 asked.length = 0;
                 struct.dssObjects[`${base}.Comfort`].onChange(22);
                 setTimeout(() => {
-                    expect(asked).to.have.lengthOf(1);
-                    expect(asked[0].dssFunction).to.equal('setTemperatureControlValues');
-                    expect(asked[0].params).to.deep.equal({ id: 2, Comfort: 22 });
+                    assert.strictEqual(asked.length, 1);
+                    assert.strictEqual(asked[0].dssFunction, 'setTemperatureControlValues');
+                    assert.deepStrictEqual(asked[0].params, { id: 2, Comfort: 22 });
                     done();
                 }, 10);
             });
@@ -1883,9 +1956,12 @@ describe('DSSStructure', () => {
             const { struct } = tempStructure({ ok: false, message: 'Unknown function' });
             struct.createTemperatureControl('apartment.0.2', { id: 2, name: 'Wohnen' }, REGULATED, () => {
                 const dead = Object.keys(struct.dssObjects).filter(id => id.includes('.setpoints'));
-                expect(dead, 'no folder and no states').to.deep.equal([]);
+                assert.deepStrictEqual(dead, [], 'no folder and no states');
                 // The controller states themselves must still exist
-                expect(struct.dssObjects['apartment.0.2.temperatureControl.ControlMode']).to.be.an('object');
+                assert.strictEqual(
+                    Object.prototype.toString.call(struct.dssObjects['apartment.0.2.temperatureControl.ControlMode']),
+                    '[object Object]',
+                );
                 done();
             });
         });
@@ -1895,7 +1971,7 @@ describe('DSSStructure', () => {
             const { struct } = tempStructure(answer);
             struct.createTemperatureControl('apartment.0.2', { id: 2, name: 'Wohnen' }, REGULATED, () => {
                 const ids = Object.keys(struct.dssObjects).filter(id => id.includes('.setpoints.'));
-                expect(ids).to.deep.equal(['apartment.0.2.temperatureControl.setpoints.Comfort']);
+                assert.deepStrictEqual(ids, ['apartment.0.2.temperatureControl.setpoints.Comfort']);
                 done();
             });
         });
@@ -1928,14 +2004,22 @@ describe('DSSStructure', () => {
             ]);
             const group = { id: 17, name: 'Rollladen Nord', isPresent: true, isValid: true, devices: ['d1'] };
             struct.processGroup('apartment.groups.17', 0, group, () => {
-                expect(struct.dssObjects['apartment.groups.17.states.user_lock'], 'user_lock').to.be.an('object');
-                expect(struct.dssObjects['apartment.groups.17.states.operation_lock']).to.be.an('object');
-                expect(struct.dssObjects['apartment.groups.17.states.user_lock'].common.type).to.equal('boolean');
-                expect(struct.initialObjectValues['apartment.groups.17.states.operation_lock']).to.equal('active');
-                expect(
+                assert.strictEqual(
+                    Object.prototype.toString.call(struct.dssObjects['apartment.groups.17.states.user_lock']),
+                    '[object Object]',
+                    'user_lock',
+                );
+                assert.strictEqual(
+                    Object.prototype.toString.call(struct.dssObjects['apartment.groups.17.states.operation_lock']),
+                    '[object Object]',
+                );
+                assert.strictEqual(struct.dssObjects['apartment.groups.17.states.user_lock'].common.type, 'boolean');
+                assert.strictEqual(struct.initialObjectValues['apartment.groups.17.states.operation_lock'], 'active');
+                assert.strictEqual(
                     struct.dssObjects['apartment.groups.18.states.user_lock'],
+                    undefined,
                     'a state of another cluster must not land here',
-                ).to.equal(undefined);
+                );
                 done();
             });
         });
@@ -1951,9 +2035,10 @@ describe('DSSStructure', () => {
             const group = { id: 17, name: 'Rollladen Nord', isPresent: true, isValid: true, devices: ['d1'] };
             struct.processGroup('apartment.groups.17', 0, group, () => {
                 const lock = struct.dssObjects['apartment.groups.17.states.user_lock'];
-                expect(lock.native.valueTrue).to.equal('active');
-                expect(lock.native.valueFalse).to.equal('inactive');
-                expect(struct.dssObjects['apartment.groups.17.states.operation_lock'].native.valueTrue).to.equal(
+                assert.strictEqual(lock.native.valueTrue, 'active');
+                assert.strictEqual(lock.native.valueFalse, 'inactive');
+                assert.strictEqual(
+                    struct.dssObjects['apartment.groups.17.states.operation_lock'].native.valueTrue,
                     'active',
                 );
                 done();
@@ -1965,9 +2050,15 @@ describe('DSSStructure', () => {
             const group = { id: 10, name: 'Lueftung', isPresent: true, isValid: true, devices: ['d1'] };
             struct.processGroup('apartment.0.2.10', 2, group, () => {
                 const malfunction = struct.dssObjects['apartment.0.2.10.states.status.malfunction'];
-                expect(malfunction, 'the state still exists').to.be.an('object');
-                expect(malfunction.native.valueTrue, 'writing a malfunction back would only earn a rejection').to.equal(
+                assert.strictEqual(
+                    Object.prototype.toString.call(malfunction),
+                    '[object Object]',
+                    'the state still exists',
+                );
+                assert.strictEqual(
+                    malfunction.native.valueTrue,
                     undefined,
+                    'writing a malfunction back would only earn a rejection',
                 );
                 done();
             });
@@ -1977,8 +2068,10 @@ describe('DSSStructure', () => {
             const struct = groupStructure([{ name: 'cluster.17.user_lock', state: 'inactive' }]);
             const group = { id: 17, name: 'Licht', isPresent: true, isValid: true, devices: ['d1'] };
             struct.processGroup('apartment.0.2.17', 2, group, () => {
-                expect(struct.dssObjects['apartment.0.2.17.states.user_lock'], 'clusters are apartment wide').to.equal(
+                assert.strictEqual(
+                    struct.dssObjects['apartment.0.2.17.states.user_lock'],
                     undefined,
+                    'clusters are apartment wide',
                 );
                 done();
             });
@@ -1994,11 +2087,22 @@ describe('DSSStructure', () => {
             const group = { id: 10, name: 'Lüftung', isPresent: true, isValid: true, devices: ['d1'] };
             struct.processGroup('apartment.0.2.10', 2, group, () => {
                 const base = 'apartment.0.2.10.states';
-                expect(struct.dssObjects[`${base}.status.malfunction`], 'the state itself').to.be.an('object');
-                expect(struct.dssObjects[`${base}.status.service`]).to.be.an('object');
-                expect(struct.dssObjects[`${base}.status`], 'and the folder in between').to.be.an('object');
-                expect(struct.dssObjects[`${base}.status`].type).to.equal('channel');
-                expect(struct.stateMap['zone.2.group.10.status.malfunction']).to.equal(`${base}.status.malfunction`);
+                assert.strictEqual(
+                    Object.prototype.toString.call(struct.dssObjects[`${base}.status.malfunction`]),
+                    '[object Object]',
+                    'the state itself',
+                );
+                assert.strictEqual(
+                    Object.prototype.toString.call(struct.dssObjects[`${base}.status.service`]),
+                    '[object Object]',
+                );
+                assert.strictEqual(
+                    Object.prototype.toString.call(struct.dssObjects[`${base}.status`]),
+                    '[object Object]',
+                    'and the folder in between',
+                );
+                assert.strictEqual(struct.dssObjects[`${base}.status`].type, 'channel');
+                assert.strictEqual(struct.stateMap['zone.2.group.10.status.malfunction'], `${base}.status.malfunction`);
                 done();
             });
         });
@@ -2007,7 +2111,10 @@ describe('DSSStructure', () => {
             const struct = groupStructure([{ name: 'zone.2.group.1.heating', state: 'inactive' }]);
             const group = { id: 1, name: 'Licht', isPresent: true, isValid: true, devices: ['d1'] };
             struct.processGroup('apartment.0.2.1', 2, group, () => {
-                expect(struct.dssObjects['apartment.0.2.1.states.heating']).to.be.an('object');
+                assert.strictEqual(
+                    Object.prototype.toString.call(struct.dssObjects['apartment.0.2.1.states.heating']),
+                    '[object Object]',
+                );
                 done();
             });
         });
@@ -2041,10 +2148,10 @@ describe('DSSStructure', () => {
 
             struct.reportUnmappedStates();
 
-            expect(entries, 'exactly one summary line').to.have.lengthOf(1);
-            expect(entries[0]).to.contain('open-tilded');
-            expect(entries[0], 'the claimed states must not be listed').to.not.contain('zone.5.heating');
-            expect(entries[0]).to.not.contain('"presence"');
+            assert.strictEqual(entries.length, 1, 'exactly one summary line');
+            assert.ok(entries[0].includes('open-tilded'));
+            assert.ok(!entries[0].includes('zone.5.heating'), 'the claimed states must not be listed');
+            assert.ok(!entries[0].includes('"presence"'));
         });
 
         it('does not ask for an issue about zones and groups it skipped itself', () => {
@@ -2066,11 +2173,11 @@ describe('DSSStructure', () => {
 
             struct.reportUnmappedStates();
 
-            expect(entries, 'exactly one summary line').to.have.lengthOf(1);
-            expect(entries[0], 'the orphan is still named').to.contain('a35af100');
-            expect(entries[0], 'a skipped group must not be listed').to.not.contain('group.10');
-            expect(entries[0], 'a skipped zone must not be listed').to.not.contain('65534');
-            expect(entries[0]).to.not.contain('group.64');
+            assert.strictEqual(entries.length, 1, 'exactly one summary line');
+            assert.ok(entries[0].includes('a35af100'), 'the orphan is still named');
+            assert.ok(!entries[0].includes('group.10'), 'a skipped group must not be listed');
+            assert.ok(!entries[0].includes('65534'), 'a skipped zone must not be listed');
+            assert.ok(!entries[0].includes('group.64'));
         });
 
         it('stays quiet when only skipped zones and groups are left over', () => {
@@ -2079,7 +2186,7 @@ describe('DSSStructure', () => {
             struct.propertyStates = [{ name: 'zone.65534.heating' }];
             struct.skippedStatePrefixes.add('zone.65534.');
             struct.reportUnmappedStates();
-            expect(entries, 'nothing to report, nothing to ask for').to.deep.equal([]);
+            assert.deepStrictEqual(entries, [], 'nothing to report, nothing to ask for');
         });
 
         it('stays quiet when every state was assigned', () => {
@@ -2088,7 +2195,7 @@ describe('DSSStructure', () => {
             struct.propertyStates = [{ name: 'presence', state: 'active' }];
             struct.findStates('^([^.]*)$');
             struct.reportUnmappedStates();
-            expect(entries).to.deep.equal([]);
+            assert.deepStrictEqual(entries, []);
         });
 
         describe('the coupled input of a 2-way button', () => {
@@ -2133,10 +2240,11 @@ describe('DSSStructure', () => {
 
                 struct.reportUnmappedStates([master]);
 
-                expect(info, 'nothing to report - the dSS hides that input itself').to.deep.equal([]);
+                assert.deepStrictEqual(info, [], 'nothing to report - the dSS hides that input itself');
                 const line = debug.find(msg => msg.includes('a35a2900'));
-                expect(line, 'but it is still named').to.be.a('string');
-                expect(line).to.contain('Rolladen Büro').and.to.contain('GR-KL300');
+                assert.strictEqual(typeof line, 'string', 'but it is still named');
+                assert.ok(line.includes('Rolladen Büro'));
+                assert.ok(line.includes('GR-KL300'));
             });
 
             it('gets the devices from parseData, skipped ones included', done => {
@@ -2155,9 +2263,12 @@ describe('DSSStructure', () => {
                 struct.createApartment = (apt, reachable, callback) => callback();
 
                 struct.parseData(err => {
-                    expect(err).to.equal(null);
-                    expect(info).to.deep.equal([]);
-                    expect(debug.some(msg => msg.includes('a35a2900'))).to.equal(true);
+                    assert.strictEqual(err, null);
+                    assert.deepStrictEqual(info, []);
+                    assert.strictEqual(
+                        debug.some(msg => msg.includes('a35a2900')),
+                        true,
+                    );
                     done();
                 });
             });
@@ -2170,10 +2281,13 @@ describe('DSSStructure', () => {
 
                 struct.reportUnmappedStates([Object.assign({}, master, { buttonInputMode: 0 }), otherMaster]);
 
-                expect(info, 'a 1-way device hides nothing - this one really is unknown').to.have.lengthOf(1);
-                expect(info[0]).to.contain('a35a2900');
-                expect(info[0], 'the real 2-way partner is still explained').to.not.contain('a35af100');
-                expect(debug.some(msg => msg.includes('a35af100'))).to.equal(true);
+                assert.strictEqual(info.length, 1, 'a 1-way device hides nothing - this one really is unknown');
+                assert.ok(info[0].includes('a35a2900'));
+                assert.ok(!info[0].includes('a35af100'), 'the real 2-way partner is still explained');
+                assert.strictEqual(
+                    debug.some(msg => msg.includes('a35af100')),
+                    true,
+                );
             });
 
             it('never explains away a dSUID the structure lists itself', () => {
@@ -2188,9 +2302,9 @@ describe('DSSStructure', () => {
 
                 struct.reportUnmappedStates([master, listedPartner, otherMaster]);
 
-                expect(info).to.have.lengthOf(1);
-                expect(info[0]).to.contain('a35a2900');
-                expect(info[0]).to.not.contain('a35af100');
+                assert.strictEqual(info.length, 1);
+                assert.ok(info[0].includes('a35a2900'));
+                assert.ok(!info[0].includes('a35af100'));
             });
 
             it('does not count along name based dSUIDs of vDC devices', () => {
@@ -2207,9 +2321,10 @@ describe('DSSStructure', () => {
 
                 struct.reportUnmappedStates([vdc, vdcShaped, otherMaster]);
 
-                expect(info).to.have.lengthOf(1);
-                expect(info[0]).to.contain('d4b9d12ce8655325c0e4e0e3dc33484900').and.to.contain('a35a2900');
-                expect(info[0]).to.not.contain('a35af100');
+                assert.strictEqual(info.length, 1);
+                assert.ok(info[0].includes('d4b9d12ce8655325c0e4e0e3dc33484900'));
+                assert.ok(info[0].includes('a35a2900'));
+                assert.ok(!info[0].includes('a35af100'));
             });
 
             // Every value of ButtonInputMode (dss-mainline modelconst.h) on an even and an
@@ -2227,13 +2342,14 @@ describe('DSSStructure', () => {
                     for (const mode of modes) {
                         const dev = { dSUID, isVdcDevice: false, buttonInputMode: mode };
                         const expected = always.includes(mode) || (even && evenOnly.includes(mode)) ? dev : undefined;
-                        expect(
+                        assert.strictEqual(
                             DSSStructure.twoWayMasterOf(
                                 `dev.302ed89f43f000000000458002${partnerOf[dSUID]}.0`,
                                 new Map([[dSUID, dev]]),
                             ),
+                            expected,
                             `mode ${mode} on an ${even ? 'even' : 'odd'} dSID`,
-                        ).to.equal(expected);
+                        );
                     }
                 }
             });
@@ -2243,15 +2359,17 @@ describe('DSSStructure', () => {
                 const even = Object.assign({}, master, { buttonInputMode: 14 });
                 const devices = new Map([odd, even].map(dev => [dev.dSUID, dev]));
 
-                expect(DSSStructure.twoWayMasterOf('dev.302ed89f43f000000000458002a35a2a00.0', devices)).to.equal(
+                assert.strictEqual(
+                    DSSStructure.twoWayMasterOf('dev.302ed89f43f000000000458002a35a2a00.0', devices),
                     undefined,
                 );
-                expect(
+                assert.strictEqual(
                     DSSStructure.twoWayMasterOf(
                         'dev.302ed89f43f000000000458002a35a2900.0',
                         new Map([[even.dSUID, even]]),
                     ),
-                ).to.equal(even);
+                    even,
+                );
             });
         });
 
@@ -2259,10 +2377,10 @@ describe('DSSStructure', () => {
             const entries = [];
             const struct = reportingStructure(entries);
             struct.propertyStates = undefined;
-            expect(() => struct.reportUnmappedStates()).to.not.throw();
+            assert.doesNotThrow(() => struct.reportUnmappedStates());
             struct.propertyStates = [null, { noName: true }];
             struct.reportUnmappedStates();
-            expect(entries, 'unusable entries are not reported as missing states').to.deep.equal([]);
+            assert.deepStrictEqual(entries, [], 'unusable entries are not reported as missing states');
         });
     });
 
@@ -2334,7 +2452,7 @@ describe('DSSStructure', () => {
                 'some-app': { 'zone.zone2.group0.type9.passiveCooling': { value: 1, state: 'active' } },
                 'not-an-app': null,
             });
-            expect(collected).to.deep.equal([
+            assert.deepStrictEqual(collected, [
                 {
                     name: 'zone.zone4.group0.type9.passiveCooling',
                     addon: 'heating-controller',
@@ -2357,7 +2475,7 @@ describe('DSSStructure', () => {
                     state: 'active',
                 },
             ]);
-            expect(DSSStructure.collectAddonSensorStates(null)).to.deep.equal([]);
+            assert.deepStrictEqual(DSSStructure.collectAddonSensorStates(null), []);
         });
 
         it('collectAddonSensorStates keeps a state the dSS lists under two app ids once', () => {
@@ -2373,9 +2491,10 @@ describe('DSSStructure', () => {
                 'system-addon-heating-controller': { [entry.name]: { ...entry } },
                 'heating-controller': { [entry.name]: { ...entry } },
             });
-            expect(collected.map(state => `${state.addon} ${state.name}`)).to.deep.equal([
-                'system-addon-heating-controller zone.zone4.group0.type9.passiveCooling',
-            ]);
+            assert.deepStrictEqual(
+                collected.map(state => `${state.addon} ${state.name}`),
+                ['system-addon-heating-controller zone.zone4.group0.type9.passiveCooling'],
+            );
         });
 
         it('reads them with a single query2 of /usr/addon-states', async () => {
@@ -2400,10 +2519,11 @@ describe('DSSStructure', () => {
                 },
             });
             await struct.readAddonSensorStates();
-            expect(requests).to.deep.equal([['property', 'query2', { query: '/usr/addon-states/*(*)/*(*)' }]]);
-            expect(struct.addonSensorStates.map(state => state.name)).to.deep.equal([
-                'zone.zone4.group0.type9.passiveCooling',
-            ]);
+            assert.deepStrictEqual(requests, [['property', 'query2', { query: '/usr/addon-states/*(*)/*(*)' }]]);
+            assert.deepStrictEqual(
+                struct.addonSensorStates.map(state => state.name),
+                ['zone.zone4.group0.type9.passiveCooling'],
+            );
         });
 
         it('readAddonSensorStates never fails the start', async () => {
@@ -2433,11 +2553,11 @@ describe('DSSStructure', () => {
                 },
             });
             await struct.readAddonSensorStates();
-            expect(struct.addonSensorStates).to.deep.equal([]);
+            assert.deepStrictEqual(struct.addonSensorStates, []);
             await struct.readAddonSensorStates();
-            expect(call).to.equal(2);
-            expect(struct.addonSensorStates).to.deep.equal([]);
-            expect(logged, 'nothing above debug').to.deep.equal([]);
+            assert.strictEqual(call, 2);
+            assert.deepStrictEqual(struct.addonSensorStates, []);
+            assert.deepStrictEqual(logged, [], 'nothing above debug');
         });
 
         it('creates passiveCooling next to the zone states, read-only and boolean', done => {
@@ -2448,21 +2568,25 @@ describe('DSSStructure', () => {
             struct.processZone('apartment.0', duschbad, [], undefined, undefined, () => {
                 const id = 'apartment.0.4.states.passiveCooling';
                 const obj = struct.dssObjects[id];
-                expect(obj, 'the object exists').to.be.an('object');
-                expect(obj.common.type).to.equal('boolean');
-                expect(obj.common.write, 'the dSS computes it').to.equal(false);
-                expect(obj.native).to.deep.equal({
+                assert.strictEqual(Object.prototype.toString.call(obj), '[object Object]', 'the object exists');
+                assert.strictEqual(obj.common.type, 'boolean');
+                assert.strictEqual(obj.common.write, false, 'the dSS computes it');
+                assert.deepStrictEqual(obj.native, {
                     valueTrue: 'active',
                     valueFalse: 'inactive',
                     dssStateName: 'zone.zone4.group0.type9.passiveCooling',
                 });
-                expect(obj.onChange, 'no write handler').to.equal(undefined);
-                expect(struct.stateMap['zone.zone4.group0.type9.passiveCooling']).to.equal(id);
-                expect(struct.initialObjectValues[id], 'a value right after the start').to.equal('active');
-                expect(struct.dssObjects['apartment.0.4.states.light'], 'the zone state stays').to.be.an('object');
+                assert.strictEqual(obj.onChange, undefined, 'no write handler');
+                assert.strictEqual(struct.stateMap['zone.zone4.group0.type9.passiveCooling'], id);
+                assert.strictEqual(struct.initialObjectValues[id], 'active', 'a value right after the start');
+                assert.strictEqual(
+                    Object.prototype.toString.call(struct.dssObjects['apartment.0.4.states.light']),
+                    '[object Object]',
+                    'the zone state stays',
+                );
                 // A state with an object must not end up in the line that asks for an issue
                 struct.reportUnmappedStates();
-                expect(entries, 'nothing is reported').to.deep.equal([]);
+                assert.deepStrictEqual(entries, [], 'nothing is reported');
                 done();
             });
         });
@@ -2502,18 +2626,22 @@ describe('DSSStructure', () => {
             );
 
             const id = 'apartment.0.4.states.passiveCooling';
-            expect(struct.dssObjects[id], 'not an unknown object').to.be.an('object');
-            expect(struct.dssObjects[id].common.write).to.equal(false);
-            expect(struct.dssObjects[id].native.dssStateName).to.equal('zone.zone4.group0.type9.passiveCooling');
-            expect(struct.stateMap['zone.zone4.group0.type9.passiveCooling'], 'its events apply').to.equal(id);
-            expect(struct.stateMap['zone.zone4.group0.type9.motion']).to.equal('apartment.0.4.states.motion_type9');
-            expect(struct.initialObjectValues, 'the last value stays').to.not.have.property(id);
-            expect(struct.dssObjects['apartment.0.4.states'].type, 'its channel').to.equal('channel');
-            expect(struct.dssObjects).to.not.have.property('apartment.0.2.states.passiveCooling');
-            expect(struct.dssObjects).to.not.have.property('apartment.0.4.states.x');
-            expect(struct.dssObjects).to.not.have.property('apartment.0.4.states.light');
+            assert.strictEqual(
+                Object.prototype.toString.call(struct.dssObjects[id]),
+                '[object Object]',
+                'not an unknown object',
+            );
+            assert.strictEqual(struct.dssObjects[id].common.write, false);
+            assert.strictEqual(struct.dssObjects[id].native.dssStateName, 'zone.zone4.group0.type9.passiveCooling');
+            assert.strictEqual(struct.stateMap['zone.zone4.group0.type9.passiveCooling'], id, 'its events apply');
+            assert.strictEqual(struct.stateMap['zone.zone4.group0.type9.motion'], 'apartment.0.4.states.motion_type9');
+            assert.ok(!(id in struct.initialObjectValues), 'the last value stays');
+            assert.strictEqual(struct.dssObjects['apartment.0.4.states'].type, 'channel', 'its channel');
+            assert.ok(!('apartment.0.2.states.passiveCooling' in struct.dssObjects));
+            assert.ok(!('apartment.0.4.states.x' in struct.dssObjects));
+            assert.ok(!('apartment.0.4.states.light' in struct.dssObjects));
             struct.reportUnmappedStates();
-            expect(entries, 'nothing is reported').to.deep.equal([]);
+            assert.deepStrictEqual(entries, [], 'nothing is reported');
         });
 
         // A state the dSS answered without is gone - it stays an unknown object as before
@@ -2534,8 +2662,8 @@ describe('DSSStructure', () => {
             await new Promise(resolve =>
                 struct.processZone('apartment.0', duschbad, [], undefined, undefined, resolve),
             );
-            expect(struct.dssObjects).to.not.have.property('apartment.0.4.states.passiveCooling');
-            expect(struct.stateMap).to.not.have.property('zone.zone4.group0.type9.passiveCooling');
+            assert.ok(!('apartment.0.4.states.passiveCooling' in struct.dssObjects));
+            assert.ok(!('zone.zone4.group0.type9.passiveCooling' in struct.stateMap));
         });
 
         // The dSS takes the identifier unchecked from the app (zone.addStateSensor()), and
@@ -2559,12 +2687,19 @@ describe('DSSStructure', () => {
             });
             struct.processZone('apartment.0', duschbad, [], undefined, undefined, () => {
                 const id = 'apartment.0.4.states.too_warm_';
-                expect(struct.dssObjects[id], 'the object exists under the cleaned id').to.be.an('object');
-                expect(Object.keys(struct.dssObjects).filter(key => /[*?]/.test(key))).to.deep.equal([]);
-                expect(struct.stateMap['zone.zone4.group0.type9.too*warm?']).to.equal(id);
-                expect(struct.initialObjectValues[id]).to.equal('active');
+                assert.strictEqual(
+                    Object.prototype.toString.call(struct.dssObjects[id]),
+                    '[object Object]',
+                    'the object exists under the cleaned id',
+                );
+                assert.deepStrictEqual(
+                    Object.keys(struct.dssObjects).filter(key => /[*?]/.test(key)),
+                    [],
+                );
+                assert.strictEqual(struct.stateMap['zone.zone4.group0.type9.too*warm?'], id);
+                assert.strictEqual(struct.initialObjectValues[id], 'active');
                 // letters of any language are allowed in an id and stay
-                expect(struct.stateMap['zone.zone4.group0.type9.Wärme']).to.equal('apartment.0.4.states.Wärme');
+                assert.strictEqual(struct.stateMap['zone.zone4.group0.type9.Wärme'], 'apartment.0.4.states.Wärme');
                 done();
             });
         });
@@ -2574,8 +2709,11 @@ describe('DSSStructure', () => {
             struct.propertyStates = [];
             struct.addonSensorStates = [passiveCooling(4, 'inactive')];
             struct.processZone('apartment.0', duschbad, [], undefined, undefined, () => {
-                expect(struct.dssObjects['apartment.0.4.states'].type).to.equal('channel');
-                expect(struct.dssObjects['apartment.0.4.states.passiveCooling']).to.be.an('object');
+                assert.strictEqual(struct.dssObjects['apartment.0.4.states'].type, 'channel');
+                assert.strictEqual(
+                    Object.prototype.toString.call(struct.dssObjects['apartment.0.4.states.passiveCooling']),
+                    '[object Object]',
+                );
                 done();
             });
         });
@@ -2593,15 +2731,21 @@ describe('DSSStructure', () => {
             struct.skippedStatePrefixes.add('zone.7.');
             struct.processZone('apartment.0', duschbad, [], undefined, undefined, () => {
                 const ids = Object.keys(struct.dssObjects);
-                expect(ids.filter(id => id.includes('passiveCooling'))).to.deep.equal([]);
-                expect(ids.filter(id => id.startsWith('apartment.0.2'))).to.deep.equal([]);
-                expect(struct.dssObjects['apartment.0.4.states'], 'no empty states channel').to.equal(undefined);
+                assert.deepStrictEqual(
+                    ids.filter(id => id.includes('passiveCooling')),
+                    [],
+                );
+                assert.deepStrictEqual(
+                    ids.filter(id => id.startsWith('apartment.0.2')),
+                    [],
+                );
+                assert.strictEqual(struct.dssObjects['apartment.0.4.states'], undefined, 'no empty states channel');
 
                 struct.reportUnmappedStates();
-                expect(entries, 'exactly one summary line').to.have.lengthOf(1);
-                expect(entries[0]).to.contain('zone.zone4.group48.type9.passiveCooling');
-                expect(entries[0], 'zone 2 was not built here').to.contain('zone.zone2.group0.type9.passiveCooling');
-                expect(entries[0], 'a skipped zone is not reported').to.not.contain('zone.zone7.');
+                assert.strictEqual(entries.length, 1, 'exactly one summary line');
+                assert.ok(entries[0].includes('zone.zone4.group48.type9.passiveCooling'));
+                assert.ok(entries[0].includes('zone.zone2.group0.type9.passiveCooling'), 'zone 2 was not built here');
+                assert.ok(!entries[0].includes('zone.zone7.'), 'a skipped zone is not reported');
                 done();
             });
         });
@@ -2616,12 +2760,13 @@ describe('DSSStructure', () => {
             // group 48 is not reachable, so processZone skips it on purpose
             const zone = { ...duschbad, groups: [{ id: 48, devices: [] }] };
             struct.processZone('apartment.0', zone, [], undefined, undefined, () => {
-                expect(struct.skippedStatePrefixes.has('zone.4.group.48.')).to.equal(true);
+                assert.strictEqual(struct.skippedStatePrefixes.has('zone.4.group.48.'), true);
                 struct.reportUnmappedStates();
-                expect(entries.join('\n'), 'no info line asks for an issue').to.not.contain('zone.zone4.group48.');
-                expect(
+                assert.ok(!entries.join('\n').includes('zone.zone4.group48.'), 'no info line asks for an issue');
+                assert.strictEqual(
                     debug.some(msg => /^1 DSS state\(s\) belong to zones or groups this adapter skipped/.test(msg)),
-                ).to.equal(true);
+                    true,
+                );
                 done();
             });
         });
@@ -2642,15 +2787,19 @@ describe('DSSStructure', () => {
                 },
             ];
             struct.processZone('apartment.0', duschbad, [], undefined, undefined, () => {
-                expect(struct.stateMap['zone.4.motion']).to.equal('apartment.0.4.states.motion');
-                expect(struct.stateMap['zone.zone4.group0.type9.motion']).to.equal('apartment.0.4.states.motion_type9');
+                assert.strictEqual(struct.stateMap['zone.4.motion'], 'apartment.0.4.states.motion');
+                assert.strictEqual(
+                    struct.stateMap['zone.zone4.group0.type9.motion'],
+                    'apartment.0.4.states.motion_type9',
+                );
                 const sensor = struct.dssObjects['apartment.0.4.states.motion_type9'];
-                expect(sensor.common.type).to.equal('boolean');
-                expect(sensor.common.write).to.equal(false);
-                expect(
+                assert.strictEqual(sensor.common.type, 'boolean');
+                assert.strictEqual(sensor.common.write, false);
+                assert.strictEqual(
                     typeof struct.dssObjects['apartment.0.4.states.motion'].onChange,
+                    'function',
                     'the zone state is kept',
-                ).to.equal('function');
+                );
                 done();
             });
         });
@@ -2665,8 +2814,8 @@ describe('DSSStructure', () => {
             const second = createStructure();
 
             first.groupTypes[16] = 'Cluster Erdgeschoss';
-            expect(second.groupTypes[16], 'a second instance must not see it').to.equal(originalName);
-            expect(dssConstants.groupTypes[16], 'the module constants must stay untouched').to.equal(originalName);
+            assert.strictEqual(second.groupTypes[16], originalName, 'a second instance must not see it');
+            assert.strictEqual(dssConstants.groupTypes[16], originalName, 'the module constants must stay untouched');
         });
 
         it('keeps two apartments with the same cluster id apart', () => {
@@ -2686,9 +2835,9 @@ describe('DSSStructure', () => {
             first.parseData(() => {});
             second.parseData(() => {});
 
-            expect(first.groupTypes[16]).to.equal('Rollladen Nord');
-            expect(second.groupTypes[16]).to.equal('Rollladen Sued');
-            expect(dssConstants.groupTypes[16], 'no global mutation').to.equal(undefined);
+            assert.strictEqual(first.groupTypes[16], 'Rollladen Nord');
+            assert.strictEqual(second.groupTypes[16], 'Rollladen Sued');
+            assert.strictEqual(dssConstants.groupTypes[16], undefined, 'no global mutation');
         });
     });
 
@@ -2715,19 +2864,19 @@ describe('DSSStructure', () => {
                 'Error while set State for apartment-user',
                 new DSSQueue.SupersededError('Request was superseded by a newer value'),
             );
-            expect(levels).to.deep.equal(['debug']);
+            assert.deepStrictEqual(levels, ['debug']);
         });
 
         it('still warns about a real DSS error', () => {
             const levels = [];
             loggingStructure(levels).logQueueError('Error while set State for apartment-user', new Error('HTTP 500'));
-            expect(levels).to.deep.equal(['warn']);
+            assert.deepStrictEqual(levels, ['warn']);
         });
 
         it('still warns when the DSS answered with ok=false and no error object', () => {
             const levels = [];
             loggingStructure(levels).logQueueError('Error while callScene for group: {"ok":false}', undefined);
-            expect(levels).to.deep.equal(['warn']);
+            assert.deepStrictEqual(levels, ['warn']);
         });
 
         it('treats a superseded output write as expected', () => {
@@ -2736,7 +2885,7 @@ describe('DSSStructure', () => {
                 { dSUID: 'dev1' },
                 new DSSQueue.SupersededError('superseded by a newer value'),
             );
-            expect(levels).to.deep.equal(['debug']);
+            assert.deepStrictEqual(levels, ['debug']);
         });
 
         it('does not burn the "reported once" slot of an output read on a shutdown', () => {
@@ -2744,10 +2893,10 @@ describe('DSSStructure', () => {
             const struct = loggingStructure(levels);
             const shutdownErr = Object.assign(new Error('Queue cleared'), { shutdown: true });
             struct.logOutputReadError({ dSUID: 'dev1' }, 'brightness', shutdownErr);
-            expect(levels, 'a stop is not a device property').to.deep.equal(['debug']);
+            assert.deepStrictEqual(levels, ['debug'], 'a stop is not a device property');
             // The real report must still be possible afterwards
             struct.logOutputReadError({ dSUID: 'dev1' }, 'brightness', new Error('HTTP 500'));
-            expect(levels).to.deep.equal(['debug', 'info']);
+            assert.deepStrictEqual(levels, ['debug', 'info']);
         });
     });
 });
@@ -2761,9 +2910,12 @@ describe('DSSStructure names and meter values', () => {
         struct.addFolderObject('devices.302ed89f43f0000000000e400000ff4300', 'Büro &amp; Duschbad');
         struct.addFolderObject('apartment.0.5', 'Eltern&#039;s Zimmer', 'folder');
         struct.addFolderObject('devices.m3', 'Küche');
-        expect(struct.dssObjects['devices.302ed89f43f0000000000e400000ff4300'].common.name).to.equal('Büro & Duschbad');
-        expect(struct.dssObjects['apartment.0.5'].common.name).to.equal("Eltern's Zimmer");
-        expect(struct.dssObjects['devices.m3'].common.name).to.equal('Küche');
+        assert.strictEqual(
+            struct.dssObjects['devices.302ed89f43f0000000000e400000ff4300'].common.name,
+            'Büro & Duschbad',
+        );
+        assert.strictEqual(struct.dssObjects['apartment.0.5'].common.name, "Eltern's Zimmer");
+        assert.strictEqual(struct.dssObjects['devices.m3'].common.name, 'Küche');
     });
 
     it('decodes state names once and never touches the id', () => {
@@ -2774,17 +2926,17 @@ describe('DSSStructure names and meter values', () => {
             role: 'indicator',
         });
         const obj = struct.dssObjects['apartment.userStates.1617871548'];
-        expect(obj.common.name, 'one pass: a literal "&amp;" stays one').to.equal('Garten &amp; Hof <Süd>');
-        expect(struct.stateMap['user.1617871548']).to.equal('apartment.userStates.1617871548');
+        assert.strictEqual(obj.common.name, 'Garten &amp; Hof <Süd>', 'one pass: a literal "&amp;" stays one');
+        assert.strictEqual(struct.stateMap['user.1617871548'], 'apartment.userStates.1617871548');
     });
 
     it('rounds the meter reading to whole watt hours', () => {
         // 4009.7331175000004 kWh was written before, measured on a real installation
-        expect(DSSStructure.wattSecondsToKwh(14435039223)).to.equal(4009.733);
-        expect(DSSStructure.wattSecondsToKwh(637899639)).to.equal(177.194);
-        expect(DSSStructure.wattSecondsToKwh(3600000)).to.equal(1);
-        expect(DSSStructure.wattSecondsToKwh(0)).to.equal(0);
-        expect(String(DSSStructure.wattSecondsToKwh(1800)), 'half a watt hour rounds up').to.equal('0.001');
+        assert.strictEqual(DSSStructure.wattSecondsToKwh(14435039223), 4009.733);
+        assert.strictEqual(DSSStructure.wattSecondsToKwh(637899639), 177.194);
+        assert.strictEqual(DSSStructure.wattSecondsToKwh(3600000), 1);
+        assert.strictEqual(DSSStructure.wattSecondsToKwh(0), 0);
+        assert.strictEqual(String(DSSStructure.wattSecondsToKwh(1800)), '0.001', 'half a watt hour rounds up');
     });
 
     describe('meter polls', () => {
@@ -2833,14 +2985,14 @@ describe('DSSStructure names and meter values', () => {
             // 300 Ws more is less than a tenth of a watt hour - the rounded total stays
             readings.meter1.meterValue += 300;
             await poll(struct);
-            expect(struct.writes).to.deep.equal([
+            assert.deepStrictEqual(struct.writes, [
                 ['devices.meter1.PowerConsumption', 0],
                 ['devices.meter1.EnergyMeterValue', 4009.733],
             ]);
             readings.meter1.consumption = 120;
             readings.meter1.meterValue += 3600;
             await poll(struct);
-            expect(struct.writes.slice(2)).to.deep.equal([
+            assert.deepStrictEqual(struct.writes.slice(2), [
                 ['devices.meter1.PowerConsumption', 120],
                 ['devices.meter1.EnergyMeterValue', 4009.734],
             ]);
@@ -2853,10 +3005,13 @@ describe('DSSStructure names and meter values', () => {
             // without namespace - onStateChange strips it, see testAdapter.js
             struct.notePublishedValue('devices.meter1.PowerConsumption', 999);
             await poll(struct);
-            expect(struct.writes.filter(w => w[0] === 'devices.meter1.PowerConsumption')).to.deep.equal([
-                ['devices.meter1.PowerConsumption', 30],
-                ['devices.meter1.PowerConsumption', 30],
-            ]);
+            assert.deepStrictEqual(
+                struct.writes.filter(w => w[0] === 'devices.meter1.PowerConsumption'),
+                [
+                    ['devices.meter1.PowerConsumption', 30],
+                    ['devices.meter1.PowerConsumption', 30],
+                ],
+            );
         });
     });
 });

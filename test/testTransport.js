@@ -1,6 +1,6 @@
 const http = require('node:http');
-const { expect } = require('chai');
-const DSS = require('../lib/dss');
+const assert = require('node:assert');
+const { DSS } = require('../build/lib/dss');
 
 const silentLogger = { silly: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
@@ -56,7 +56,7 @@ describe('DSS transport', () => {
         }
         // Give the polls time to actually occupy their sockets
         await new Promise(resolve => setTimeout(resolve, 300));
-        expect(fake.openPolls.length, 'all event polls must be in flight').to.equal(eventCount);
+        assert.strictEqual(fake.openPolls.length, eventCount, 'all event polls must be in flight');
 
         // A normal command must not wait for any long-poll
         const started = Date.now();
@@ -64,15 +64,15 @@ describe('DSS transport', () => {
             dss.requestAsync('device', 'callScene', { dsuid: 'dev1', sceneNumber: 14 }),
             new Promise((_, reject) => setTimeout(() => reject(new Error('API request was blocked')), 5000)),
         ]);
-        expect(res.ok).to.equal(true);
-        expect(Date.now() - started, 'API request must be answered immediately').to.be.below(3000);
+        assert.strictEqual(res.ok, true);
+        assert.ok(Date.now() - started < 3000, 'API request must be answered immediately');
     });
 
     it('uses separate agents for API calls and event polls', () => {
         dss = new DSS({ host: 'http://127.0.0.1:1', appToken: 'tok', logger: silentLogger });
-        expect(dss.apiAgent).to.not.equal(dss.eventAgent);
+        assert.notStrictEqual(dss.apiAgent, dss.eventAgent);
         // Long-poll plus a re-subscribe running next to it must both fit
-        expect(dss.eventAgent.maxSockets).to.be.at.least(2);
+        assert.ok(dss.eventAgent.maxSockets >= 2);
     });
 
     describe('request timeouts', () => {
@@ -96,11 +96,11 @@ describe('DSS transport', () => {
             } catch (err) {
                 caught = err;
             }
-            expect(caught, 'the request must time out').to.not.equal(null);
-            expect(caught.message).to.contain('Timeout after');
-            expect(caught.code, 'structured code instead of message parsing').to.equal('ETIMEDOUT');
-            expect(caught.timeout).to.equal(true);
-            expect(DSS.isRetryableConnectionError(caught), 'a timeout is retryable').to.equal(true);
+            assert.notStrictEqual(caught, null, 'the request must time out');
+            assert.ok(caught.message.includes('Timeout after'));
+            assert.strictEqual(caught.code, 'ETIMEDOUT', 'structured code instead of message parsing');
+            assert.strictEqual(caught.timeout, true);
+            assert.strictEqual(DSS.isRetryableConnectionError(caught), true, 'a timeout is retryable');
         });
 
         it('repeats a safe read once after a timeout, a write never', async function () {
@@ -123,12 +123,12 @@ describe('DSS transport', () => {
                 return originalRequest('/json/event/get', query, 150, isEventPoll);
             };
 
-            await expect(dss.requestAsync('apartment', 'getStructure')).to.be.rejectedWith(/Timeout after/);
-            expect(timeouts.length, 'a safe read is repeated exactly once').to.equal(2);
+            await assert.rejects(dss.requestAsync('apartment', 'getStructure'), /Timeout after/);
+            assert.strictEqual(timeouts.length, 2, 'a safe read is repeated exactly once');
 
             timeouts.length = 0;
-            await expect(dss.requestAsync('device', 'callScene', { dsuid: 'x' })).to.be.rejectedWith(/Timeout after/);
-            expect(timeouts.length, 'a write must never be repeated').to.equal(1);
+            await assert.rejects(dss.requestAsync('device', 'callScene', { dsuid: 'x' }), /Timeout after/);
+            assert.strictEqual(timeouts.length, 1, 'a write must never be repeated');
         });
     });
 
@@ -150,7 +150,7 @@ describe('DSS transport', () => {
 
         dss.stop();
         await new Promise(resolve => setTimeout(resolve, 300));
-        expect(pollsAfterStop, 'no new poll after stop').to.equal(0);
-        expect(dss.activeRequests.size, 'no request left over').to.equal(0);
+        assert.strictEqual(pollsAfterStop, 0, 'no new poll after stop');
+        assert.strictEqual(dss.activeRequests.size, 0, 'no request left over');
     });
 });

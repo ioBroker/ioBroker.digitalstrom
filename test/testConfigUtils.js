@@ -1,5 +1,5 @@
-const { expect } = require('chai');
-const { normalizeBoolean, isInterpretableBoolean } = require('../lib/configUtils');
+const assert = require('node:assert');
+const { normalizeBoolean, isInterpretableBoolean } = require('../build/lib/configUtils');
 
 describe('configUtils.normalizeBoolean', () => {
     // [input, result with default false, result with default true]
@@ -31,29 +31,33 @@ describe('configUtils.normalizeBoolean', () => {
 
     cases.forEach(([label, input, withFalseDefault, withTrueDefault]) => {
         it(`${label} -> ${withFalseDefault} / ${withTrueDefault}`, () => {
-            expect(normalizeBoolean(input, false), 'default false').to.equal(withFalseDefault);
-            expect(normalizeBoolean(input, true), 'default true').to.equal(withTrueDefault);
+            assert.strictEqual(normalizeBoolean(input, false), withFalseDefault, 'default false');
+            assert.strictEqual(normalizeBoolean(input, true), withTrueDefault, 'default true');
         });
     });
 
     it('defaults to false when no default is given', () => {
-        expect(normalizeBoolean(undefined)).to.equal(false);
-        expect(normalizeBoolean('nonsense')).to.equal(false);
+        assert.strictEqual(normalizeBoolean(undefined), false);
+        assert.strictEqual(normalizeBoolean('nonsense'), false);
     });
 
     it('never turns an uninterpretable value into true when the default is false', () => {
         // This is the safety rule for destructive options like deleteUnknownObjects
         ['false', '0', 'no', 'off', '', '   ', 'vielleicht', null, undefined, {}, [], 2, NaN].forEach(value => {
-            expect(normalizeBoolean(value, false), `${JSON.stringify(value)} must not enable anything`).to.equal(false);
+            assert.strictEqual(
+                normalizeBoolean(value, false),
+                false,
+                `${JSON.stringify(value)} must not enable anything`,
+            );
         });
     });
 
     it('marks values that cannot be interpreted', () => {
         [true, false, 'true', 'false', 'YES', ' off ', 0, 1].forEach(value =>
-            expect(isInterpretableBoolean(value), `${JSON.stringify(value)}`).to.equal(true),
+            assert.strictEqual(isInterpretableBoolean(value), true, `${JSON.stringify(value)}`),
         );
         ['', '  ', 'vielleicht', null, undefined, {}, [], 2, NaN].forEach(value =>
-            expect(isInterpretableBoolean(value), `${JSON.stringify(value)}`).to.equal(false),
+            assert.strictEqual(isInterpretableBoolean(value), false, `${JSON.stringify(value)}`),
         );
     });
 });

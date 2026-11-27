@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 // websocket.js exports the client class itself and hangs the constants off it. That
 // second export is invisible to the checker behind the export assignment, so it is named
 // here explicitly.
-const { WEBSOCKET_GUID } = require('../../lib/websocket');
+const { WEBSOCKET_GUID } = require('../../build/lib/websocket');
 
 /**
  * Local stand-in for the new digitalSTROM API. Answers the REST endpoints the adapter

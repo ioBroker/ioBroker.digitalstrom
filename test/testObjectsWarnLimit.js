@@ -1,9 +1,22 @@
-const { expect } = require('chai');
+const assert = require('node:assert');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
 const { FakeAdminSocket, guarded, READS } = require('./lib/fakeAdminSocket');
 const { waitFor } = require('./lib/helpers');
+
+/**
+ * Asserts that an object carries the given properties with these values; further
+ * properties of the object do not matter.
+ *
+ * @param {Record<string, any>} actual object under test
+ * @param {Record<string, any>} expected properties it has to contain
+ * @param {string} [message] message on failure
+ */
+function assertIncludes(actual, expected, message) {
+    const picked = Object.fromEntries(Object.keys(expected).map(key => [key, actual[key]]));
+    assert.deepStrictEqual(picked, expected, message);
+}
 
 // The warn limit logic lives in the sources of the admin dialog, which are ES modules
 const modulePath = path.join(__dirname, '..', 'src-admin', 'src', 'objectsWarnLimit.js');
@@ -73,7 +86,7 @@ describe('Objects warn limit (admin dialog)', () => {
 
     describe('reading the stored value like js-controller does', () => {
         it('takes a number as it is', () => {
-            expect(lib.classifyStoredValue({ val: 5000, ack: true })).to.include({
+            assertIncludes(lib.classifyStoredValue({ val: 5000, ack: true }), {
                 kind: 'number',
                 value: 5000,
                 unusual: null,
@@ -81,77 +94,77 @@ describe('Objects warn limit (admin dialog)', () => {
         });
 
         it('does not accept a numeric string - typeof decides in js-controller', () => {
-            expect(lib.classifyStoredValue({ val: '10000', ack: false })).to.include({
+            assertIncludes(lib.classifyStoredValue({ val: '10000', ack: false }), {
                 kind: 'invalid',
                 reason: 'string',
                 raw: '"10000"',
                 ack: false,
             });
-            expect(lib.classifyStoredValue({ val: '', ack: true })).to.include({
+            assertIncludes(lib.classifyStoredValue({ val: '', ack: true }), {
                 kind: 'invalid',
                 reason: 'emptyString',
             });
-            expect(lib.classifyStoredValue({ val: true, ack: true })).to.include({ kind: 'invalid', reason: 'type' });
+            assertIncludes(lib.classifyStoredValue({ val: true, ack: true }), { kind: 'invalid', reason: 'type' });
         });
 
         it('tells a missing state from a state without value', () => {
-            expect(lib.classifyStoredValue(null)).to.deep.equal({ kind: 'noState' });
-            expect(lib.classifyStoredValue({ val: null, ack: true })).to.include({ kind: 'empty' });
+            assert.deepStrictEqual(lib.classifyStoredValue(null), { kind: 'noState' });
+            assertIncludes(lib.classifyStoredValue({ val: null, ack: true }), { kind: 'empty' });
         });
 
         it('keeps 0 and negative numbers but marks them - they do not switch the warning off', () => {
-            expect(lib.classifyStoredValue({ val: 0, ack: true })).to.include({
+            assertIncludes(lib.classifyStoredValue({ val: 0, ack: true }), {
                 kind: 'number',
                 value: 0,
                 unusual: 'notPositive',
             });
-            expect(lib.classifyStoredValue({ val: -5, ack: true })).to.include({
+            assertIncludes(lib.classifyStoredValue({ val: -5, ack: true }), {
                 kind: 'number',
                 unusual: 'notPositive',
             });
-            expect(lib.classifyStoredValue({ val: 1234.5, ack: true })).to.include({
+            assertIncludes(lib.classifyStoredValue({ val: 1234.5, ack: true }), {
                 kind: 'number',
                 unusual: 'fraction',
             });
         });
 
         it('refuses numbers that are not finite', () => {
-            expect(lib.classifyStoredValue({ val: Number.NaN })).to.include({ kind: 'invalid', reason: 'nonFinite' });
-            expect(lib.classifyStoredValue({ val: Infinity })).to.include({ kind: 'invalid', reason: 'nonFinite' });
+            assertIncludes(lib.classifyStoredValue({ val: Number.NaN }), { kind: 'invalid', reason: 'nonFinite' });
+            assertIncludes(lib.classifyStoredValue({ val: Infinity }), { kind: 'invalid', reason: 'nonFinite' });
         });
     });
 
     describe('the input field', () => {
         it('accepts whole numbers of at least 1', () => {
-            expect(lib.parseLimitInput('10000')).to.deep.equal({ ok: true, value: 10000 });
-            expect(lib.parseLimitInput(' 15000 ')).to.deep.equal({ ok: true, value: 15000 });
-            expect(lib.parseLimitInput('1')).to.deep.equal({ ok: true, value: 1 });
+            assert.deepStrictEqual(lib.parseLimitInput('10000'), { ok: true, value: 10000 });
+            assert.deepStrictEqual(lib.parseLimitInput(' 15000 '), { ok: true, value: 15000 });
+            assert.deepStrictEqual(lib.parseLimitInput('1'), { ok: true, value: 1 });
         });
 
         it('refuses separators instead of guessing what they mean', () => {
-            expect(lib.parseLimitInput('10.000')).to.deep.equal({ ok: false, reason: 'notWholeNumber' });
-            expect(lib.parseLimitInput('10,000')).to.deep.equal({ ok: false, reason: 'notWholeNumber' });
-            expect(lib.parseLimitInput('10 000')).to.deep.equal({ ok: false, reason: 'notWholeNumber' });
-            expect(lib.parseLimitInput('-1')).to.deep.equal({ ok: false, reason: 'notWholeNumber' });
-            expect(lib.parseLimitInput('1e4')).to.deep.equal({ ok: false, reason: 'notWholeNumber' });
+            assert.deepStrictEqual(lib.parseLimitInput('10.000'), { ok: false, reason: 'notWholeNumber' });
+            assert.deepStrictEqual(lib.parseLimitInput('10,000'), { ok: false, reason: 'notWholeNumber' });
+            assert.deepStrictEqual(lib.parseLimitInput('10 000'), { ok: false, reason: 'notWholeNumber' });
+            assert.deepStrictEqual(lib.parseLimitInput('-1'), { ok: false, reason: 'notWholeNumber' });
+            assert.deepStrictEqual(lib.parseLimitInput('1e4'), { ok: false, reason: 'notWholeNumber' });
         });
 
         it('refuses an empty field, 0 and numbers beyond what JavaScript counts exactly', () => {
-            expect(lib.parseLimitInput('')).to.deep.equal({ ok: false, reason: 'empty' });
-            expect(lib.parseLimitInput('0')).to.deep.equal({ ok: false, reason: 'tooSmall' });
-            expect(lib.parseLimitInput('99999999999999999999')).to.deep.equal({ ok: false, reason: 'tooLarge' });
+            assert.deepStrictEqual(lib.parseLimitInput(''), { ok: false, reason: 'empty' });
+            assert.deepStrictEqual(lib.parseLimitInput('0'), { ok: false, reason: 'tooSmall' });
+            assert.deepStrictEqual(lib.parseLimitInput('99999999999999999999'), { ok: false, reason: 'tooLarge' });
         });
     });
 
     describe('formatting', () => {
         it('groups the digits for the language of the admin', () => {
-            expect(lib.formatCount(5000, 'de')).to.equal('5.000');
-            expect(lib.formatCount(10000, 'de')).to.equal('10.000');
-            expect(lib.formatCount(15000, 'en')).to.equal('15,000');
+            assert.strictEqual(lib.formatCount(5000, 'de'), '5.000');
+            assert.strictEqual(lib.formatCount(10000, 'de'), '10.000');
+            assert.strictEqual(lib.formatCount(15000, 'en'), '15,000');
         });
 
         it('falls back to the plain number for a language Intl does not know', () => {
-            expect(lib.formatCount(5000, 'not a language tag!')).to.equal('5000');
+            assert.strictEqual(lib.formatCount(5000, 'not a language tag!'), '5000');
         });
     });
 
@@ -162,17 +175,18 @@ describe('Objects warn limit (admin dialog)', () => {
             await monitor.start();
 
             const shown = view();
-            expect(shown.status).to.equal('ok');
-            expect(shown.current, 'the value of the state, not the default').to.equal(5000);
-            expect(shown.adapterDefault).to.equal(10000);
-            expect(shown.adapterVersion).to.equal('2.4.23');
-            expect(shown.differs).to.equal(true);
-            expect(shown.ack).to.equal(true);
-            expect(shown.messages.map(m => m.key)).to.include('warnLimit_hint_differs');
-            expect(
+            assert.strictEqual(shown.status, 'ok');
+            assert.strictEqual(shown.current, 5000, 'the value of the state, not the default');
+            assert.strictEqual(shown.adapterDefault, 10000);
+            assert.strictEqual(shown.adapterVersion, '2.4.23');
+            assert.strictEqual(shown.differs, true);
+            assert.strictEqual(shown.ack, true);
+            assert.ok(shown.messages.map(m => m.key).includes('warnLimit_hint_differs'));
+            assert.strictEqual(
                 shown.messages.every(m => m.severity !== 'error'),
+                true,
                 'a difference is no error',
-            ).to.equal(true);
+            );
         });
 
         it('shows 10000 and any other number just as they are stored', async () => {
@@ -180,8 +194,8 @@ describe('Objects warn limit (admin dialog)', () => {
                 const { states, objects } = installation({ state: { val, ack: true } });
                 const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects }));
                 await monitor.start();
-                expect(view().current).to.equal(val);
-                expect(view().differs).to.equal(val !== 10000);
+                assert.strictEqual(view().current, val);
+                assert.strictEqual(view().differs, val !== 10000);
             }
         });
 
@@ -193,13 +207,13 @@ describe('Objects warn limit (admin dialog)', () => {
             const { monitor, view } = createMonitor(socket, 1);
             await monitor.start();
 
-            expect(id).to.equal('system.adapter.digitalstrom.1.objectsWarnLimit');
-            expect(view().stateId).to.equal(id);
-            expect(view().current).to.equal(12000);
+            assert.strictEqual(id, 'system.adapter.digitalstrom.1.objectsWarnLimit');
+            assert.strictEqual(view().stateId, id);
+            assert.strictEqual(view().current, 12000);
             const touched = socket.calls
                 .filter(c => ['getState', 'subscribeState'].includes(c.method))
                 .map(c => c.args[0]);
-            expect(touched).to.have.members([id, id]);
+            assert.deepStrictEqual([...touched].sort(), [id, id]);
         });
 
         it('follows a change of the state without a draft - so the dialog does not count as changed', async () => {
@@ -211,12 +225,16 @@ describe('Objects warn limit (admin dialog)', () => {
 
             socket.external(id, { val: 20000, ack: false, from: 'system.adapter.admin.0' });
 
-            expect(snapshots.length).to.be.above(before);
-            expect(view().current).to.equal(20000);
-            expect(view().ack).to.equal(false);
-            expect(view().messages.map(m => m.key)).to.include('warnLimit_hint_pending');
-            expect(lib.evaluateDraft(null, monitor.snapshot).dirty, 'a reading is no change').to.equal(false);
-            expect(socket.writes).to.have.length(0);
+            assert.ok(snapshots.length > before);
+            assert.strictEqual(view().current, 20000);
+            assert.strictEqual(view().ack, false);
+            assert.ok(
+                view()
+                    .messages.map(m => m.key)
+                    .includes('warnLimit_hint_pending'),
+            );
+            assert.strictEqual(lib.evaluateDraft(null, monitor.snapshot).dirty, false, 'a reading is no change');
+            assert.strictEqual(socket.writes.length, 0);
         });
 
         it('reads only - start, refresh, events, reconnect and closing never write', async () => {
@@ -231,10 +249,13 @@ describe('Objects warn limit (admin dialog)', () => {
             await waitFor(() => !monitor.snapshot.loading);
             monitor.dispose();
 
-            expect(socket.writes).to.have.length(0);
-            expect(socket.methods().every(m => READS.includes(m))).to.equal(true);
-            expect(socket.violations, 'refused calls, even if a caller caught them').to.deep.equal([]);
-            expect(socket.methods()).to.not.include('setState');
+            assert.strictEqual(socket.writes.length, 0);
+            assert.strictEqual(
+                socket.methods().every(m => READS.includes(m)),
+                true,
+            );
+            assert.deepStrictEqual(socket.violations, [], 'refused calls, even if a caller caught them');
+            assert.ok(!socket.methods().includes('setState'));
         });
 
         it('needs no running instance - it never asks the adapter', async () => {
@@ -244,10 +265,10 @@ describe('Objects warn limit (admin dialog)', () => {
             const { monitor, view } = createMonitor(guarded(socket, READS));
             await monitor.start();
 
-            expect(view().current).to.equal(5000);
-            expect(socket.methods()).to.not.include('sendTo');
-            expect(socket.violations).to.deep.equal([]);
-            expect(socket.calls.map(c => c.args[0])).to.not.include('system.adapter.digitalstrom.0.alive');
+            assert.strictEqual(view().current, 5000);
+            assert.ok(!socket.methods().includes('sendTo'));
+            assert.deepStrictEqual(socket.violations, []);
+            assert.ok(!socket.calls.map(c => c.args[0]).includes('system.adapter.digitalstrom.0.alive'));
         });
     });
 
@@ -256,8 +277,11 @@ describe('Objects warn limit (admin dialog)', () => {
             const { states, objects } = installation({});
             const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects }));
             await monitor.start();
-            expect(view()).to.include({ status: 'noValue', current: null, editable: true });
-            expect(view().messages.map(m => m.key)).to.deep.equal(['warnLimit_status_noState']);
+            assertIncludes(view(), { status: 'noValue', current: null, editable: true });
+            assert.deepStrictEqual(
+                view().messages.map(m => m.key),
+                ['warnLimit_status_noState'],
+            );
         });
 
         it('a state without value: the controller fallback is named as such, not as the instance value', async () => {
@@ -265,15 +289,15 @@ describe('Objects warn limit (admin dialog)', () => {
             const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects }));
             await monitor.start();
             const shown = view();
-            expect(shown.current).to.equal(null);
-            expect(shown.messages[0]).to.deep.include({ key: 'warnLimit_status_empty', params: { fallback: 5000 } });
+            assert.strictEqual(shown.current, null);
+            assertIncludes(shown.messages[0], { key: 'warnLimit_status_empty', params: { fallback: 5000 } });
         });
 
         it('does not name a fallback number for a controller that was not checked', async () => {
             const { states, objects } = installation({ state: { val: null, ack: true }, controller: '8.0.0' });
             const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects }));
             await monitor.start();
-            expect(view().messages[0].key).to.equal('warnLimit_status_emptyUnknownFallback');
+            assert.strictEqual(view().messages[0].key, 'warnLimit_status_emptyUnknownFallback');
         });
 
         it('a numeric string is invalid, and unacknowledged it will be replaced by 5000', async () => {
@@ -281,18 +305,24 @@ describe('Objects warn limit (admin dialog)', () => {
             const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects }));
             await monitor.start();
             const shown = view();
-            expect(shown.status).to.equal('invalid');
-            expect(shown.current, 'never presented as a confirmed 10000').to.equal(null);
-            expect(shown.effective, 'what the controller applies, named as its replacement').to.equal(5000);
-            expect(shown.ack, 'kept for the view model').to.equal(false);
+            assert.strictEqual(shown.status, 'invalid');
+            assert.strictEqual(shown.current, null, 'never presented as a confirmed 10000');
+            assert.strictEqual(shown.effective, 5000, 'what the controller applies, named as its replacement');
+            assert.strictEqual(shown.ack, false, 'kept for the view model');
             // one message with cause, consequence and fix - not two that say almost the same
-            expect(shown.messages.map(m => m.key)).to.deep.equal(['warnLimit_status_invalidPending']);
-            expect(shown.messages[0].params.raw).to.equal('"10000"');
+            assert.deepStrictEqual(
+                shown.messages.map(m => m.key),
+                ['warnLimit_status_invalidPending'],
+            );
+            assert.strictEqual(shown.messages[0].params.raw, '"10000"');
 
             const acknowledged = installation({ state: { val: '10000', ack: true } });
             const second = createMonitor(new FakeAdminSocket(acknowledged));
             await second.monitor.start();
-            expect(second.view().messages.map(m => m.key)).to.deep.equal(['warnLimit_status_invalid']);
+            assert.deepStrictEqual(
+                second.view().messages.map(m => m.key),
+                ['warnLimit_status_invalid'],
+            );
         });
 
         it('0 and negative numbers are shown but explained - they do not switch the warning off', async () => {
@@ -300,8 +330,12 @@ describe('Objects warn limit (admin dialog)', () => {
                 const { states, objects } = installation({ state: { val, ack: true } });
                 const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects }));
                 await monitor.start();
-                expect(view()).to.include({ status: 'unusual', current: val });
-                expect(view().messages.map(m => m.key)).to.include('warnLimit_hint_notPositive');
+                assertIncludes(view(), { status: 'unusual', current: val });
+                assert.ok(
+                    view()
+                        .messages.map(m => m.key)
+                        .includes('warnLimit_hint_notPositive'),
+                );
             }
         });
 
@@ -309,16 +343,16 @@ describe('Objects warn limit (admin dialog)', () => {
             const { id, states, objects } = installation({ state: { val: 5000, ack: true } });
             const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects, denied: [id] }));
             await monitor.start();
-            expect(view()).to.include({ status: 'noAccess', current: null, editable: false });
-            expect(view().messages[0].key).to.equal('warnLimit_error_permission');
+            assertIncludes(view(), { status: 'noAccess', current: null, editable: false });
+            assert.strictEqual(view().messages[0].key, 'warnLimit_error_permission');
         });
 
         it('a controller older than 7.1.0 has no limit per instance', async () => {
             const { states, objects } = installation({ object: false, controller: '7.0.7' });
             const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects }));
             await monitor.start();
-            expect(view()).to.include({ status: 'unsupported', editable: false });
-            expect(view().messages[0]).to.deep.include({
+            assertIncludes(view(), { status: 'unsupported', editable: false });
+            assertIncludes(view().messages[0], {
                 key: 'warnLimit_status_unsupported',
                 params: { version: '7.0.7', min: '7.1.0' },
             });
@@ -328,8 +362,8 @@ describe('Objects warn limit (admin dialog)', () => {
             const { states, objects } = installation({ object: false });
             const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects }));
             await monitor.start();
-            expect(view()).to.include({ status: 'noObject', editable: false });
-            expect(view().messages[0].key).to.equal('warnLimit_status_noObject');
+            assertIncludes(view(), { status: 'noObject', editable: false });
+            assert.strictEqual(view().messages[0].key, 'warnLimit_status_noObject');
         });
 
         it('an unreadable controller version is said, not guessed', async () => {
@@ -337,26 +371,30 @@ describe('Objects warn limit (admin dialog)', () => {
             const socket = new FakeAdminSocket({ states, objects, denied: ['system.host.iobroker'] });
             const { monitor, view } = createMonitor(socket);
             await monitor.start();
-            expect(view().messages[0].key).to.equal('warnLimit_status_noObjectUnknownController');
+            assert.strictEqual(view().messages[0].key, 'warnLimit_status_noObjectUnknownController');
         });
 
         it('an adapter object without a default leaves the default undetermined', async () => {
             const { states, objects } = installation({ state: { val: 5000, ack: true }, adapterDefault: null });
             const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects }));
             await monitor.start();
-            expect(view()).to.include({ adapterDefault: null, adapterDefaultStatus: 'missing', differs: false });
+            assertIncludes(view(), { adapterDefault: null, adapterDefaultStatus: 'missing', differs: false });
         });
 
         it('points out that 7.1.0 and 7.1.1 ignore the default of io-package.json', async () => {
             const { states, objects } = installation({ state: { val: 5000, ack: true }, controller: '7.1.1' });
             const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects }));
             await monitor.start();
-            expect(view().messages.map(m => m.key)).to.include('warnLimit_hint_defaultIgnored');
+            assert.ok(
+                view()
+                    .messages.map(m => m.key)
+                    .includes('warnLimit_hint_defaultIgnored'),
+            );
         });
 
         it('says "loading" before the first answer', () => {
             const { monitor, view } = createMonitor(new FakeAdminSocket());
-            expect(view()).to.include({ status: 'loading', current: null });
+            assertIncludes(view(), { status: 'loading', current: null });
             monitor.dispose();
         });
     });
@@ -380,15 +418,15 @@ describe('Objects warn limit (admin dialog)', () => {
             socket.external(id, { val: 5000, ack: true });
             releaseHost();
             await refreshing;
-            expect(view().ack).to.equal(true);
+            assert.strictEqual(view().ack, true);
             monitor.dispose();
         });
 
         it('says "disconnected" when the connection goes before the first answer', () => {
             const { monitor, view } = createMonitor(new FakeAdminSocket());
             monitor.setConnected(false);
-            expect(view()).to.include({ status: 'disconnected', editable: false });
-            expect(view().messages[0].key).to.equal('warnLimit_error_connection');
+            assertIncludes(view(), { status: 'disconnected', editable: false });
+            assert.strictEqual(view().messages[0].key, 'warnLimit_error_connection');
             monitor.dispose();
         });
 
@@ -396,8 +434,8 @@ describe('Objects warn limit (admin dialog)', () => {
             const { states, objects } = installation({ state: { val: null, ack: false } });
             const { monitor, view } = createMonitor(new FakeAdminSocket({ states, objects }));
             await monitor.start();
-            expect(view().messages[0].key).to.equal('warnLimit_status_emptyPending');
-            expect(view().effective).to.equal(5000);
+            assert.strictEqual(view().messages[0].key, 'warnLimit_status_emptyPending');
+            assert.strictEqual(view().effective, 5000);
         });
 
         it('a refused object read keeps a readable value visible but locks the field', async () => {
@@ -407,8 +445,12 @@ describe('Objects warn limit (admin dialog)', () => {
             socket.getObject = oid => (oid === id ? Promise.reject('permissionError') : getObject(oid));
             const { monitor, view } = createMonitor(socket);
             await monitor.start();
-            expect(view()).to.include({ current: 10000, editable: false });
-            expect(view().messages.map(m => m.key)).to.include('warnLimit_error_objectPermission');
+            assertIncludes(view(), { current: 10000, editable: false });
+            assert.ok(
+                view()
+                    .messages.map(m => m.key)
+                    .includes('warnLimit_error_objectPermission'),
+            );
         });
 
         it('a state that cannot be read cannot be overwritten from the card', async () => {
@@ -418,39 +460,39 @@ describe('Objects warn limit (admin dialog)', () => {
             socket.subscribeState = async () => {};
             const { monitor, view } = createMonitor(socket);
             await monitor.start();
-            expect(view()).to.include({ status: 'noAccess', editable: false });
+            assertIncludes(view(), { status: 'noAccess', editable: false });
         });
 
         it('claims nothing for 7.0.8 nightlies, and names no replacement number from 7.3.0 on', async () => {
             const nightly = installation({ object: false, controller: '7.0.8' });
             const first = createMonitor(new FakeAdminSocket(nightly));
             await first.monitor.start();
-            expect(first.view().status).to.equal('noObject');
-            expect(first.view().messages[0].key).to.equal('warnLimit_status_noObjectUnknownController');
+            assert.strictEqual(first.view().status, 'noObject');
+            assert.strictEqual(first.view().messages[0].key, 'warnLimit_status_noObjectUnknownController');
 
             const newer = installation({ state: { val: null, ack: true }, controller: '7.3.0' });
             const second = createMonitor(new FakeAdminSocket(newer));
             await second.monitor.start();
-            expect(second.view().messages[0].key).to.equal('warnLimit_status_emptyUnknownFallback');
-            expect(second.view().effective).to.equal(null);
+            assert.strictEqual(second.view().messages[0].key, 'warnLimit_status_emptyUnknownFallback');
+            assert.strictEqual(second.view().effective, null);
         });
 
         it('an empty text is explained like an empty state, other types are named', async () => {
             const blank = installation({ state: { val: '', ack: false } });
             const first = createMonitor(new FakeAdminSocket(blank));
             await first.monitor.start();
-            expect(first.view().messages[0].key).to.equal('warnLimit_status_emptyPending');
+            assert.strictEqual(first.view().messages[0].key, 'warnLimit_status_emptyPending');
 
             const flag = installation({ state: { val: true, ack: true } });
             const second = createMonitor(new FakeAdminSocket(flag));
             await second.monitor.start();
-            expect(second.view().messages[0].params.type).to.equal('warnLimit_type_other');
+            assert.strictEqual(second.view().messages[0].params.type, 'warnLimit_type_other');
         });
 
         it('a timeout means "outcome unknown", not "not saved"', () => {
-            expect(lib.classifyError(new Error('timeout'), true)).to.include({ kind: 'connection', timedOut: true });
-            expect(lib.classifyError('timeout', true)).to.include({ timedOut: true });
-            expect(lib.classifyError(new Error('notConnectedError'), false)).to.include({ timedOut: false });
+            assertIncludes(lib.classifyError(new Error('timeout'), true), { kind: 'connection', timedOut: true });
+            assertIncludes(lib.classifyError('timeout', true), { timedOut: true });
+            assertIncludes(lib.classifyError(new Error('notConnectedError'), false), { timedOut: false });
         });
 
         it('closing the dialog drops the timers of requests that never answer', async () => {
@@ -461,7 +503,7 @@ describe('Objects warn limit (admin dialog)', () => {
             void monitor.refresh();
             await waitFor(() => monitor.timers.size === 3);
             monitor.dispose();
-            expect(monitor.timers.size).to.equal(0);
+            assert.strictEqual(monitor.timers.size, 0);
         });
 
         it('a save without any change writes nothing', async () => {
@@ -478,9 +520,9 @@ describe('Objects warn limit (admin dialog)', () => {
                 saveSettings: () => calls.push('settings'),
                 finish: () => calls.push('finish'),
             });
-            expect(result.outcome).to.equal('nothing');
-            expect(calls).to.deep.equal(['finish']);
-            expect(socket.violations).to.deep.equal([]);
+            assert.strictEqual(result.outcome, 'nothing');
+            assert.deepStrictEqual(calls, ['finish']);
+            assert.deepStrictEqual(socket.violations, []);
         });
     });
 
@@ -492,20 +534,21 @@ describe('Objects warn limit (admin dialog)', () => {
             await monitor.start();
 
             socket.disconnect();
-            expect(view().stale).to.equal(true);
-            expect(view().editable).to.equal(false);
-            expect(view().messages[0].key).to.equal('warnLimit_hint_stale');
+            assert.strictEqual(view().stale, true);
+            assert.strictEqual(view().editable, false);
+            assert.strictEqual(view().messages[0].key, 'warnLimit_hint_stale');
             // changed meanwhile - no event reaches a closed connection
             socket.external(id, { val: 9000, ack: true });
-            expect(view().current).to.equal(5000);
+            assert.strictEqual(view().current, 5000);
 
             socket.reconnect();
             await waitFor(() => monitor.snapshot.loaded && !monitor.snapshot.loading && view().current === 9000);
-            expect(view().stale).to.equal(false);
-            expect(
-                socket.methods().filter(m => m === 'subscribeState'),
+            assert.strictEqual(view().stale, false);
+            assert.strictEqual(
+                socket.methods().filter(m => m === 'subscribeState').length,
+                1,
                 'socket-client renews it itself',
-            ).to.have.length(1);
+            );
         });
 
         it('an older read answer does not overwrite a newer change', async () => {
@@ -522,7 +565,7 @@ describe('Objects warn limit (admin dialog)', () => {
             socket.releaseHeld();
             await refreshing;
 
-            expect(view().current).to.equal(8000);
+            assert.strictEqual(view().current, 8000);
         });
 
         it('an older refresh does not overwrite a newer one', async () => {
@@ -547,8 +590,8 @@ describe('Objects warn limit (admin dialog)', () => {
             await newer;
             held.slice(0, 3).forEach(entry => entry.resolve());
             await older;
-            expect(second.view().current).to.equal(11000);
-            expect(view().current).to.equal(5000);
+            assert.strictEqual(second.view().current, 11000);
+            assert.strictEqual(view().current, 5000);
             second.monitor.dispose();
         });
 
@@ -561,12 +604,12 @@ describe('Objects warn limit (admin dialog)', () => {
             await waitFor(() => socket.held.length > 0);
 
             socket.disconnect();
-            expect(monitor.snapshot.loading).to.equal(false);
+            assert.strictEqual(monitor.snapshot.loading, false);
 
             socket.holdReads = false;
             socket.reconnect();
             await waitFor(() => monitor.snapshot.loaded && !monitor.snapshot.loading);
-            expect(lib.describeWarnLimit(monitor.snapshot).current).to.equal(5000);
+            assert.strictEqual(lib.describeWarnLimit(monitor.snapshot).current, 5000);
             monitor.dispose();
         });
 
@@ -583,7 +626,7 @@ describe('Objects warn limit (admin dialog)', () => {
                 timeout: 30,
             });
             await monitor.refresh();
-            expect(lib.describeWarnLimit(monitor.snapshot)).to.include({ status: 'disconnected' });
+            assertIncludes(lib.describeWarnLimit(monitor.snapshot), { status: 'disconnected' });
             monitor.dispose();
         });
 
@@ -603,9 +646,9 @@ describe('Objects warn limit (admin dialog)', () => {
             await late;
             socket.external(id, { val: 1, ack: true });
 
-            expect(snapshots.length).to.equal(count);
-            expect(socket.subscriptions.has(id)).to.equal(false);
-            expect(socket.connectionHandlers).to.have.length(0);
+            assert.strictEqual(snapshots.length, count);
+            assert.strictEqual(socket.subscriptions.has(id), false);
+            assert.strictEqual(socket.connectionHandlers.length, 0);
         });
     });
 
@@ -616,11 +659,11 @@ describe('Objects warn limit (admin dialog)', () => {
             await monitor.start();
             const snap = monitor.snapshot;
 
-            expect(lib.evaluateDraft(null, snap)).to.include({ dirty: false });
-            expect(lib.evaluateDraft('5000', snap)).to.include({ dirty: false });
-            expect(lib.evaluateDraft('10000', snap)).to.deep.equal({ dirty: true, valid: true, value: 10000 });
-            expect(lib.evaluateDraft('10.000', snap)).to.deep.equal({ dirty: true, valid: false, value: null });
-            expect(lib.evaluateDraft('', snap)).to.include({ dirty: true, valid: false });
+            assertIncludes(lib.evaluateDraft(null, snap), { dirty: false });
+            assertIncludes(lib.evaluateDraft('5000', snap), { dirty: false });
+            assert.deepStrictEqual(lib.evaluateDraft('10000', snap), { dirty: true, valid: true, value: 10000 });
+            assert.deepStrictEqual(lib.evaluateDraft('10.000', snap), { dirty: true, valid: false, value: null });
+            assertIncludes(lib.evaluateDraft('', snap), { dirty: true, valid: false });
         });
 
         it('an emptied field is no change when nothing usable was stored', () => {
@@ -630,7 +673,7 @@ describe('Objects warn limit (admin dialog)', () => {
                 loaded: true,
                 state: { status: 'ok', value: { val: '10000' } },
             };
-            expect(lib.evaluateDraft('', snapshot)).to.include({ dirty: false });
+            assertIncludes(lib.evaluateDraft('', snapshot), { dirty: false });
         });
 
         it('saving only the limit writes the number with ack=false and leaves the instance object alone', async () => {
@@ -649,14 +692,18 @@ describe('Objects warn limit (admin dialog)', () => {
                 finish: () => calls.push('finish'),
             });
 
-            expect(result.outcome).to.equal('limit');
-            expect(calls, 'writing the instance object would restart the instance').to.deep.equal(['finish']);
-            expect(socket.writes).to.deep.equal([{ id, state: { val: 10000, ack: false } }]);
-            expect(typeof socket.states[id].val, 'js-controller only takes a number').to.equal('number');
-            expect(view().current).to.equal(10000);
-            expect(view().ack).to.equal(false);
-            expect(view().messages.map(m => m.key)).to.include('warnLimit_hint_pending');
-            expect(lib.evaluateDraft('10000', monitor.snapshot).dirty, 'the draft is saved now').to.equal(false);
+            assert.strictEqual(result.outcome, 'limit');
+            assert.deepStrictEqual(calls, ['finish'], 'writing the instance object would restart the instance');
+            assert.deepStrictEqual(socket.writes, [{ id, state: { val: 10000, ack: false } }]);
+            assert.strictEqual(typeof socket.states[id].val, 'number', 'js-controller only takes a number');
+            assert.strictEqual(view().current, 10000);
+            assert.strictEqual(view().ack, false);
+            assert.ok(
+                view()
+                    .messages.map(m => m.key)
+                    .includes('warnLimit_hint_pending'),
+            );
+            assert.strictEqual(lib.evaluateDraft('10000', monitor.snapshot).dirty, false, 'the draft is saved now');
         });
 
         it('saving the limit together with settings writes the state first', async () => {
@@ -680,8 +727,8 @@ describe('Objects warn limit (admin dialog)', () => {
                 finish: () => order.push('finish'),
             });
 
-            expect(result.outcome).to.equal('both');
-            expect(order).to.deep.equal(['state', 'settings']);
+            assert.strictEqual(result.outcome, 'both');
+            assert.deepStrictEqual(order, ['state', 'settings']);
         });
 
         it('without a pending limit the settings are saved exactly as before and nothing else is written', async () => {
@@ -700,10 +747,10 @@ describe('Objects warn limit (admin dialog)', () => {
                     saveSettings: () => calls.push('settings'),
                     finish: () => calls.push('finish'),
                 });
-                expect(result.outcome).to.equal('settings');
+                assert.strictEqual(result.outcome, 'settings');
             }
-            expect(calls).to.deep.equal(['settings', 'settings']);
-            expect(socket.writes).to.have.length(0);
+            assert.deepStrictEqual(calls, ['settings', 'settings']);
+            assert.strictEqual(socket.writes.length, 0);
         });
 
         it('a refused write saves nothing else, so the dialog stays unsaved', async () => {
@@ -722,10 +769,10 @@ describe('Objects warn limit (admin dialog)', () => {
                 finish: () => calls.push('finish'),
             });
 
-            expect(result.outcome).to.equal('failed');
-            expect(lib.classifyError(result.error, true).kind).to.equal('permission');
-            expect(calls).to.have.length(0);
-            expect(socket.states[id].val).to.equal(5000);
+            assert.strictEqual(result.outcome, 'failed');
+            assert.strictEqual(lib.classifyError(result.error, true).kind, 'permission');
+            assert.strictEqual(calls.length, 0);
+            assert.strictEqual(socket.states[id].val, 5000);
         });
 
         it('an invalid draft is not written', async () => {
@@ -745,8 +792,8 @@ describe('Objects warn limit (admin dialog)', () => {
                     throw new Error('must not finish');
                 },
             });
-            expect(result.outcome).to.equal('invalid');
-            expect(socket.writes).to.have.length(0);
+            assert.strictEqual(result.outcome, 'invalid');
+            assert.strictEqual(socket.writes.length, 0);
         });
 
         it('never creates the state without its object, and never writes anything but a whole number', async () => {
@@ -754,14 +801,14 @@ describe('Objects warn limit (admin dialog)', () => {
             const socket = new FakeAdminSocket({ states, objects });
             const { monitor } = createMonitor(socket);
             await monitor.start();
-            await expect(monitor.save(10000)).to.be.rejectedWith('does not exist');
+            await assert.rejects(monitor.save(10000), { message: /does not exist/ });
 
             objects[id] = { type: 'state', common: { type: 'number' } };
             socket.objects[id] = objects[id];
             await monitor.refresh();
-            await expect(monitor.save(/** @type {any} */ ('10000'))).to.be.rejectedWith('not a valid limit');
-            await expect(monitor.save(0)).to.be.rejectedWith('not a valid limit');
-            expect(socket.writes).to.have.length(0);
+            await assert.rejects(monitor.save(/** @type {any} */ ('10000')), { message: /not a valid limit/ });
+            await assert.rejects(monitor.save(0), { message: /not a valid limit/ });
+            assert.strictEqual(socket.writes.length, 0);
         });
 
         it('does not take the encrypted token GenericApp remembers after a save for a changed setting', () => {
@@ -773,10 +820,18 @@ describe('Objects warn limit (admin dialog)', () => {
             const native = { host: '10.0.0.2', appToken: 'abcdef', smartHomeApiKey: '' };
             const savedNative = { host: '10.0.0.2', appToken: xor('abcdef'), smartHomeApiKey: '' };
 
-            expect(JSON.stringify(native) !== JSON.stringify(savedNative), 'what GenericApp compares').to.equal(true);
-            expect(lib.isNativeChanged(native, savedNative, ['appToken', 'smartHomeApiKey'], xor)).to.equal(false);
-            expect(lib.isNativeChanged({ ...native, host: '10.0.0.3' }, savedNative, ['appToken'], xor)).to.equal(true);
-            expect(lib.isNativeChanged({ ...native, appToken: 'other' }, savedNative, ['appToken'], xor)).to.equal(
+            assert.strictEqual(
+                JSON.stringify(native) !== JSON.stringify(savedNative),
+                true,
+                'what GenericApp compares',
+            );
+            assert.strictEqual(lib.isNativeChanged(native, savedNative, ['appToken', 'smartHomeApiKey'], xor), false);
+            assert.strictEqual(
+                lib.isNativeChanged({ ...native, host: '10.0.0.3' }, savedNative, ['appToken'], xor),
+                true,
+            );
+            assert.strictEqual(
+                lib.isNativeChanged({ ...native, appToken: 'other' }, savedNative, ['appToken'], xor),
                 true,
             );
         });
@@ -863,99 +918,99 @@ describe('Objects warn limit (admin dialog)', () => {
         it('shows the set value, the default and the state id of the instance', async () => {
             const { text, html, changes, socket } = await render({ install: { state: { val: 5000, ack: true } } });
 
-            expect(text).to.contain('Objekt-Warngrenze');
-            expect(text).to.contain('Aktuell eingestellte Warngrenze 5.000 Objekte');
-            expect(text).to.contain('Adapter-Standard 10.000 Objekte');
-            expect(text).to.contain('Quelle Instanz-Datenpunkt');
-            expect(text).to.contain('system.adapter.digitalstrom.0.objectsWarnLimit');
-            expect(text).to.contain('Die eingestellte Warngrenze weicht vom Adapter-Standard ab.');
-            expect(text).to.contain('Neu einlesen');
-            expect(text).to.contain('Datenpunkt kopieren');
-            expect(html, 'a difference is no error').to.not.contain('MuiAlert-standardError');
-            expect(changes, 'showing the card changes no setting').to.have.length(0);
-            expect(socket.writes).to.have.length(0);
+            assert.ok(text.includes('Objekt-Warngrenze'));
+            assert.ok(text.includes('Aktuell eingestellte Warngrenze 5.000 Objekte'));
+            assert.ok(text.includes('Adapter-Standard 10.000 Objekte'));
+            assert.ok(text.includes('Quelle Instanz-Datenpunkt'));
+            assert.ok(text.includes('system.adapter.digitalstrom.0.objectsWarnLimit'));
+            assert.ok(text.includes('Die eingestellte Warngrenze weicht vom Adapter-Standard ab.'));
+            assert.ok(text.includes('Neu einlesen'));
+            assert.ok(text.includes('Datenpunkt kopieren'));
+            assert.ok(!html.includes('MuiAlert-standardError'), 'a difference is no error');
+            assert.strictEqual(changes.length, 0, 'showing the card changes no setting');
+            assert.strictEqual(socket.writes.length, 0);
         });
 
         it('formats the numbers for the language', async () => {
             const { text } = await render({ install: { state: { val: 15000, ack: true } }, lang: 'en' });
-            expect(text).to.contain('Currently configured warning limit 15,000 objects');
-            expect(text).to.contain('Adapter default 10,000 objects');
+            assert.ok(text.includes('Currently configured warning limit 15,000 objects'));
+            assert.ok(text.includes('Adapter default 10,000 objects'));
         });
 
         it('shows 10000 without a difference hint', async () => {
             const { text } = await render({ install: { state: { val: 10000, ack: true } } });
-            expect(text).to.contain('Aktuell eingestellte Warngrenze 10.000 Objekte');
-            expect(text).to.not.contain('weicht vom Adapter-Standard ab');
+            assert.ok(text.includes('Aktuell eingestellte Warngrenze 10.000 Objekte'));
+            assert.ok(!text.includes('weicht vom Adapter-Standard ab'));
         });
 
         it('names the state of instance 1 for instance 1', async () => {
             const { text } = await render({ instance: 1, install: { state: { val: 8000, ack: true } } });
-            expect(text).to.contain('system.adapter.digitalstrom.1.objectsWarnLimit');
-            expect(text).to.not.contain('system.adapter.digitalstrom.0.objectsWarnLimit');
+            assert.ok(text.includes('system.adapter.digitalstrom.1.objectsWarnLimit'));
+            assert.ok(!text.includes('system.adapter.digitalstrom.0.objectsWarnLimit'));
         });
 
         it('says in plain words what an invalid entry means and how to fix it', async () => {
             const { text, html } = await render({ install: { state: { val: '10000', ack: false } } });
-            expect(text).to.contain('Aktuell eingestellte Warngrenze Kein gültiger Wert');
-            expect(text).to.contain('Beim Start gilt: 5.000 Objekte – Ersatzwert des js-controllers');
-            expect(text).to.contain('Quelle Ersatzwert des js-controllers – im Datenpunkt steht keine gültige Zahl');
+            assert.ok(text.includes('Aktuell eingestellte Warngrenze Kein gültiger Wert'));
+            assert.ok(text.includes('Beim Start gilt: 5.000 Objekte – Ersatzwert des js-controllers'));
+            assert.ok(text.includes('Quelle Ersatzwert des js-controllers – im Datenpunkt steht keine gültige Zahl'));
             // "10000" looks like a number - the text has to say that it is stored as text
-            expect(text).to.contain('Im Datenpunkt steht "10000" – aber als Text, nicht als Zahl.');
-            expect(text).to.contain('seinen Ersatzwert von 5.000 Objekten');
-            expect(text).to.contain('So behebst du es:');
-            expect(html, 'the fix is set in bold').to.contain('<strong>So behebst du es:</strong>');
-            expect(text, 'a status chip would repeat the message').to.not.contain('gilt ab dem nächsten Start');
-            expect((html.match(/MuiAlert-standardWarning/g) || []).length, 'one warning, not two').to.equal(1);
+            assert.ok(text.includes('Im Datenpunkt steht "10000" – aber als Text, nicht als Zahl.'));
+            assert.ok(text.includes('seinen Ersatzwert von 5.000 Objekten'));
+            assert.ok(text.includes('So behebst du es:'));
+            assert.ok(html.includes('<strong>So behebst du es:</strong>'), 'the fix is set in bold');
+            assert.ok(!text.includes('gilt ab dem nächsten Start'), 'a status chip would repeat the message');
+            assert.strictEqual((html.match(/MuiAlert-standardWarning/g) || []).length, 1, 'one warning, not two');
         });
 
         it('marks a saved but not yet applied value as such', async () => {
             const { text } = await render({ install: { state: { val: 12000, ack: false } } });
-            expect(text).to.contain('Aktuell eingestellte Warngrenze 12.000 Objekte gilt ab dem nächsten Start');
-            expect(text).to.contain('bis dahin ändert sich nichts');
+            assert.ok(text.includes('Aktuell eingestellte Warngrenze 12.000 Objekte gilt ab dem nächsten Start'));
+            assert.ok(text.includes('bis dahin ändert sich nichts'));
         });
 
         it('explains a controller without the feature and locks the field', async () => {
             const { text, html } = await render({ install: { object: false, controller: '7.0.7' } });
-            expect(text).to.contain('Aktuell eingestellte Warngrenze Nicht unterstützt');
-            expect(text).to.contain('js-controller 7.0.7');
-            expect(text).to.contain('Nicht änderbar');
-            expect(html).to.match(/<input[^>]*disabled/);
+            assert.ok(text.includes('Aktuell eingestellte Warngrenze Nicht unterstützt'));
+            assert.ok(text.includes('js-controller 7.0.7'));
+            assert.ok(text.includes('Nicht änderbar'));
+            assert.match(html, /<input[^>]*disabled/);
         });
 
         it('answers what one wants to know before changing it', async () => {
             const { text } = await render({ install: { state: { val: 5000, ack: true } } });
-            expect(text).to.contain('Vor dem Ändern');
-            expect(text).to.contain('Muss ich die Grenze ändern?');
-            expect(text).to.contain('6.000 Objekte bei einer Grenze von 5.000');
-            expect(text).to.contain('Alle Objekte werden trotzdem angelegt und arbeiten normal');
-            expect(text).to.contain('Wird digitalSTROM oder ioBroker dadurch langsamer oder schneller?');
-            expect(text).to.contain('Der Adapter selbst liest die Grenze nicht');
-            expect(text).to.contain('Eine andere Grenze legt kein Objekt an und entfernt keines.');
-            expect(text).to.contain('Welcher Wert ist sinnvoll?');
-            expect(text).to.contain('Betrifft das andere Instanzen oder Adapter?');
+            assert.ok(text.includes('Vor dem Ändern'));
+            assert.ok(text.includes('Muss ich die Grenze ändern?'));
+            assert.ok(text.includes('6.000 Objekte bei einer Grenze von 5.000'));
+            assert.ok(text.includes('Alle Objekte werden trotzdem angelegt und arbeiten normal'));
+            assert.ok(text.includes('Wird digitalSTROM oder ioBroker dadurch langsamer oder schneller?'));
+            assert.ok(text.includes('Der Adapter selbst liest die Grenze nicht'));
+            assert.ok(text.includes('Eine andere Grenze legt kein Objekt an und entfernt keines.'));
+            assert.ok(text.includes('Welcher Wert ist sinnvoll?'));
+            assert.ok(text.includes('Betrifft das andere Instanzen oder Adapter?'));
         });
 
         it('explains the limit, the start-only check and where else it can be changed', async () => {
             const { text } = await render({ install: { state: { val: 5000, ack: true } } });
-            expect(text).to.contain('Sie begrenzt weder die Anzahl der angelegten Objekte noch deren Anzeige');
-            expect(text).to.contain('Eine höhere Grenze reduziert nicht den Speicherverbrauch');
-            expect(text).to.contain('nur beim Start der Instanz');
-            expect(text).to.contain('Expertenmodus');
-            expect(text).to.contain('nicht common.def');
-            expect(text).to.contain('z. B. 10000');
+            assert.ok(text.includes('Sie begrenzt weder die Anzahl der angelegten Objekte noch deren Anzeige'));
+            assert.ok(text.includes('Eine höhere Grenze reduziert nicht den Speicherverbrauch'));
+            assert.ok(text.includes('nur beim Start der Instanz'));
+            assert.ok(text.includes('Expertenmodus'));
+            assert.ok(text.includes('nicht common.def'));
+            assert.ok(text.includes('z. B. 10000'));
         });
 
         it('tells a typed value from a saved one and refuses separators', async () => {
             const pending = await render({ install: { state: { val: 5000, ack: true } }, draft: '12000' });
-            expect(pending.text).to.contain('Noch nicht gespeichert – klicke unten auf „Speichern“.');
+            assert.ok(pending.text.includes('Noch nicht gespeichert – klicke unten auf „Speichern“.'));
             const invalid = await render({ install: { state: { val: 5000, ack: true } }, draft: '12.000' });
-            expect(invalid.text).to.contain('Nur Ziffern');
+            assert.ok(invalid.text.includes('Nur Ziffern'));
         });
 
         it('stays out of the other tabs', async () => {
             for (const tab of [0, 1, 3]) {
                 const { text } = await render({ install: { state: { val: 5000, ack: true } }, tab });
-                expect(text, `tab ${tab}`).to.not.contain('Objekt-Warngrenze');
+                assert.ok(!text.includes('Objekt-Warngrenze'), `tab ${tab}`);
             }
         });
     });
@@ -1092,14 +1147,14 @@ describe('Objects warn limit (admin dialog)', () => {
         it('a limit-only save writes the state and never the instance object', async () => {
             const { app, socket, id } = await openDialog();
             app.onWarnLimitDraft('10000');
-            expect(app.state.changed).to.equal(true);
-            expect(posted).to.include('change');
+            assert.strictEqual(app.state.changed, true);
+            assert.ok(posted.includes('change'));
 
             await app.onSave(false);
-            expect(socket.writes).to.deep.equal([{ id, state: { val: 10000, ack: false } }]);
-            expect(socket.methods(), 'an object write restarts the instance').to.not.include('setObject');
-            expect(app.state.changed).to.equal(false);
-            expect(app.state.warnLimit.draft).to.equal(null);
+            assert.deepStrictEqual(socket.writes, [{ id, state: { val: 10000, ack: false } }]);
+            assert.ok(!socket.methods().includes('setObject'), 'an object write restarts the instance');
+            assert.strictEqual(app.state.changed, false);
+            assert.strictEqual(app.state.warnLimit.draft, null);
             app.componentWillUnmount();
         });
 
@@ -1108,17 +1163,19 @@ describe('Objects warn limit (admin dialog)', () => {
             app.updateNativeValue('host', '10.0.0.3');
             app.onSave(false);
             await waitFor(() => socket.methods().includes('setObject') && !app.state.changed);
-            expect(JSON.stringify(app.state.native), 'GenericApp keeps the token encrypted now').to.not.equal(
+            assert.notStrictEqual(
+                JSON.stringify(app.state.native),
                 JSON.stringify(app.savedNative),
+                'GenericApp keeps the token encrypted now',
             );
 
             app.onWarnLimitDraft('12000');
-            expect(app.state.changed).to.equal(true);
+            assert.strictEqual(app.state.changed, true);
             app.onWarnLimitDraft(null);
-            expect(app.state.changed, 'the review found this stuck on true').to.equal(false);
+            assert.strictEqual(app.state.changed, false, 'the review found this stuck on true');
 
             await app.onSave(false);
-            expect(socket.methods().filter(m => m === 'setObject')).to.have.length(1);
+            assert.strictEqual(socket.methods().filter(m => m === 'setObject').length, 1);
             app.componentWillUnmount();
         });
 
@@ -1134,18 +1191,18 @@ describe('Objects warn limit (admin dialog)', () => {
             void app.onSave(true);
             release();
             await first;
-            expect(posted).to.include('close');
-            expect(socket.methods()).to.not.include('setObject');
+            assert.ok(posted.includes('close'));
+            assert.ok(!socket.methods().includes('setObject'));
             app.componentWillUnmount();
         });
 
         it('clears its own configuration error whatever language it was raised in', async () => {
             const { app } = await openDialog();
             app.onWarnLimitDraft('10.000');
-            expect(app.state.isConfigurationError).to.not.equal('');
+            assert.notStrictEqual(app.state.isConfigurationError, '');
             app.setState({ isConfigurationError: 'Object warning limit: please enter a whole number of at least 1.' });
             app.onWarnLimitDraft('12000');
-            expect(app.state.isConfigurationError).to.equal('');
+            assert.strictEqual(app.state.isConfigurationError, '');
             app.componentWillUnmount();
         });
 
@@ -1155,7 +1212,7 @@ describe('Objects warn limit (admin dialog)', () => {
             posted.length = 0;
             // what GenericApp's own confirmation calls after "discard"
             Object.getPrototypeOf(App).onClose();
-            expect(posted).to.deep.equal(['nochange', 'close']);
+            assert.deepStrictEqual(posted, ['nochange', 'close']);
             app.componentWillUnmount();
         });
 
@@ -1163,9 +1220,9 @@ describe('Objects warn limit (admin dialog)', () => {
             const { app, socket, id } = await openDialog();
             socket.external(id, { val: 7000, ack: false });
             await app.warnLimitMonitor.refresh();
-            expect(app.state.changed).to.equal(false);
-            expect(posted).to.not.include('change');
-            expect(socket.writes).to.have.length(0);
+            assert.strictEqual(app.state.changed, false);
+            assert.ok(!posted.includes('change'));
+            assert.strictEqual(socket.writes.length, 0);
             app.componentWillUnmount();
         });
     });
@@ -1232,11 +1289,11 @@ describe('Objects warn limit (admin dialog)', () => {
                 keys.add(`warnLimit_faq_${question}_q`);
                 keys.add(`warnLimit_faq_${question}_a`);
             });
-            expect(keys.size).to.be.at.least(30);
+            assert.ok(keys.size >= 30);
             for (const lang of languages) {
                 const words = JSON.parse(require('fs').readFileSync(path.join(i18nDir, `${lang}.json`), 'utf8'));
                 for (const key of keys) {
-                    expect(words, `${lang}.json lacks ${key}`).to.have.property(key);
+                    assert.ok(key in words, `${lang}.json lacks ${key}`);
                 }
             }
         });
@@ -1244,25 +1301,28 @@ describe('Objects warn limit (admin dialog)', () => {
         it('the save path asks only for texts that exist', () => {
             const app = require('fs').readFileSync(path.join(__dirname, '..', 'src-admin', 'src', 'App.jsx'), 'utf8');
             const used = [...app.matchAll(/I18n\.t\('([a-zA-Z0-9_]+)'\)/g)].map(match => match[1]);
-            expect(used).to.include.members([
-                'warnLimit_configError',
-                'warnLimit_save_permission',
-                'warnLimit_save_connection',
-                'warnLimit_save_failed',
-            ]);
+            assert.deepStrictEqual(
+                [
+                    'warnLimit_configError',
+                    'warnLimit_save_permission',
+                    'warnLimit_save_connection',
+                    'warnLimit_save_failed',
+                ].filter(member => !used.includes(member)),
+                [],
+            );
             for (const lang of languages) {
                 const words = JSON.parse(require('fs').readFileSync(path.join(i18nDir, `${lang}.json`), 'utf8'));
-                used.forEach(key => expect(words, `${lang}.json lacks ${key}`).to.have.property(key));
+                used.forEach(key => assert.ok(key in words, `${lang}.json lacks ${key}`));
             }
         });
     });
 
     describe('versions', () => {
         it('compares like semver and ignores a prerelease', () => {
-            expect(lib.compareVersions('7.1.0', '7.1.0')).to.equal(0);
-            expect(lib.compareVersions('7.0.7', '7.1.0')).to.be.below(0);
-            expect(lib.compareVersions('7.2.3-alpha.18', '7.1.2')).to.be.above(0);
-            expect(lib.compareVersions('garbage', '7.1.0')).to.equal(null);
+            assert.strictEqual(lib.compareVersions('7.1.0', '7.1.0'), 0);
+            assert.ok(lib.compareVersions('7.0.7', '7.1.0') < 0);
+            assert.ok(lib.compareVersions('7.2.3-alpha.18', '7.1.2') > 0);
+            assert.strictEqual(lib.compareVersions('garbage', '7.1.0'), null);
         });
     });
 });

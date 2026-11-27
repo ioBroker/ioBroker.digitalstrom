@@ -1,8 +1,8 @@
-const { expect } = require('chai');
+const assert = require('node:assert');
 const proxyquire = require('proxyquire');
 const ObjectHelper = require('@apollon/iobroker-tools');
 
-const { Digitalstrom } = proxyquire('../main', {
+const { Digitalstrom } = proxyquire('../build/main', {
     '@iobroker/adapter-core': {
         Adapter: class FakeAdapter {
             on() {}
@@ -46,22 +46,22 @@ const stateObject = { type: 'state', common: { type: 'boolean', role: 'switch' }
 describe('objectHelper instance isolation', () => {
     it('the shared helper of the dependency really is a singleton', () => {
         // Documents why the private copy is needed - if this ever changes, revisit
-        expect(ObjectHelper.objectHelper).to.equal(ObjectHelper.objectHelper);
-        expect(ObjectHelper.objectHelper.init).to.be.a('function');
+        assert.strictEqual(ObjectHelper.objectHelper, ObjectHelper.objectHelper);
+        assert.strictEqual(typeof ObjectHelper.objectHelper.init, 'function');
     });
 
     it('createObjectHelper returns a separate helper per call', () => {
         const first = Digitalstrom.createObjectHelper(silentLog);
         const second = Digitalstrom.createObjectHelper(silentLog);
-        expect(first).to.not.equal(second);
-        expect(first).to.not.equal(ObjectHelper.objectHelper);
-        expect(first.setOrUpdateObject).to.be.a('function');
+        assert.notStrictEqual(first, second);
+        assert.notStrictEqual(first, ObjectHelper.objectHelper);
+        assert.strictEqual(typeof first.setOrUpdateObject, 'function');
     });
 
     it('does not disturb the module cache of other consumers', () => {
         const before = require('@apollon/iobroker-tools').objectHelper;
         Digitalstrom.createObjectHelper(silentLog);
-        expect(require('@apollon/iobroker-tools').objectHelper).to.equal(before);
+        assert.strictEqual(require('@apollon/iobroker-tools').objectHelper, before);
     });
 
     it('writes of instance 0 stay on instance 0 after instance 1 was initialized', done => {
@@ -76,8 +76,8 @@ describe('objectHelper instance isolation', () => {
 
         helper0.setOrUpdateObject('devices.a.state', stateObject, ['name'], true);
         helper0.processObjectQueue(() => {
-            expect(writes0, 'the write must stay on its own instance').to.include('digitalstrom.0/devices.a.state');
-            expect(writes1, 'nothing may end up on the other instance').to.deep.equal([]);
+            assert.ok(writes0.includes('digitalstrom.0/devices.a.state'), 'the write must stay on its own instance');
+            assert.deepStrictEqual(writes1, [], 'nothing may end up on the other instance');
             done();
         });
     });
@@ -96,8 +96,8 @@ describe('objectHelper instance isolation', () => {
         helper1.init(adapter1);
         helper0.loadExistingObjects(() => {
             helper1.loadExistingObjects(() => {
-                expect(Object.keys(helper0.existingStates)).to.deep.equal(['devices.own']);
-                expect(Object.keys(helper1.existingStates)).to.deep.equal(['devices.other']);
+                assert.deepStrictEqual(Object.keys(helper0.existingStates), ['devices.own']);
+                assert.deepStrictEqual(Object.keys(helper1.existingStates), ['devices.other']);
                 done();
             });
         });
@@ -121,9 +121,9 @@ describe('objectHelper instance isolation', () => {
         };
         try {
             const helper = Digitalstrom.createObjectHelper({ warn: msg => warnings.push(String(msg)) });
-            expect(helper, 'the adapter must still work').to.equal(ObjectHelper.objectHelper);
-            expect(warnings).to.have.lengthOf(1);
-            expect(warnings[0]).to.contain('compact');
+            assert.strictEqual(helper, ObjectHelper.objectHelper, 'the adapter must still work');
+            assert.strictEqual(warnings.length, 1);
+            assert.ok(warnings[0].includes('compact'));
         } finally {
             Module._resolveFilename = originalResolveFilename;
         }
@@ -146,7 +146,7 @@ describe('objectHelper and a state without value', () => {
         helper.init(fakeAdapter('digitalstrom.0', writes));
         helper.setOrUpdateObject(id, heating(), ['name'], null, () => {});
         helper.processObjectQueue(() => {
-            expect(writes).to.deep.equal([`digitalstrom.0/${id}`]);
+            assert.deepStrictEqual(writes, [`digitalstrom.0/${id}`]);
             done();
         });
     });
@@ -158,7 +158,7 @@ describe('objectHelper and a state without value', () => {
         helper.setOrUpdateObject(id, heating(), ['name'], null, value => received.push(value));
         helper.processObjectQueue(() => {
             helper.handleStateChange(`digitalstrom.0.${id}`, { val: null, ack: false });
-            expect(received, 'what the helper alone does').to.deep.equal([false]);
+            assert.deepStrictEqual(received, [false], 'what the helper alone does');
 
             received.length = 0;
             const ctx = {
@@ -168,9 +168,9 @@ describe('objectHelper and a state without value', () => {
                 dssStruct: { notePublishedValue: () => {} },
             };
             Digitalstrom.prototype.onStateChange.call(ctx, `digitalstrom.0.${id}`, { val: null, ack: false });
-            expect(received, 'nothing may reach the write handler').to.deep.equal([]);
+            assert.deepStrictEqual(received, [], 'nothing may reach the write handler');
             Digitalstrom.prototype.onStateChange.call(ctx, `digitalstrom.0.${id}`, { val: true, ack: false });
-            expect(received).to.deep.equal([true]);
+            assert.deepStrictEqual(received, [true]);
             done();
         });
     });
@@ -218,8 +218,8 @@ describe('common.write of an existing installation', () => {
 
     it('gives a state stored without the flag write: false on the next start', async () => {
         const extended = await start(storedWithoutWrite, definition({ write: false }));
-        expect(extended).to.have.lengthOf(1);
-        expect(extended[0].common.write).to.equal(false);
+        assert.strictEqual(extended.length, 1);
+        assert.strictEqual(extended[0].common.write, false);
     });
 
     // js-controller adds these to every object it stores
@@ -236,7 +236,7 @@ describe('common.write of an existing installation', () => {
     // stored object is extended again at every start anyway. This isolates the flag.
     it('the flag alone no longer makes the stored object differ', async () => {
         const stored = definition({ read: true, write: false });
-        expect(await start(stored, definition({ write: false })), 'nothing to write').to.deep.equal([]);
+        assert.deepStrictEqual(await start(stored, definition({ write: false })), [], 'nothing to write');
     });
 
     // An object as a real installation stores it (5300 of 5301 carry "user") - whatever
@@ -244,7 +244,7 @@ describe('common.write of an existing installation', () => {
     it('a real stored object may be extended again, but the flag stays false', async () => {
         const extended = await start(asStored(definition({ read: true, write: false })), definition({ write: false }));
         for (const payload of extended) {
-            expect(payload.common.write).to.equal(false);
+            assert.strictEqual(payload.common.write, false);
         }
     });
 
@@ -252,7 +252,7 @@ describe('common.write of an existing installation', () => {
     // helper keeps an explicit value, so a handler attached later could not lift it
     it('keeps an explicit write: false even with a handler', async () => {
         const extended = await start(storedWithoutWrite, definition({ write: false }), () => {});
-        expect(extended[0].common.write).to.equal(false);
+        assert.strictEqual(extended[0].common.write, false);
     });
 });
 
@@ -293,15 +293,15 @@ describe('objectHelper name handling', () => {
 
     it("['name'] keeps the stored name of an existing object", done => {
         run(['name'], done, payloads => {
-            expect(payloads).to.have.lengthOf(1);
-            expect(payloads[0].common).to.not.have.property('name');
+            assert.strictEqual(payloads.length, 1);
+            assert.ok(!('name' in payloads[0].common));
         });
     });
 
     it('[] writes the name', done => {
         run([], done, payloads => {
-            expect(payloads).to.have.lengthOf(1);
-            expect(payloads[0].common.name).to.equal('Schlafen & Bad');
+            assert.strictEqual(payloads.length, 1);
+            assert.strictEqual(payloads[0].common.name, 'Schlafen & Bad');
         });
     });
 });

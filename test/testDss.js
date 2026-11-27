@@ -1,6 +1,6 @@
 const sinon = require('sinon');
-const { expect } = require('chai');
-const DSS = require('../lib/dss');
+const assert = require('node:assert');
+const { DSS } = require('../build/lib/dss');
 
 const silentLogger = { silly: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
@@ -42,7 +42,7 @@ describe('DSS', () => {
         ];
         cases.forEach(([input, expected]) => {
             it(`normalizes "${input}"`, () => {
-                expect(DSS.buildBaseUrl(input)).to.equal(expected);
+                assert.strictEqual(DSS.buildBaseUrl(input), expected);
             });
         });
 
@@ -57,7 +57,7 @@ describe('DSS', () => {
         ];
         invalid.forEach(([input, label]) => {
             it(`rejects ${label}`, () => {
-                expect(() => DSS.buildBaseUrl(/** @type {string} */ (input))).to.throw();
+                assert.throws(() => DSS.buildBaseUrl(/** @type {string} */ (input)));
             });
         });
 
@@ -66,7 +66,10 @@ describe('DSS', () => {
                 DSS.buildBaseUrl('https://user:supersecret@dss.local');
                 throw new Error('should have thrown');
             } catch (err) {
-                expect(/** @type {Error} */ (err).message).to.not.contain('supersecret');
+                assert.ok(
+                    !(err)/** @type {Error} */ .message
+                        .includes('supersecret'),
+                );
             }
         });
     });
@@ -78,7 +81,10 @@ describe('DSS', () => {
                 await dss.requestAsync('apartment', 'getName');
                 throw new Error('should have rejected');
             } catch (err) {
-                expect(/** @type {Error} */ (err).message).to.contain('appToken');
+                assert.ok(
+                    (err)/** @type {Error} */ .message
+                        .includes('appToken'),
+                );
             } finally {
                 dss.stop();
             }
@@ -96,10 +102,10 @@ describe('DSS', () => {
             };
             await dss.requestAsync('apartment', 'getName');
             await dss.requestAsync('apartment', 'getName');
-            expect(logins).to.equal(1);
+            assert.strictEqual(logins, 1);
             dss.invalidateSession();
             await dss.requestAsync('apartment', 'getName');
-            expect(logins).to.equal(2);
+            assert.strictEqual(logins, 2);
             dss.stop();
         });
 
@@ -119,8 +125,8 @@ describe('DSS', () => {
                 return { ok: true, result: { name: 'test' } };
             };
             const res = await dss.requestAsync('apartment', 'getName');
-            expect(res.result.name).to.equal('test');
-            expect(logins).to.equal(2);
+            assert.strictEqual(res.result.name, 'test');
+            assert.strictEqual(logins, 2);
             dss.stop();
         });
 
@@ -136,7 +142,10 @@ describe('DSS', () => {
                 await dss.requestAsync('event', 'get', { subscriptionID: 42 });
                 throw new Error('should have rejected');
             } catch (err) {
-                expect(/** @type {Error} */ (err).message).to.contain('Subscription not found');
+                assert.ok(
+                    (err)/** @type {Error} */ .message
+                        .includes('Subscription not found'),
+                );
             } finally {
                 dss.stop();
             }
@@ -160,8 +169,8 @@ describe('DSS', () => {
                 return { ok: true, result: { value: 42 } };
             };
             const res = await dss.requestAsync('device', 'getConfigWord', { dsuid: 'a' });
-            expect(res.result.value).to.equal(42);
-            expect(calls, 'exactly one retry').to.equal(2);
+            assert.strictEqual(res.result.value, 42);
+            assert.strictEqual(calls, 2, 'exactly one retry');
             dss.stop();
         });
 
@@ -180,9 +189,12 @@ describe('DSS', () => {
                 await dss.requestAsync('system', 'version');
                 throw new Error('should have rejected');
             } catch (err) {
-                expect(/** @type {Error} */ (err).message).to.contain('socket hang up');
+                assert.ok(
+                    (err)/** @type {Error} */ .message
+                        .includes('socket hang up'),
+                );
             }
-            expect(calls, 'no endless retry loop').to.equal(2);
+            assert.strictEqual(calls, 2, 'no endless retry loop');
             dss.stop();
         });
 
@@ -200,9 +212,12 @@ describe('DSS', () => {
                 await dss.requestAsync('device', 'getConfigWord');
                 throw new Error('should have rejected');
             } catch (err) {
-                expect(/** @type {Error} */ (err).message).to.contain('Device not found');
+                assert.ok(
+                    (err)/** @type {Error} */ .message
+                        .includes('Device not found'),
+                );
             }
-            expect(calls).to.equal(1);
+            assert.strictEqual(calls, 1);
             dss.stop();
         });
 
@@ -224,19 +239,21 @@ describe('DSS', () => {
             } catch (err) {
                 reported = err;
             }
-            expect(calls, 'a stopped client must not open a new request').to.equal(0);
-            expect(reported.shutdown, 'an aborted request must be recognizable as a stop').to.equal(true);
+            assert.strictEqual(calls, 0, 'a stopped client must not open a new request');
+            assert.strictEqual(reported.shutdown, true, 'an aborted request must be recognizable as a stop');
         });
 
         it('classifies errors correctly', () => {
-            expect(DSS.isRetryableConnectionError(new Error('socket hang up'))).to.equal(true);
-            expect(DSS.isRetryableConnectionError(Object.assign(new Error('x'), { code: 'ECONNRESET' }))).to.equal(
+            assert.strictEqual(DSS.isRetryableConnectionError(new Error('socket hang up')), true);
+            assert.strictEqual(
+                DSS.isRetryableConnectionError(Object.assign(new Error('x'), { code: 'ECONNRESET' })),
                 true,
             );
-            expect(DSS.isRetryableConnectionError(new Error('Error response for /json/x: Device not found'))).to.equal(
+            assert.strictEqual(
+                DSS.isRetryableConnectionError(new Error('Error response for /json/x: Device not found')),
                 false,
             );
-            expect(DSS.isRetryableConnectionError(null)).to.equal(false);
+            assert.strictEqual(DSS.isRetryableConnectionError(null), false);
         });
     });
 
@@ -279,7 +296,7 @@ describe('DSS', () => {
                 'property/query2',
             ].forEach(entry => {
                 const [c, f] = entry.split('/');
-                expect(DSS.isRetryableRequest(c, f), `${entry} must be retryable`).to.equal(true);
+                assert.strictEqual(DSS.isRetryableRequest(c, f), true, `${entry} must be retryable`);
             });
             [
                 'zone/callScene',
@@ -299,7 +316,7 @@ describe('DSS', () => {
                 'something/new',
             ].forEach(entry => {
                 const [c, f] = entry.split('/');
-                expect(DSS.isRetryableRequest(c, f), `${entry} must not be retryable`).to.equal(false);
+                assert.strictEqual(DSS.isRetryableRequest(c, f), false, `${entry} must not be retryable`);
             });
         });
 
@@ -308,8 +325,8 @@ describe('DSS', () => {
                 call === 1 ? connectionError() : { ok: true, result: { zones: [] } },
             );
             const res = await dss.requestAsync('apartment', 'getReachableGroups', { id: 0 });
-            expect(res.ok).to.equal(true);
-            expect(sent.length, 'exactly one retry for the idempotent startup read').to.equal(2);
+            assert.strictEqual(res.ok, true);
+            assert.strictEqual(sent.length, 2, 'exactly one retry for the idempotent startup read');
             dss.stop();
         });
 
@@ -318,15 +335,15 @@ describe('DSS', () => {
                 call === 1 ? connectionError() : { ok: true, result: { x: 1 } },
             );
             const res = await dss.requestAsync('apartment', 'getStructure');
-            expect(res.result.x).to.equal(1);
-            expect(sent.length, 'exactly one retry').to.equal(2);
+            assert.strictEqual(res.result.x, 1);
+            assert.strictEqual(sent.length, 2, 'exactly one retry');
             dss.stop();
         });
 
         it('never repeats a read more than once', async () => {
             const { dss, sent } = countingDss(() => connectionError());
-            await expect(dss.requestAsync('apartment', 'getStructure')).to.be.rejectedWith(/socket hang up/);
-            expect(sent.length, 'no endless retry loop').to.equal(2);
+            await assert.rejects(dss.requestAsync('apartment', 'getStructure'), /socket hang up/);
+            assert.strictEqual(sent.length, 2, 'no endless retry loop');
             dss.stop();
         });
 
@@ -344,9 +361,9 @@ describe('DSS', () => {
         nonIdempotent.forEach(([dssClass, dssFunction]) => {
             it(`does not resend ${dssClass}/${dssFunction} after a connection error`, async () => {
                 const { dss, sent } = countingDss(() => connectionError());
-                await expect(dss.requestAsync(dssClass, dssFunction, { id: 1 })).to.be.rejectedWith(/socket hang up/);
-                expect(sent.length, `${dssClass}/${dssFunction} must be sent exactly once`).to.equal(1);
-                expect(sent[0]).to.contain(`/json/${dssClass}/${dssFunction}`);
+                await assert.rejects(dss.requestAsync(dssClass, dssFunction, { id: 1 }), /socket hang up/);
+                assert.strictEqual(sent.length, 1, `${dssClass}/${dssFunction} must be sent exactly once`);
+                assert.ok(sent[0].includes(`/json/${dssClass}/${dssFunction}`));
                 dss.stop();
             });
         });
@@ -360,8 +377,8 @@ describe('DSS', () => {
             } catch (err) {
                 caught = err;
             }
-            expect(caught, 'the error must reach the caller').to.be.an('error');
-            expect(caught.shutdown, 'a normal error must not be marked as shutdown').to.equal(undefined);
+            assert.ok(caught instanceof Error, 'the error must reach the caller');
+            assert.strictEqual(caught.shutdown, undefined, 'a normal error must not be marked as shutdown');
             dss.stop();
         });
 
@@ -373,17 +390,18 @@ describe('DSS', () => {
                 { dsuid: 'a', value: 80 },
                 { retryOnConnectionError: true },
             );
-            expect(res.ok).to.equal(true);
-            expect(sent.length).to.equal(2);
+            assert.strictEqual(res.ok, true);
+            assert.strictEqual(sent.length, 2);
             dss.stop();
         });
 
         it('allows an explicit opt-out for a read', async () => {
             const { dss, sent } = countingDss(() => connectionError());
-            await expect(
+            await assert.rejects(
                 dss.requestAsync('apartment', 'getStructure', {}, { retryOnConnectionError: false }),
-            ).to.be.rejectedWith(/socket hang up/);
-            expect(sent.length).to.equal(1);
+                /socket hang up/,
+            );
+            assert.strictEqual(sent.length, 1);
             dss.stop();
         });
 
@@ -397,8 +415,8 @@ describe('DSS', () => {
             } catch (err) {
                 caught = err;
             }
-            expect(sent.length, 'no request and no retry after stop()').to.equal(0);
-            expect(caught.shutdown).to.equal(true);
+            assert.strictEqual(sent.length, 0, 'no request and no retry after stop()');
+            assert.strictEqual(caught.shutdown, true);
         });
 
         it('keeps the legacy signature with timeout and event poll flag working', async () => {
@@ -412,7 +430,7 @@ describe('DSS', () => {
                 return { ok: true };
             };
             await dss.requestAsync('apartment', 'getStructure', {}, 1234, true);
-            expect(seen).to.deep.equal([{ timeout: 1234, isEventPoll: true }]);
+            assert.deepStrictEqual(seen, [{ timeout: 1234, isEventPoll: true }]);
             dss.stop();
         });
 
@@ -431,7 +449,7 @@ describe('DSS', () => {
             dss.scheduleEventRetry = () => {}; // no timers in the test
             dss.pollChannel(42);
             await new Promise(resolve => setTimeout(resolve, 40));
-            expect(sent.length, 'event/get must be sent exactly once').to.equal(1);
+            assert.strictEqual(sent.length, 1, 'event/get must be sent exactly once');
             dss.stop();
         });
     });
@@ -443,7 +461,8 @@ describe('DSS', () => {
                 throw new Error('nope');
             };
             dss.subscribeEvents(['eventA', 'eventB'], errs => {
-                expect(errs).to.be.an('array').with.lengthOf(2);
+                assert.ok(Array.isArray(errs));
+                assert.strictEqual(errs.length, 2);
                 dss.stop();
                 done();
             });
@@ -458,10 +477,12 @@ describe('DSS', () => {
                 return new Promise(() => {}); // keep the long-poll pending
             };
             dss.subscribeEvents(['eventA'], errs => {
-                expect(errs).to.equal(null);
-                expect(dss.subscriptions).to.have.property('eventA');
-                expect(dss.getChannel(dss.subScriptionId), 'the channel of the subscription id exists').to.not.equal(
+                assert.strictEqual(errs, null);
+                assert.ok('eventA' in dss.subscriptions);
+                assert.notStrictEqual(
+                    dss.getChannel(dss.subScriptionId),
                     null,
+                    'the channel of the subscription id exists',
                 );
                 dss.stop();
                 done();
@@ -478,11 +499,11 @@ describe('DSS', () => {
             let calls = 0;
             dss.subscribeEvents([], errs => {
                 calls++;
-                expect(errs).to.equal(null);
+                assert.strictEqual(errs, null);
             });
             setTimeout(() => {
-                expect(calls, 'callback must be called exactly once').to.equal(1);
-                expect(requests, 'no request may be sent').to.equal(0);
+                assert.strictEqual(calls, 1, 'callback must be called exactly once');
+                assert.strictEqual(requests, 0, 'no request may be sent');
                 dss.stop();
                 done();
             }, 30);
@@ -515,13 +536,16 @@ describe('DSS', () => {
 
             const eventNames = ['callScene', 'buttonClick', 'stateChange', 'deviceSensorValue'];
             dss.subscribeEvents(eventNames, errs => {
-                expect(errs).to.equal(null);
-                expect(subscribed.map(entry => entry.name)).to.deep.equal(eventNames);
+                assert.strictEqual(errs, null);
+                assert.deepStrictEqual(
+                    subscribed.map(entry => entry.name),
+                    eventNames,
+                );
                 const usedIds = [...new Set(subscribed.map(entry => entry.id))];
-                expect(usedIds, 'one subscription id for all events').to.deep.equal([dss.subScriptionId]);
-                expect(Object.keys(dss.eventChannels), 'exactly one channel').to.have.lengthOf(1);
+                assert.deepStrictEqual(usedIds, [dss.subScriptionId], 'one subscription id for all events');
+                assert.strictEqual(Object.keys(dss.eventChannels).length, 1, 'exactly one channel');
                 setTimeout(() => {
-                    expect(polls, 'exactly one long-poll for all events').to.equal(1);
+                    assert.strictEqual(polls, 1, 'exactly one long-poll for all events');
                     dss.stop();
                     done();
                 }, 20);
@@ -546,13 +570,13 @@ describe('DSS', () => {
 
             dss.subscribeEvents(['eventA', 'eventB'], () => {});
             setTimeout(() => {
-                expect(pending, 'both subscriptions are in flight').to.equal(2);
+                assert.strictEqual(pending, 2, 'both subscriptions are in flight');
                 releases[0]();
                 setTimeout(() => {
-                    expect(polls, 'no poll while a subscription is still open').to.equal(0);
+                    assert.strictEqual(polls, 0, 'no poll while a subscription is still open');
                     releases[1]();
                     setTimeout(() => {
-                        expect(polls, 'the poll starts after the last subscription').to.equal(1);
+                        assert.strictEqual(polls, 1, 'the poll starts after the last subscription');
                         dss.stop();
                         done();
                     }, 20);
@@ -571,10 +595,11 @@ describe('DSS', () => {
                 throw new Error('subscribe failed');
             };
             dss.subscribeEvents(['eventA', 'eventB'], errs => {
-                expect(errs).to.be.an('array').with.lengthOf(2);
+                assert.ok(Array.isArray(errs));
+                assert.strictEqual(errs.length, 2);
                 setTimeout(() => {
-                    expect(polls, 'nothing to poll without a channel').to.equal(0);
-                    expect(dss.getChannel(dss.subScriptionId)).to.equal(null);
+                    assert.strictEqual(polls, 0, 'nothing to poll without a channel');
+                    assert.strictEqual(dss.getChannel(dss.subScriptionId), null);
                     dss.stop();
                     done();
                 }, 20);
@@ -609,7 +634,7 @@ describe('DSS', () => {
 
             dss.subscribeEvents(['callScene', 'buttonClick'], () => {
                 setTimeout(() => {
-                    expect(received).to.deep.equal(['callScene', 'buttonClick']);
+                    assert.deepStrictEqual(received, ['callScene', 'buttonClick']);
                     dss.stop();
                     done();
                 }, 30);
@@ -650,11 +675,11 @@ describe('DSS', () => {
                 // First failure already asks for a re-subscribe because of the HTTP 500
                 await clock.tickAsync(5000);
 
-                expect(resubscribed.sort(), 'all names are registered again').to.deep.equal([
-                    'eventA',
-                    'eventB',
-                    'eventC',
-                ]);
+                assert.deepStrictEqual(
+                    resubscribed.sort(),
+                    ['eventA', 'eventB', 'eventC'],
+                    'all names are registered again',
+                );
                 dss.stop();
             } finally {
                 clock.restore();
@@ -677,10 +702,10 @@ describe('DSS', () => {
 
             dss.subscribeEvents(['eventA', 'eventB', 'eventC'], () => {
                 dss.unsubscribeAllEvents(() => {
-                    expect(unsubscribes, 'one request for the whole subscription').to.have.lengthOf(1);
-                    expect(unsubscribes[0].subscriptionID).to.equal(dss.subScriptionId);
-                    expect(dss.subscriptions).to.deep.equal({});
-                    expect(dss.eventChannels).to.deep.equal({});
+                    assert.strictEqual(unsubscribes.length, 1, 'one request for the whole subscription');
+                    assert.strictEqual(unsubscribes[0].subscriptionID, dss.subScriptionId);
+                    assert.deepStrictEqual(dss.subscriptions, {});
+                    assert.deepStrictEqual(dss.eventChannels, {});
                     dss.stop();
                     done();
                 });
@@ -699,9 +724,9 @@ describe('DSS', () => {
             };
             dss.subscribeEvents(['eventA', 'eventB'], () => {
                 dss.unsubscribeEvent('eventA', err => {
-                    expect(err).to.equal(null);
-                    expect(dss.subscriptions, 'no name of that channel is left').to.deep.equal({});
-                    expect(dss.getChannel(dss.subScriptionId)).to.equal(null);
+                    assert.strictEqual(err, null);
+                    assert.deepStrictEqual(dss.subscriptions, {}, 'no name of that channel is left');
+                    assert.strictEqual(dss.getChannel(dss.subScriptionId), null);
                     dss.stop();
                     done();
                 });
@@ -711,7 +736,7 @@ describe('DSS', () => {
         it('calls back without error when unsubscribing an unknown event', done => {
             const dss = createDss();
             dss.unsubscribeEvent('unknownEvent', err => {
-                expect(err).to.equal(null);
+                assert.strictEqual(err, null);
                 dss.stop();
                 done();
             });
@@ -721,8 +746,8 @@ describe('DSS', () => {
     describe('event normalization', () => {
         it('accepts events without source or properties', () => {
             const event = DSS.normalizeEvent({ name: 'callScene' });
-            expect(event?.source).to.deep.equal({});
-            expect(event?.properties).to.deep.equal({});
+            assert.deepStrictEqual(event?.source, {});
+            assert.deepStrictEqual(event?.properties, {});
         });
 
         it('maps the legacy dsid and the misspelled sceneId', () => {
@@ -731,15 +756,15 @@ describe('DSS', () => {
                 source: { dsid: 'abc' },
                 properties: { sceneId: 5 },
             });
-            expect(event?.source.dSUID).to.equal('abc');
-            expect(event?.properties.sceneID).to.equal(5);
+            assert.strictEqual(event?.source.dSUID, 'abc');
+            assert.strictEqual(event?.properties.sceneID, 5);
         });
 
         it('rejects unusable entries', () => {
-            expect(DSS.normalizeEvent(null)).to.equal(null);
-            expect(DSS.normalizeEvent({})).to.equal(null);
-            expect(DSS.normalizeEvent('nope')).to.equal(null);
-            expect(DSS.normalizeEvent({ name: '' })).to.equal(null);
+            assert.strictEqual(DSS.normalizeEvent(null), null);
+            assert.strictEqual(DSS.normalizeEvent({}), null);
+            assert.strictEqual(DSS.normalizeEvent('nope'), null);
+            assert.strictEqual(DSS.normalizeEvent({ name: '' }), null);
         });
     });
 
@@ -788,9 +813,9 @@ describe('DSS', () => {
             dss.pollChannel(42);
             setTimeout(() => {
                 process.removeListener('unhandledRejection', onRejection);
-                expect(rejected, 'no unhandled rejection').to.equal(null);
-                expect(received.length, 'all usable events are emitted').to.equal(2);
-                expect(received[1].source.dSUID).to.equal('dev1');
+                assert.strictEqual(rejected, null, 'no unhandled rejection');
+                assert.strictEqual(received.length, 2, 'all usable events are emitted');
+                assert.strictEqual(received[1].source.dSUID, 'dev1');
                 dss.stop();
                 done();
             }, 60);
@@ -817,7 +842,7 @@ describe('DSS', () => {
 
             dss.pollChannel(42);
             setTimeout(() => {
-                expect(polls, 'poll loop must continue').to.be.above(1);
+                assert.ok(polls > 1, 'poll loop must continue');
                 dss.stop();
                 done();
             }, 80);
@@ -854,10 +879,10 @@ describe('DSS', () => {
                 await clock.tickAsync(70000);
             }
 
-            expect(errors.length, 'eventError exactly once').to.equal(1);
-            expect(errors[0].name).to.equal('testEvent');
-            expect(attempts.subscribe, 're-subscribe must have been attempted').to.be.above(0);
-            expect(dss.getChannel(42)?.retryTimer, 'no retry timer left').to.equal(null);
+            assert.strictEqual(errors.length, 1, 'eventError exactly once');
+            assert.strictEqual(errors[0].name, 'testEvent');
+            assert.ok(attempts.subscribe > 0, 're-subscribe must have been attempted');
+            assert.strictEqual(dss.getChannel(42)?.retryTimer, null, 'no retry timer left');
             dss.stop();
         });
 
@@ -871,10 +896,10 @@ describe('DSS', () => {
             dss.pollChannel(42);
             await clock.tickAsync(1);
             const firstTimer = dss.getChannel(42)?.retryTimer;
-            expect(firstTimer, 'a retry must be scheduled').to.not.equal(null);
+            assert.notStrictEqual(firstTimer, null, 'a retry must be scheduled');
             // A second failure must replace, not add, a timer
             dss.handleEventFailure(42, new Error('again'), 'polling');
-            expect(dss.getChannel(42)?.retryTimer).to.not.equal(firstTimer);
+            assert.notStrictEqual(dss.getChannel(42)?.retryTimer, firstTimer);
             dss.stop();
         });
 
@@ -893,7 +918,7 @@ describe('DSS', () => {
 
             dss.stop();
             await clock.tickAsync(300000);
-            expect(calls, 'no request after stop').to.equal(callsBeforeStop);
+            assert.strictEqual(calls, callsBeforeStop, 'no request after stop');
         });
 
         // Regression: a working event/subscribe used to reset errorCount, so a permanently
@@ -923,11 +948,11 @@ describe('DSS', () => {
                 await clock.tickAsync(70000);
             }
 
-            expect(errors.length, 'eventError must be reported exactly once').to.equal(1);
-            expect(errors[0].name).to.equal('testEvent');
-            expect(attempts.subscribe, 're-subscribing must not loop forever').to.be.below(10);
-            expect(attempts.get, 'polling must stop after the limit').to.be.below(10);
-            expect(dss.getChannel(42)?.retryTimer, 'no retry timer left').to.equal(null);
+            assert.strictEqual(errors.length, 1, 'eventError must be reported exactly once');
+            assert.strictEqual(errors[0].name, 'testEvent');
+            assert.ok(attempts.subscribe < 10, 're-subscribing must not loop forever');
+            assert.ok(attempts.get < 10, 'polling must stop after the limit');
+            assert.strictEqual(dss.getChannel(42)?.retryTimer, null, 'no retry timer left');
             dss.stop();
         });
 
@@ -945,7 +970,7 @@ describe('DSS', () => {
             dss.pollChannel = () => {};
 
             await new Promise(resolve => dss.subscribeEvent('testEvent', 42, 100, resolve));
-            expect(dss.getChannel(42)?.errorCount, 'a subscribe alone proves nothing').to.equal(3);
+            assert.strictEqual(dss.getChannel(42)?.errorCount, 3, 'a subscribe alone proves nothing');
             dss.stop();
         });
 
@@ -957,7 +982,7 @@ describe('DSS', () => {
 
             dss.pollChannel(42);
             await clock.tickAsync(1);
-            expect(dss.getChannel(42)?.errorCount, 'a real poll resets the counter').to.equal(0);
+            assert.strictEqual(dss.getChannel(42)?.errorCount, 0, 'a real poll resets the counter');
             dss.stop();
         });
 
@@ -984,9 +1009,9 @@ describe('DSS', () => {
             }
 
             const gaps = times.slice(1).map((t, idx) => t - times[idx]);
-            gaps.forEach(gap => expect(gap, 'never a tight loop').to.be.at.least(2000));
+            gaps.forEach(gap => assert.ok(gap >= 2000, 'never a tight loop'));
             for (let i = 1; i < gaps.length; i++) {
-                expect(gaps[i], 'the delay must grow').to.be.at.least(gaps[i - 1]);
+                assert.ok(gaps[i] >= gaps[i - 1], 'the delay must grow');
             }
             dss.stop();
         });
@@ -1003,8 +1028,8 @@ describe('DSS', () => {
                 },
             });
             dss.stop();
-            await expect(dss.httpRequest('/json/system/version')).to.be.rejectedWith(/stopped/);
-            expect(opened, 'no socket after stop()').to.equal(0);
+            await assert.rejects(dss.httpRequest('/json/system/version'), /stopped/);
+            assert.strictEqual(opened, 0, 'no socket after stop()');
         });
 
         it('marks a request rejected by the stop barrier as a shutdown', async () => {
@@ -1017,7 +1042,7 @@ describe('DSS', () => {
             } catch (err) {
                 caught = err;
             }
-            expect(caught.shutdown, 'consumers must be able to recognize the shutdown').to.equal(true);
+            assert.strictEqual(caught.shutdown, true, 'consumers must be able to recognize the shutdown');
         });
     });
 });

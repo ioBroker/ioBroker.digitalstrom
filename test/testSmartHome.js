@@ -1,6 +1,6 @@
-const { expect } = require('chai');
+const assert = require('node:assert');
 
-const DSSSmartHome = require('../lib/dssSmartHome');
+const { DSSSmartHome } = require('../build/lib/dssSmartHome');
 const createMockSmartHome = require('./lib/mockSmartHome');
 
 const silentLogger = { silly: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
@@ -44,46 +44,46 @@ describe('Smart Home API client', function () {
         it('unwraps the data envelope of the answer', async () => {
             client = createClient();
             const apartment = await client.getApartment();
-            expect(apartment.type).to.equal('apartment');
-            expect(apartment.included.dsDevices).to.have.lengthOf(1);
+            assert.strictEqual(apartment.type, 'apartment');
+            assert.strictEqual(apartment.included.dsDevices.length, 1);
         });
 
         it('asks for every include in one request', async () => {
             client = createClient();
             await client.getApartment();
             const call = mock.pathsCalled('/api/v1/apartment')[0];
-            expect(call.query.include).to.contain('dsDevices');
-            expect(call.query.include).to.contain('functionBlocks');
-            expect(call.query.include).to.contain('meterings');
-            expect(mock.requests, 'exactly one request for the whole structure').to.have.lengthOf(1);
+            assert.ok(call.query.include.includes('dsDevices'));
+            assert.ok(call.query.include.includes('functionBlocks'));
+            assert.ok(call.query.include.includes('meterings'));
+            assert.strictEqual(mock.requests.length, 1, 'exactly one request for the whole structure');
         });
 
         it('reads the status including the user defined states', async () => {
             client = createClient();
             await client.getApartmentStatus();
             const call = mock.pathsCalled('/api/v1/apartment/status')[0];
-            expect(call.query.include).to.contain('userDefinedStates');
+            assert.ok(call.query.include.includes('userDefinedStates'));
         });
 
         it('reads a single zone instead of the whole flat', async () => {
             client = createClient();
             const zone = await client.getZoneStatus(2);
-            expect(zone.type).to.equal('zoneStatus');
-            expect(mock.requests[0].path).to.equal('/api/v1/apartment/zones/2/status');
+            assert.strictEqual(zone.type, 'zoneStatus');
+            assert.strictEqual(mock.requests[0].path, '/api/v1/apartment/zones/2/status');
         });
 
         it('reads all meter values with one request', async () => {
             client = createClient();
             const values = await client.getMeteringValues();
-            expect(values.values[0].attributes.value).to.equal(139);
-            expect(mock.requests, 'one request for all meters').to.have.lengthOf(1);
+            assert.strictEqual(values.values[0].attributes.value, 139);
+            assert.strictEqual(mock.requests.length, 1, 'one request for all meters');
         });
 
         it('reads the scenarios with their user given names', async () => {
             client = createClient();
             const answer = await client.getScenarios();
-            expect(answer.scenarios[0].attributes.name).to.equal('Hell');
-            expect(mock.requests[0].path).to.equal('/api/v1/apartment/scenarios');
+            assert.strictEqual(answer.scenarios[0].attributes.name, 'Hell');
+            assert.strictEqual(mock.requests[0].path, '/api/v1/apartment/scenarios');
         });
     });
 
@@ -97,9 +97,9 @@ describe('Smart Home API client', function () {
             } catch (err) {
                 caught = err;
             }
-            expect(caught, 'the request must fail').to.not.equal(null);
-            expect(caught.status).to.equal(401);
-            expect(caught.message).to.contain('HTTP 401');
+            assert.notStrictEqual(caught, null, 'the request must fail');
+            assert.strictEqual(caught.status, 401);
+            assert.ok(caught.message.includes('HTTP 401'));
         });
 
         it('reports a broken json answer instead of throwing somewhere else', async () => {
@@ -111,8 +111,8 @@ describe('Smart Home API client', function () {
             } catch (err) {
                 caught = err;
             }
-            expect(caught).to.not.equal(null);
-            expect(caught.message).to.contain('Invalid JSON');
+            assert.notStrictEqual(caught, null);
+            assert.ok(caught.message.includes('Invalid JSON'));
         });
 
         // Ohne res.on('error') feuert bei einem FIN mitten im Body weder 'end' noch der
@@ -150,9 +150,9 @@ describe('Smart Home API client', function () {
             const openRequests = brokenClient.activeRequests.size;
             brokenClient.stop();
             await new Promise(resolve => broken.close(() => resolve(undefined)));
-            expect(caught, 'the request must fail').to.not.equal(null);
-            expect(caught.message).to.not.contain('the request hangs');
-            expect(openRequests, 'the request is cleaned up').to.equal(0);
+            assert.notStrictEqual(caught, null, 'the request must fail');
+            assert.ok(!caught.message.includes('the request hangs'));
+            assert.strictEqual(openRequests, 0, 'the request is cleaned up');
         });
 
         it('sends no request after stop()', async () => {
@@ -165,9 +165,9 @@ describe('Smart Home API client', function () {
             } catch (err) {
                 caught = err;
             }
-            expect(caught).to.not.equal(null);
-            expect(caught.shutdown, 'marked as shutdown').to.equal(true);
-            expect(mock.requests, 'nothing reached the server').to.have.lengthOf(0);
+            assert.notStrictEqual(caught, null);
+            assert.strictEqual(caught.shutdown, true, 'marked as shutdown');
+            assert.strictEqual(mock.requests.length, 0, 'nothing reached the server');
         });
     });
 
@@ -176,8 +176,8 @@ describe('Smart Home API client', function () {
             client = createClient();
             await client.setOutputValue('dev1', 'dev1', 'brightness', 42);
             const call = mock.pathsCalled('/api/v1/apartment/dsDevices/dev1/status')[0];
-            expect(call.method).to.equal('PATCH');
-            expect(call.body).to.deep.equal([
+            assert.strictEqual(call.method, 'PATCH');
+            assert.deepStrictEqual(call.body, [
                 { op: 'replace', path: '/functionBlocks/dev1/outputs/brightness/value', value: '42' },
             ]);
         });
@@ -186,8 +186,8 @@ describe('Smart Home API client', function () {
             client = createClient();
             await client.setZoneSetpoint(2, 21.5);
             const call = mock.pathsCalled('/api/v1/apartment/zones/2/status')[0];
-            expect(call.method).to.equal('PATCH');
-            expect(call.body).to.deep.equal([
+            assert.strictEqual(call.method, 'PATCH');
+            assert.deepStrictEqual(call.body, [
                 { op: 'replace', path: '/applications/temperature/setpoint', value: 21.5 },
             ]);
         });
@@ -195,14 +195,14 @@ describe('Smart Home API client', function () {
         it('invokes a scenario by its id', async () => {
             client = createClient();
             await client.invokeScenario('applicationZone-z2-g1-s18');
-            expect(mock.requests[0].path).to.equal('/api/v1/apartment/scenarios/applicationZone-z2-g1-s18/invoke');
-            expect(mock.requests[0].method).to.equal('POST');
+            assert.strictEqual(mock.requests[0].path, '/api/v1/apartment/scenarios/applicationZone-z2-g1-s18/invoke');
+            assert.strictEqual(mock.requests[0].method, 'POST');
         });
 
         it('accepts an empty answer of a write', async () => {
             client = createClient();
             const answer = await client.setOutputValue('dev1', 'dev1', 'brightness', 0);
-            expect(answer).to.equal(null);
+            assert.strictEqual(answer, null);
         });
     });
 
@@ -211,7 +211,7 @@ describe('Smart Home API client', function () {
         // login during a reconnect ended the reconnects for good.
         describe('reconnect with session login', () => {
             const sinon = require('sinon');
-            const MiniWebsocket = require('../lib/websocket');
+            const { MiniWebsocket } = require('../build/lib/websocket');
             let clock;
             let connect;
             beforeEach(() => {
@@ -242,11 +242,11 @@ describe('Smart Home API client', function () {
                 });
                 client.scheduleReconnect();
                 await clock.tickAsync(2000);
-                expect(logins).to.equal(1);
-                expect(connect.called).to.equal(false);
+                assert.strictEqual(logins, 1);
+                assert.strictEqual(connect.called, false);
                 await clock.tickAsync(60000);
-                expect(logins, 'login tried again').to.equal(2);
-                expect(connect.callCount, 'one connection').to.equal(1);
+                assert.strictEqual(logins, 2, 'login tried again');
+                assert.strictEqual(connect.callCount, 1, 'one connection');
             });
 
             it('opens no connection when stopped during the login', async () => {
@@ -262,9 +262,9 @@ describe('Smart Home API client', function () {
                 release('token');
                 await Promise.allSettled([first, second]);
                 await clock.tickAsync(60000);
-                expect(connect.called).to.equal(false);
-                expect(client.websocket).to.equal(null);
-                expect(client.reconnectTimer).to.equal(null);
+                assert.strictEqual(connect.called, false);
+                assert.strictEqual(client.websocket, null);
+                assert.strictEqual(client.reconnectTimer, null);
             });
         });
 
@@ -272,7 +272,7 @@ describe('Smart Home API client', function () {
             client = createClient();
             await client.startNotifications();
             await delay(100);
-            expect(mock.openSockets(), 'one open notification socket').to.equal(1);
+            assert.strictEqual(mock.openSockets(), 1, 'one open notification socket');
         });
 
         // A moving blind fires several notifications per second, and every one of them
@@ -290,8 +290,8 @@ describe('Smart Home API client', function () {
             }
             await delay(200);
 
-            expect(seen, 'five notifications become one event').to.have.lengthOf(1);
-            expect(seen[0]).to.deep.equal(['apartmentStatusChanged']);
+            assert.strictEqual(seen.length, 1, 'five notifications become one event');
+            assert.deepStrictEqual(seen[0], ['apartmentStatusChanged']);
         });
 
         it('reports at the latest after the maximum delay during a continuous stream', async () => {
@@ -309,7 +309,7 @@ describe('Smart Home API client', function () {
             }
             await delay(100);
 
-            expect(seen.length, 'the stream must not silence the client').to.be.at.least(2);
+            assert.ok(seen.length >= 2, 'the stream must not silence the client');
         });
 
         // Fuer die Diagnose: wie oft meldet der dSS wirklich, bevor entprellt wird
@@ -328,8 +328,8 @@ describe('Smart Home API client', function () {
             }
             await delay(200);
 
-            expect(raw, 'every single message').to.have.lengthOf(4);
-            expect(debounced, 'but only one summary').to.have.lengthOf(1);
+            assert.strictEqual(raw.length, 4, 'every single message');
+            assert.strictEqual(debounced.length, 1, 'but only one summary');
         });
 
         it('separates a structure change from a status change', async () => {
@@ -343,7 +343,7 @@ describe('Smart Home API client', function () {
             mock.notify('apartmentStructureChanged');
             await delay(200);
 
-            expect(events).to.deep.equal(['structure']);
+            assert.deepStrictEqual(events, ['structure']);
         });
 
         it('reconnects after the dSS dropped the connection', async () => {
@@ -352,14 +352,14 @@ describe('Smart Home API client', function () {
             client.on('notificationConnected', () => connects++);
             await client.startNotifications();
             await delay(80);
-            expect(connects).to.equal(1);
+            assert.strictEqual(connects, 1);
 
             mock.dropSockets();
             // The first backoff step is two seconds
             await delay(2600);
 
-            expect(connects, 'the client comes back on its own').to.be.at.least(2);
-            expect(mock.openSockets()).to.equal(1);
+            assert.ok(connects >= 2, 'the client comes back on its own');
+            assert.strictEqual(mock.openSockets(), 1);
         });
 
         it('opens nothing more after stop()', async () => {
@@ -369,7 +369,7 @@ describe('Smart Home API client', function () {
             client.stop();
             mock.dropSockets();
             await delay(2600);
-            expect(mock.openSockets(), 'no reconnect after stop').to.equal(0);
+            assert.strictEqual(mock.openSockets(), 0, 'no reconnect after stop');
         });
     });
 
@@ -381,8 +381,8 @@ describe('Smart Home API client', function () {
             client = createClient();
             await client.getApartment();
             const call = mock.pathsCalled('/api/v1/apartment')[0];
-            expect(call.authorization).to.equal(`Bearer ${createMockSmartHome.API_KEY}`);
-            expect(call.cookie).to.equal(undefined);
+            assert.strictEqual(call.authorization, `Bearer ${createMockSmartHome.API_KEY}`);
+            assert.strictEqual(call.cookie, undefined);
         });
 
         it('uses the session when there is no key', async () => {
@@ -391,10 +391,10 @@ describe('Smart Home API client', function () {
                 getSessionToken: async () => createMockSmartHome.SESSION_TOKEN,
             });
             const apartment = await client.getApartment();
-            expect(apartment.type, 'the answer arrives without a key').to.equal('apartment');
+            assert.strictEqual(apartment.type, 'apartment', 'the answer arrives without a key');
             const call = mock.pathsCalled('/api/v1/apartment')[0];
-            expect(call.cookie).to.equal(`token=${createMockSmartHome.SESSION_TOKEN}`);
-            expect(call.authorization).to.equal(undefined);
+            assert.strictEqual(call.cookie, `token=${createMockSmartHome.SESSION_TOKEN}`);
+            assert.strictEqual(call.authorization, undefined);
         });
 
         // Der Fall, der auf der echten Anlage zweimal zugeschlagen hat: der dSS
@@ -408,16 +408,16 @@ describe('Smart Home API client', function () {
             mock.rejectKey();
 
             const apartment = await client.getApartment();
-            expect(apartment.type, 'der Request kommt trotzdem durch').to.equal('apartment');
-            expect(warnings.join(' '), 'einmal deutlich im Log').to.contain('rejected the Smart Home API key');
+            assert.strictEqual(apartment.type, 'apartment', 'der Request kommt trotzdem durch');
+            assert.ok(warnings.join(' ').includes('rejected the Smart Home API key'), 'einmal deutlich im Log');
 
             // Der zweite Request versucht den toten Key gar nicht mehr
             const before = mock.pathsCalled('/api/v1/apartment/status').length;
             await client.getApartmentStatus();
             const calls = mock.pathsCalled('/api/v1/apartment/status');
-            expect(calls).to.have.lengthOf(before + 1);
-            expect(calls[calls.length - 1].cookie).to.equal(`token=${createMockSmartHome.SESSION_TOKEN}`);
-            expect(warnings, 'die Warnung kommt nur einmal').to.have.lengthOf(1);
+            assert.strictEqual(calls.length, before + 1);
+            assert.strictEqual(calls[calls.length - 1].cookie, `token=${createMockSmartHome.SESSION_TOKEN}`);
+            assert.strictEqual(warnings.length, 1, 'die Warnung kommt nur einmal');
         });
 
         it('renews a stale session once and retries', async () => {
@@ -435,8 +435,8 @@ describe('Smart Home API client', function () {
             });
 
             const apartment = await client.getApartment();
-            expect(renewals, 'genau eine Erneuerung').to.equal(1);
-            expect(apartment.type).to.equal('apartment');
+            assert.strictEqual(renewals, 1, 'genau eine Erneuerung');
+            assert.strictEqual(apartment.type, 'apartment');
         });
 
         it('gives up when the renewed session is rejected as well', async () => {
@@ -448,8 +448,8 @@ describe('Smart Home API client', function () {
                 () => null,
                 err => err,
             );
-            expect(failed, 'der Fehler erreicht den Aufrufer').to.not.equal(null);
-            expect(failed.status).to.equal(401);
+            assert.notStrictEqual(failed, null, 'der Fehler erreicht den Aufrufer');
+            assert.strictEqual(failed.status, 401);
         });
     });
 
@@ -460,16 +460,16 @@ describe('Smart Home API client', function () {
                 appToken: 'existing-app-token',
                 logger: silentLogger,
             });
-            expect(key).to.equal('the-new-key');
+            assert.strictEqual(key, 'the-new-key');
 
             const login = mock.pathsCalled('/json/system/loginApplication');
-            expect(login, 'the app token becomes a session').to.have.lengthOf(1);
-            expect(login[0].query.loginToken).to.equal('existing-app-token');
+            assert.strictEqual(login.length, 1, 'the app token becomes a session');
+            assert.strictEqual(login[0].query.loginToken, 'existing-app-token');
 
             const created = mock.pathsCalled('/api/v1/apartment/applicationTokens');
-            expect(created, 'exactly one token is created').to.have.lengthOf(1);
-            expect(created[0].query.token, 'the session authorizes the creation').to.equal('session-token');
-            expect(created[0].body.data.attributes.name).to.equal('ioBroker.digitalstrom');
+            assert.strictEqual(created.length, 1, 'exactly one token is created');
+            assert.strictEqual(created[0].query.token, 'session-token', 'the session authorizes the creation');
+            assert.strictEqual(created[0].body.data.attributes.name, 'ioBroker.digitalstrom');
         });
 
         // Ein falsches Passwort beantwortet der dSS mit HTTP 200 und ok:false - die
@@ -487,8 +487,8 @@ describe('Smart Home API client', function () {
             } catch (err) {
                 caught = err;
             }
-            expect(caught, 'the key creation must fail').to.not.equal(null);
-            expect(caught.message).to.contain('Authentication failed');
+            assert.notStrictEqual(caught, null, 'the key creation must fail');
+            assert.ok(caught.message.includes('Authentication failed'));
         });
     });
 });
@@ -501,7 +501,7 @@ describe('Websocket watchdog', function () {
     // websocket.js exports the client class itself and hangs the handshake constants off
     // it. Behind that export assignment they are invisible to the checker, so the shape
     // of the module is named here.
-    const MiniWebsocket = require('../lib/websocket');
+    const { MiniWebsocket } = require('../build/lib/websocket');
 
     /**
      * A hand-rolled server that completes the handshake and then behaves as told.
@@ -580,8 +580,8 @@ describe('Websocket watchdog', function () {
             closed,
             new Promise((resolve, reject) => setTimeout(() => reject(new Error('the watchdog never fired')), 3000)),
         ]);
-        expect(server.frames.length, 'the client pinged before giving up').to.be.at.least(1);
-        expect(errors.join(' ')).to.contain('dead');
+        assert.ok(server.frames.length >= 1, 'the client pinged before giving up');
+        assert.ok(errors.join(' ').includes('dead'));
         socket.close();
         await server.close();
     });
@@ -606,14 +606,14 @@ describe('Websocket watchdog', function () {
         await socket.connect();
 
         await new Promise(resolve => setTimeout(resolve, 500));
-        expect(closedEarly, 'an answered ping keeps the connection alive').to.equal(false);
+        assert.strictEqual(closedEarly, false, 'an answered ping keeps the connection alive');
         socket.close();
         await server.close();
     });
 });
 
 describe('Meter values through the Smart Home API', () => {
-    const DSSStructure = require('../lib/dssStructure');
+    const { DSSStructure } = require('../build/lib/dssStructure');
 
     const CIRCUITS = [
         { dSUID: 'dsm-a', name: 'Küche', hasMetering: true },
@@ -675,11 +675,11 @@ describe('Meter values through the Smart Home API', () => {
         });
 
         struct.updateMeterData((failed, total) => {
-            expect(failed, 'no circuit is missing').to.equal(0);
+            assert.strictEqual(failed, 0, 'no circuit is missing');
             // Der Callback speist info.connection. Ein Zyklus, der nur die neue API benutzt
             // hat, darf ueber die klassische nichts behaupten - deshalb (0, 0).
-            expect(total, 'a Smart Home only cycle judges nothing about the classic API').to.equal(0);
-            expect(struct.written).to.deep.equal([
+            assert.strictEqual(total, 0, 'a Smart Home only cycle judges nothing about the classic API');
+            assert.deepStrictEqual(struct.written, [
                 { id: 'devices.dsm-a.PowerConsumption', value: 30 },
                 // 3600000 Ws = 1 kWh, exactly the conversion of the classic path
                 { id: 'devices.dsm-a.EnergyMeterValue', value: 1 },
@@ -709,9 +709,9 @@ describe('Meter values through the Smart Home API', () => {
             options.push(opts);
         };
         struct.updateMeterData(() => {
-            expect(struct.written[1]).to.deep.equal({ id: 'devices.dsm-a.EnergyMeterValue', value: 4009.733 });
-            expect(options, 'every meter write is a poll').to.have.lengthOf(4);
-            options.forEach(opts => expect(opts).to.deep.equal({ skipUnchanged: true }));
+            assert.deepStrictEqual(struct.written[1], { id: 'devices.dsm-a.EnergyMeterValue', value: 4009.733 });
+            assert.strictEqual(options.length, 4, 'every meter write is a poll');
+            options.forEach(opts => assert.deepStrictEqual(opts, { skipUnchanged: true }));
             done();
         });
     });
@@ -731,9 +731,9 @@ describe('Meter values through the Smart Home API', () => {
         };
 
         struct.updateMeterData(() => {
-            expect(classicCalls, 'the classic path has to take over').to.equal(1);
-            expect(struct.written, 'nothing may be written from a failed read').to.have.lengthOf(0);
-            expect(struct.warnings.join(' ')).to.contain('classic API');
+            assert.strictEqual(classicCalls, 1, 'the classic path has to take over');
+            assert.strictEqual(struct.written.length, 0, 'nothing may be written from a failed read');
+            assert.ok(struct.warnings.join(' ').includes('classic API'));
             done();
         });
     });
@@ -752,7 +752,7 @@ describe('Meter values through the Smart Home API', () => {
         await struct.updateMeterDataViaSmartHome();
         await struct.updateMeterDataViaSmartHome();
 
-        expect(struct.warnings, 'a permanent outage must not flood the log').to.have.lengthOf(1);
+        assert.strictEqual(struct.warnings.length, 1, 'a permanent outage must not flood the log');
     });
 
     it('falls back when the answer knows none of the circuits', done => {
@@ -770,8 +770,8 @@ describe('Meter values through the Smart Home API', () => {
         };
 
         struct.updateMeterData(() => {
-            expect(classicCalls, 'an unusable answer must not silently write nothing').to.equal(1);
-            expect(struct.warnings.join(' ')).to.contain('no value for any known circuit');
+            assert.strictEqual(classicCalls, 1, 'an unusable answer must not silently write nothing');
+            assert.ok(struct.warnings.join(' ').includes('no value for any known circuit'));
             done();
         });
     });
@@ -790,7 +790,7 @@ describe('Meter values through the Smart Home API', () => {
             },
         });
         struct.updateMeterData(() => {
-            expect(struct.infoStates).to.deep.equal([{ id: 'info.meteringApi', value: 'smarthome', ack: true }]);
+            assert.deepStrictEqual(struct.infoStates, [{ id: 'info.meteringApi', value: 'smarthome', ack: true }]);
             done();
         });
     });
@@ -811,11 +811,11 @@ describe('Meter values through the Smart Home API', () => {
             },
         });
         struct.updateMeterData((failed, total) => {
-            expect(struct.infoStates).to.deep.equal([{ id: 'info.meteringApi', value: 'classic', ack: true }]);
-            expect(struct.written, 'the classic path writes two values per circuit').to.have.lengthOf(4);
+            assert.deepStrictEqual(struct.infoStates, [{ id: 'info.meteringApi', value: 'classic', ack: true }]);
+            assert.strictEqual(struct.written.length, 4, 'the classic path writes two values per circuit');
             // Ein gescheiterter Smart-Home-Versuch plus vier klassische Requests
-            expect(total, 'the failed attempt counts as a request').to.equal(5);
-            expect(failed, 'only the Smart Home attempt failed').to.equal(1);
+            assert.strictEqual(total, 5, 'the failed attempt counts as a request');
+            assert.strictEqual(failed, 1, 'only the Smart Home attempt failed');
             done();
         });
     });
@@ -826,7 +826,10 @@ describe('Meter values through the Smart Home API', () => {
         struct.reportMeteringApi('classic');
         struct.reportMeteringApi('smarthome');
         struct.reportMeteringApi('smarthome');
-        expect(struct.infoStates.map(entry => entry.value)).to.deep.equal(['classic', 'smarthome']);
+        assert.deepStrictEqual(
+            struct.infoStates.map(entry => entry.value),
+            ['classic', 'smarthome'],
+        );
     });
 
     // Bei einem teilweisen Erfolg arbeitet der klassische Weg mit - dann ist "classic" die
@@ -847,7 +850,10 @@ describe('Meter values through the Smart Home API', () => {
             },
         });
         struct.updateMeterData(() => {
-            expect(struct.infoStates.map(entry => entry.value)).to.deep.equal(['classic']);
+            assert.deepStrictEqual(
+                struct.infoStates.map(entry => entry.value),
+                ['classic'],
+            );
             done();
         });
     });
@@ -865,8 +871,8 @@ describe('Meter values through the Smart Home API', () => {
             },
         });
         await struct.updateMeterDataViaSmartHome();
-        expect(struct.smartHomeMeterRetryAfter - struct.now()).to.be.closeTo(struct.smartHomeMeterRetryMax, 1000);
-        expect(struct.warnings.join(' ')).to.contain('does not offer the Smart Home API');
+        assert.ok(Math.abs(struct.smartHomeMeterRetryAfter - struct.now() - struct.smartHomeMeterRetryMax) <= 1000);
+        assert.ok(struct.warnings.join(' ').includes('does not offer the Smart Home API'));
     });
 
     // main.js plant den naechsten Poll-Zyklus ausschliesslich in diesem Callback - wirft
@@ -891,9 +897,9 @@ describe('Meter values through the Smart Home API', () => {
             calls++;
             if (calls === 1) {
                 setTimeout(() => {
-                    expect(calls, 'the callback must not run twice').to.equal(1);
-                    expect(struct.errors.join(' ')).to.contain('poll callback threw');
-                    expect(struct.restarts, 'the safety net of the old behaviour').to.deep.equal([30000]);
+                    assert.strictEqual(calls, 1, 'the callback must not run twice');
+                    assert.ok(struct.errors.join(' ').includes('poll callback threw'));
+                    assert.deepStrictEqual(struct.restarts, [30000], 'the safety net of the old behaviour');
                     done();
                 }, 50);
                 throw new Error('a broken consumer');
@@ -909,7 +915,7 @@ describe('Meter values through the Smart Home API', () => {
             callback(0, 2);
         };
         struct.updateMeterData(() => {
-            expect(classicCalls).to.equal(1);
+            assert.strictEqual(classicCalls, 1);
             done();
         });
     });

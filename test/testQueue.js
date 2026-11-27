@@ -1,6 +1,6 @@
-const { expect } = require('chai');
+const assert = require('node:assert');
 
-const DSSQueue = require('../lib/dssQueue');
+const { DSSQueue } = require('../build/lib/dssQueue');
 
 const silentLogger = { silly: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
@@ -22,8 +22,8 @@ describe('DSSQueue', () => {
         };
         const queue = createQueue(dss);
         queue.pushQueryQueue('c1', 'e1', { dssClass: 'a', dssFunction: 'b', params: {} }, 'high', (err, res) => {
-            expect(err).to.equal(null);
-            expect(res.result.dssClass).to.equal('a');
+            assert.strictEqual(err, null);
+            assert.strictEqual(res.result.dssClass, 'a');
             done();
         });
     });
@@ -42,7 +42,7 @@ describe('DSSQueue', () => {
             if (--doneCount) {
                 return;
             }
-            expect(order).to.deep.equal(['high', 'medium', 'low']);
+            assert.deepStrictEqual(order, ['high', 'medium', 'low']);
             done();
         };
         queue.pushQueryQueue('c1', 'eLow', { dssClass: 'low', dssFunction: 'f', params: {} }, 'low', finish);
@@ -61,9 +61,9 @@ describe('DSSQueue', () => {
         const queue = createQueue(dss);
         let callbackCount = 0;
         const finish = err => {
-            expect(err).to.equal(null);
+            assert.strictEqual(err, null);
             if (++callbackCount === 2) {
-                expect(requestCount).to.equal(1);
+                assert.strictEqual(requestCount, 1);
                 done();
             }
         };
@@ -84,12 +84,12 @@ describe('DSSQueue', () => {
         };
         const queue = createQueue(dss);
         queue.pushQueryQueue('c1', 'fail', { dssClass: 'a', dssFunction: 'b', params: {} }, 'high', err => {
-            expect(err).to.be.an('error');
-            expect(err.message).to.equal('boom');
+            assert.ok(err instanceof Error);
+            assert.strictEqual(err.message, 'boom');
         });
         queue.pushQueryQueue('c1', 'ok', { dssClass: 'a', dssFunction: 'c', params: {} }, 'high', (err, res) => {
-            expect(err).to.equal(null);
-            expect(res.ok).to.equal(true);
+            assert.strictEqual(err, null);
+            assert.strictEqual(res.ok, true);
             done();
         });
     });
@@ -106,16 +106,16 @@ describe('DSSQueue', () => {
         let calls = 0;
         queue.pushQueryQueue('c1', 'inflight', { dssClass: 'a', dssFunction: 'b', params: {} }, 'high', err => {
             calls++;
-            expect(err).to.be.an('error');
-            expect(err.message).to.equal('Queue cleared');
-            expect(err.shutdown, 'callers must be able to recognize the stop').to.equal(true);
+            assert.ok(err instanceof Error);
+            assert.strictEqual(err.message, 'Queue cleared');
+            assert.strictEqual(err.shutdown, true, 'callers must be able to recognize the stop');
         });
         setTimeout(() => {
             queue.clearQueues();
             // let the in-flight request settle afterwards - the callback must not fire again
             resolveRequest && resolveRequest({ ok: true });
             setTimeout(() => {
-                expect(calls).to.equal(1);
+                assert.strictEqual(calls, 1);
                 done();
             }, 30);
         }, 30);
@@ -140,9 +140,9 @@ describe('DSSQueue', () => {
             { dssClass: 'zone', dssFunction: 'getLastCalledScene', params: {} },
             'high',
             err => {
-                expect(err).to.equal(shutdownError);
-                expect(levels, 'a stop must not produce warnings').to.not.include('warn');
-                expect(levels).to.include('debug');
+                assert.strictEqual(err, shutdownError);
+                assert.ok(!levels.includes('warn'), 'a stop must not produce warnings');
+                assert.ok(levels.includes('debug'));
                 done();
             },
         );
@@ -164,9 +164,9 @@ describe('DSSQueue', () => {
             logger,
         );
         queue.queueUpdateOutputValue(DEV, 4, 255, 'medium', err => {
-            expect(err, 'the caller still learns about the failure').to.be.an('error');
-            expect(levels, 'the queue must stay quiet here').to.not.include('warn');
-            expect(levels).to.include('debug');
+            assert.ok(err instanceof Error, 'the caller still learns about the failure');
+            assert.ok(!levels.includes('warn'), 'the queue must stay quiet here');
+            assert.ok(levels.includes('debug'));
             done();
         });
     });
@@ -187,7 +187,7 @@ describe('DSSQueue', () => {
             { dssClass: 'zone', dssFunction: 'getLastCalledScene', params: {} },
             'high',
             () => {
-                expect(levels).to.include('warn');
+                assert.ok(levels.includes('warn'));
                 done();
             },
         );
@@ -209,11 +209,11 @@ describe('DSSQueue', () => {
                 { dssClass: 'zone', dssFunction: 'callScene', params: {} },
                 'high',
                 err => {
-                    expect(err, 'the caller must be answered').to.be.an('error');
-                    expect(err.shutdown, 'recognizable as a stop').to.equal(true);
+                    assert.ok(err instanceof Error, 'the caller must be answered');
+                    assert.strictEqual(err.shutdown, true, 'recognizable as a stop');
                     setTimeout(() => {
-                        expect(requests, 'nothing may be sent to the DSS after stop()').to.equal(0);
-                        expect(queue.queryQueue.c1 || [], 'no entry may be queued').to.deep.equal([]);
+                        assert.strictEqual(requests, 0, 'nothing may be sent to the DSS after stop()');
+                        assert.deepStrictEqual(queue.queryQueue.c1 || [], [], 'no entry may be queued');
                         done();
                     }, 20);
                 },
@@ -232,7 +232,7 @@ describe('DSSQueue', () => {
             );
             setTimeout(() => {
                 const timers = Object.values(queue.nextEntryTimeout).filter(Boolean);
-                expect(timers, 'no timer may outlive the unload').to.deep.equal([]);
+                assert.deepStrictEqual(timers, [], 'no timer may outlive the unload');
                 done();
             }, 20);
         });
@@ -258,8 +258,8 @@ describe('DSSQueue', () => {
                 queue.stop();
                 resolveRequest && resolveRequest({ ok: true });
                 setTimeout(() => {
-                    expect(calls, 'every caller answered exactly once').to.equal(2);
-                    expect(queue.stopped).to.equal(true);
+                    assert.strictEqual(calls, 2, 'every caller answered exactly once');
+                    assert.strictEqual(queue.stopped, true);
                     done();
                 }, 30);
             }, 30);
@@ -268,11 +268,11 @@ describe('DSSQueue', () => {
         it('accepts entries again only after a fresh queue is created', done => {
             const queue = createQueue({ requestAsync: async () => ({ ok: true }) });
             queue.pushQueryQueue('c1', 'e1', { dssClass: 'a', dssFunction: 'b', params: {} }, 'high', err => {
-                expect(err).to.equal(null);
+                assert.strictEqual(err, null);
                 // the same queue stays closed afterwards
                 queue.stop();
                 queue.pushQueryQueue('c1', 'e2', { dssClass: 'a', dssFunction: 'c', params: {} }, 'high', err2 => {
-                    expect(err2.shutdown).to.equal(true);
+                    assert.strictEqual(err2.shutdown, true);
                     done();
                 });
             });
@@ -294,15 +294,15 @@ describe('DSSQueue', () => {
                 if (!err) {
                     acked.push(value);
                 }
-                expect(err && err.superseded, 'old value must be marked as superseded').to.equal(true);
+                assert.strictEqual(err && err.superseded, true, 'old value must be marked as superseded');
             });
             queue.queueSetOutputValue(DEV, 0, 255, 80, 'high', (err, value) => {
-                expect(err).to.equal(null);
+                assert.strictEqual(err, null);
                 acked.push(value);
                 setTimeout(() => {
                     // Only the newest value is sent and only that one is acknowledged
-                    expect(sent).to.deep.equal([80]);
-                    expect(acked).to.deep.equal([80]);
+                    assert.deepStrictEqual(sent, [80]);
+                    assert.deepStrictEqual(acked, [80]);
                     done();
                 }, 30);
             });
@@ -321,14 +321,14 @@ describe('DSSQueue', () => {
                 },
             };
             const queue = createQueue(dss);
-            queue.queueSetOutputValue(DEV, 0, 255, 10, 'high', err => expect(err).to.equal(null));
+            queue.queueSetOutputValue(DEV, 0, 255, 10, 'high', err => assert.strictEqual(err, null));
 
             setTimeout(() => {
-                expect(sent, 'first value must be in flight').to.deep.equal([10]);
+                assert.deepStrictEqual(sent, [10], 'first value must be in flight');
                 queue.queueSetOutputValue(DEV, 0, 255, 80, 'high', (err, value) => {
-                    expect(err).to.equal(null);
-                    expect(value).to.equal(80);
-                    expect(sent, 'both values must reach the DSS').to.deep.equal([10, 80]);
+                    assert.strictEqual(err, null);
+                    assert.strictEqual(value, 80);
+                    assert.deepStrictEqual(sent, [10, 80], 'both values must reach the DSS');
                     done();
                 });
                 releaseFirst();
@@ -349,7 +349,10 @@ describe('DSSQueue', () => {
                 if (--open) {
                     return;
                 }
-                expect(scenes).to.have.members([13, 14]);
+                assert.deepStrictEqual(
+                    [...scenes].sort((a, b) => a - b),
+                    [13, 14],
+                );
                 done();
             };
             const scene = number => ({
@@ -410,7 +413,7 @@ describe('DSSQueue', () => {
                     }
                     setImmediate(() => {
                         try {
-                            expect(sent).to.deep.equal(expected);
+                            assert.deepStrictEqual(sent, expected);
                         } catch (err) {
                             return done(/** @type {Error} */ (err));
                         }
@@ -501,14 +504,15 @@ describe('DSSQueue', () => {
                 );
             }
             // 2 s of changes: the other device went out after its 500 ms, the slider follows
-            expect(sent[0]).to.include({ dsuid: 'dev2', at: start + 500 });
+            assert.strictEqual(sent[0].dsuid, 'dev2');
+            assert.strictEqual(sent[0].at, start + 500);
             const sliderSends = sent.filter(item => item.dsuid === 'dev1');
-            expect(sliderSends.length, 'slider values sent during the changes').to.be.at.least(2);
+            assert.ok(sliderSends.length >= 2, 'slider values sent during the changes');
             for (let i = 1; i < sent.length; i++) {
-                expect(sent[i].at - sent[i - 1].at, 'minimum spacing').to.be.at.least(500);
+                assert.ok(sent[i].at - sent[i - 1].at >= 500, 'minimum spacing');
             }
             await clock.tickAsync(1000);
-            expect(sent[sent.length - 1].value, 'last value arrives').to.equal(20);
+            assert.strictEqual(sent[sent.length - 1].value, 20, 'last value arrives');
         });
     });
 
@@ -539,12 +543,16 @@ describe('DSSQueue', () => {
             });
 
             setTimeout(() => {
-                expect(sent, 'only the newest value must reach the DSS').to.deep.equal([80]);
-                expect(events, 'every callback exactly once, in order').to.deep.equal([
-                    ['cb10', 'SupersededError'],
-                    ['cb90', 'SupersededError'],
-                    ['cb80', null],
-                ]);
+                assert.deepStrictEqual(sent, [80], 'only the newest value must reach the DSS');
+                assert.deepStrictEqual(
+                    events,
+                    [
+                        ['cb10', 'SupersededError'],
+                        ['cb90', 'SupersededError'],
+                        ['cb80', null],
+                    ],
+                    'every callback exactly once, in order',
+                );
                 done();
             }, 40);
         });
@@ -576,19 +584,17 @@ describe('DSSQueue', () => {
             queue.queueSetOutputValue(DEV, 0, 255, 99, 'high', () => count('cb99'));
 
             setTimeout(() => {
-                expect(Object.keys(counts).sort(), 'no callback may get lost').to.deep.equal([
-                    'cb10',
-                    'cb20',
-                    'cb30',
-                    'cb40',
-                    'cb99',
-                ]);
+                assert.deepStrictEqual(
+                    Object.keys(counts).sort(),
+                    ['cb10', 'cb20', 'cb30', 'cb40', 'cb99'],
+                    'no callback may get lost',
+                );
                 Object.keys(counts).forEach(name =>
-                    expect(counts[name], `${name} must be called exactly once`).to.equal(1),
+                    assert.strictEqual(counts[name], 1, `${name} must be called exactly once`),
                 );
                 // 10 and 99 were superseded before they were sent, everything after that was
                 // enqueued only once the previous value had really been sent
-                expect(sent, 'no superseded value may reach the DSS').to.deep.equal([20, 30, 40]);
+                assert.deepStrictEqual(sent, [20, 30, 40], 'no superseded value may reach the DSS');
                 done();
             }, 60);
         });
@@ -603,9 +609,9 @@ describe('DSSQueue', () => {
             };
             const queue = createQueue(dss);
             queue.queueSetOutputValue(DEV, 0, 255, 55, 'high', (err, value) => {
-                expect(err).to.equal(null);
-                expect(value).to.equal(55);
-                expect(sent).to.deep.equal([55]);
+                assert.strictEqual(err, null);
+                assert.strictEqual(value, 55);
+                assert.deepStrictEqual(sent, [55]);
                 done();
             });
         });
@@ -615,11 +621,11 @@ describe('DSSQueue', () => {
         it('classifies superseded and shutdown as expected, real errors as not', () => {
             const superseded = new DSSQueue.SupersededError('x');
             const shutdown = Object.assign(new Error('Queue cleared'), { shutdown: true });
-            expect(DSSQueue.isExpectedQueueError(superseded)).to.equal(true);
-            expect(DSSQueue.isExpectedQueueError(shutdown)).to.equal(true);
-            expect(DSSQueue.isExpectedQueueError(new Error('HTTP 500'))).to.equal(false);
-            expect(DSSQueue.isExpectedQueueError(null)).to.equal(false);
-            expect(DSSQueue.isExpectedQueueError(undefined)).to.equal(false);
+            assert.strictEqual(DSSQueue.isExpectedQueueError(superseded), true);
+            assert.strictEqual(DSSQueue.isExpectedQueueError(shutdown), true);
+            assert.strictEqual(DSSQueue.isExpectedQueueError(new Error('HTTP 500')), false);
+            assert.strictEqual(DSSQueue.isExpectedQueueError(null), false);
+            assert.strictEqual(DSSQueue.isExpectedQueueError(undefined), false);
         });
 
         it('never logs a superseded write as warning or error', done => {
@@ -635,13 +641,13 @@ describe('DSSQueue', () => {
             const queue = createQueue(dss, logger);
 
             queue.queueSetOutputValue(DEV, 0, 255, 10, 'high', err => {
-                expect(err.name).to.equal('SupersededError');
+                assert.strictEqual(err.name, 'SupersededError');
             });
             queue.queueSetOutputValue(DEV, 0, 255, 80, 'high', err => {
-                expect(err).to.equal(null);
+                assert.strictEqual(err, null);
                 setTimeout(() => {
-                    expect(levels, 'a coalesced write is not a failure').to.not.include('warn');
-                    expect(levels).to.not.include('error');
+                    assert.ok(!levels.includes('warn'), 'a coalesced write is not a failure');
+                    assert.ok(!levels.includes('error'));
                     done();
                 }, 30);
             });
@@ -665,9 +671,9 @@ describe('DSSQueue', () => {
 
             // The next entry has to be processed even though the first callback threw
             queue.pushQueryQueue('c1', 'next', { dssClass: 'a', dssFunction: 'c', params: {} }, 'high', err => {
-                expect(err).to.equal(null);
-                expect(secondCalled, 'second callback of the same entry must run').to.equal(true);
-                expect(logged.join(' ')).to.contain('callback exploded');
+                assert.strictEqual(err, null);
+                assert.strictEqual(secondCalled, true, 'second callback of the same entry must run');
+                assert.ok(logged.join(' ').includes('callback exploded'));
                 done();
             });
         });
@@ -685,7 +691,7 @@ describe('DSSQueue', () => {
                 dssFunction: 'getConfig',
                 params: { dsuid: 'a', index: undefined },
             });
-            expect(withZero).to.not.equal(withUndefined);
+            assert.notStrictEqual(withZero, withUndefined);
         });
 
         it('distinguishes different channels and different functions', () => {
@@ -694,14 +700,14 @@ describe('DSSQueue', () => {
             const otherFunction = { ...base, dssFunction: 'setConfig' };
             const otherDevice = { ...base, params: { dsuid: 'b', index: 0 } };
             const keys = [base, otherChannel, otherFunction, otherDevice].map(e => DSSQueue.createRequestKey(e));
-            expect(new Set(keys).size).to.equal(4);
+            assert.strictEqual(new Set(keys).size, 4);
         });
 
         it('ignores the payload only for the coalescing key', () => {
             const a = { dssClass: 'device', dssFunction: 'setValue', params: { dsuid: 'a', value: 10 } };
             const b = { dssClass: 'device', dssFunction: 'setValue', params: { dsuid: 'a', value: 80 } };
-            expect(DSSQueue.createRequestKey(a, true)).to.equal(DSSQueue.createRequestKey(b, true));
-            expect(DSSQueue.createRequestKey(a)).to.not.equal(DSSQueue.createRequestKey(b));
+            assert.strictEqual(DSSQueue.createRequestKey(a, true), DSSQueue.createRequestKey(b, true));
+            assert.notStrictEqual(DSSQueue.createRequestKey(a), DSSQueue.createRequestKey(b));
         });
     });
 
@@ -709,16 +715,16 @@ describe('DSSQueue', () => {
         it('never sends the priority string as output value (legacy signature)', done => {
             const dss = {
                 requestAsync: async (dssClass, dssFunction, params) => {
-                    expect(params.value, 'priority must never be sent as value').to.not.equal('high');
-                    expect(params.value).to.equal(42);
+                    assert.notStrictEqual(params.value, 'high', 'priority must never be sent as value');
+                    assert.strictEqual(params.value, 42);
                     return { ok: true };
                 },
             };
             const queue = createQueue(dss);
             // legacy call form (dev, index, value, prio, callback)
             queue.queueSetOutputValue(DEV, 0, 42, 'high', (err, value) => {
-                expect(err).to.equal(null);
-                expect(value).to.equal(42);
+                assert.strictEqual(err, null);
+                assert.strictEqual(value, 42);
                 done();
             });
         });
@@ -726,13 +732,13 @@ describe('DSSQueue', () => {
         it('sends the value with the current signature', done => {
             const dss = {
                 requestAsync: async (dssClass, dssFunction, params) => {
-                    expect(params.value).to.equal(200);
+                    assert.strictEqual(params.value, 200);
                     return { ok: true };
                 },
             };
             const queue = createQueue(dss);
             queue.queueSetOutputValue(DEV, 0, 255, 200, 'high', err => {
-                expect(err).to.equal(null);
+                assert.strictEqual(err, null);
                 done();
             });
         });

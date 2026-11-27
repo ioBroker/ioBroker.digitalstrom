@@ -57,4 +57,16 @@ async function waitFor(condition, timeout = 5000) {
     }
 }
 
-module.exports = { delay, callbackPromise, nodeCallbackPromise, waitFor };
+/**
+ * The timer methods of adapter-core, which the adapter class calls on `this`. Fake adapter
+ * contexts need them too. They forward to the global timers at call time, so sinon's fake
+ * timers keep working.
+ */
+const adapterTimers = {
+    setTimeout: (callback, ms, ...args) => setTimeout(callback, ms, ...args),
+    clearTimeout: timer => clearTimeout(timer),
+    setInterval: (callback, ms, ...args) => setInterval(callback, ms, ...args),
+    clearInterval: timer => clearInterval(timer),
+};
+
+module.exports = { delay, callbackPromise, nodeCallbackPromise, waitFor, adapterTimers };

@@ -1,12 +1,13 @@
-const { expect } = require('chai');
-const { waitFor } = require('./lib/helpers');
+const assert = require('node:assert');
+const { isDeepStrictEqual } = require('node:util');
+const { waitFor, adapterTimers } = require('./lib/helpers');
 const proxyquire = require('proxyquire');
-const DSS = require('../lib/dss');
-const dssConstants = require('../lib/constants');
+const { DSS } = require('../build/lib/dss');
+const dssConstants = require('../build/lib/constants');
 
 // adapter-core needs a running js-controller, which is not available in unit tests.
 // Only prototype methods and statics are used here, no instance is created.
-const { Digitalstrom } = proxyquire('../main', {
+const { Digitalstrom } = proxyquire('../build/main', {
     '@iobroker/adapter-core': {
         Adapter: class FakeAdapter {
             on() {}
@@ -41,6 +42,7 @@ const VALID_APP_TOKEN = 'a1b2c3d4'.repeat(8);
  */
 function createContext(overrides = {}) {
     const ctx = {
+        ...adapterTimers,
         log: silentLog,
         config: {},
         connected: null,
@@ -133,14 +135,14 @@ describe('Adapter logic', () => {
         ];
         cases.forEach(([input, expected, label]) => {
             it(String(label), () => {
-                expect(Digitalstrom.normalizePollInterval(input)).to.equal(expected);
+                assert.strictEqual(Digitalstrom.normalizePollInterval(input), expected);
             });
         });
 
         it('never produces an interval below the configured minimum', () => {
             [-1000, -1, 0.4, '-99', 1, 10, 59].forEach(input => {
                 const result = Digitalstrom.normalizePollInterval(input);
-                expect(result === 0 || result >= 60000, `bad interval for ${input}: ${result}`).to.equal(true);
+                assert.strictEqual(result === 0 || result >= 60000, true, `bad interval for ${input}: ${result}`);
             });
         });
 
@@ -149,7 +151,7 @@ describe('Adapter logic', () => {
         it('keeps the default within the request limit of the DSS', () => {
             const cycleSeconds = Digitalstrom.normalizePollInterval(undefined) / 1000 + 20;
             const requestsPerMinute = (2 / cycleSeconds) * 60;
-            expect(requestsPerMinute, `default results in ${requestsPerMinute}/min`).to.be.at.most(1);
+            assert.ok(requestsPerMinute <= 1, `default results in ${requestsPerMinute}/min`);
         });
     });
 
@@ -175,16 +177,17 @@ describe('Adapter logic', () => {
 
             ctx.pendingEvents = [];
             parked('event-value');
-            expect(written, 'nothing may reach a state that does not exist yet').to.deep.equal([]);
+            assert.deepStrictEqual(written, [], 'nothing may reach a state that does not exist yet');
 
             // setInitialValues writes the older snapshot first ...
             written.push('snapshot');
             ctx.replayStartupEvents();
 
-            expect(written, 'the event is newer than the snapshot and must win').to.deep.equal([
-                'snapshot',
-                'event-value',
-            ]);
+            assert.deepStrictEqual(
+                written,
+                ['snapshot', 'event-value'],
+                'the event is newer than the snapshot and must win',
+            );
         });
 
         it('keeps the arrival order of the parked events', () => {
@@ -196,7 +199,7 @@ describe('Adapter logic', () => {
             parked(2);
             parked(3);
             ctx.replayStartupEvents();
-            expect(written).to.deep.equal([1, 2, 3]);
+            assert.deepStrictEqual(written, [1, 2, 3]);
         });
 
         it('passes an event straight through once the objects are there', () => {
@@ -205,7 +208,7 @@ describe('Adapter logic', () => {
             const parked = Digitalstrom.prototype.parkable.call(ctx, value => written.push(value));
             ctx.pendingEvents = null;
             parked('live');
-            expect(written).to.deep.equal(['live']);
+            assert.deepStrictEqual(written, ['live']);
         });
 
         // A button press replayed two minutes late would make every rule act two minutes
@@ -218,9 +221,9 @@ describe('Adapter logic', () => {
             ctx.pendingEvents = [];
             live('button press during the startup');
             ctx.replayStartupEvents();
-            expect(acted, 'a late press must never be acted on').to.deep.equal([]);
+            assert.deepStrictEqual(acted, [], 'a late press must never be acted on');
             live('after the startup');
-            expect(acted).to.deep.equal(['after the startup']);
+            assert.deepStrictEqual(acted, ['after the startup']);
         });
 
         it('drops the oldest when the parking overflows and says so', () => {
@@ -232,9 +235,13 @@ describe('Adapter logic', () => {
             parked('oldest');
             parked('middle');
             parked('newest');
-            expect(ctx.pendingEventsDropped, 'exactly one was too many').to.equal(1);
+            assert.strictEqual(ctx.pendingEventsDropped, 1, 'exactly one was too many');
             ctx.replayStartupEvents();
-            expect(written, 'the newest value of a state is the one worth keeping').to.deep.equal(['middle', 'newest']);
+            assert.deepStrictEqual(
+                written,
+                ['middle', 'newest'],
+                'the newest value of a state is the one worth keeping',
+            );
         });
 
         // Regression risk of the early subscription: firing the nine subscribes a second
@@ -242,15 +249,15 @@ describe('Adapter logic', () => {
         it('does not subscribe a second time while the first is in flight', () => {
             const { ctx, pending } = parkingContext();
             ctx.startEarlyEventSubscription();
-            expect(pending, 'the early attempt went out').to.have.lengthOf(1);
+            assert.strictEqual(pending.length, 1, 'the early attempt went out');
 
             let finished = 0;
             ctx.ensureEventSubscription(() => finished++);
-            expect(pending, 'the authoritative attempt waits instead of subscribing again').to.have.lengthOf(1);
-            expect(finished, 'and it does not report success before the dSS answered').to.equal(0);
+            assert.strictEqual(pending.length, 1, 'the authoritative attempt waits instead of subscribing again');
+            assert.strictEqual(finished, 0, 'and it does not report success before the dSS answered');
 
             pending[0](null);
-            expect(finished, 'the waiting caller is answered by the early result').to.equal(1);
+            assert.strictEqual(finished, 1, 'the waiting caller is answered by the early result');
         });
 
         it('subscribes again when the early attempt failed', () => {
@@ -260,9 +267,9 @@ describe('Adapter logic', () => {
 
             const errs = [];
             ctx.ensureEventSubscription(err => errs.push(err));
-            expect(pending, 'a failed early attempt must not decide the whole start').to.have.lengthOf(2);
+            assert.strictEqual(pending.length, 2, 'a failed early attempt must not decide the whole start');
             pending[1](null);
-            expect(errs).to.deep.equal([null]);
+            assert.deepStrictEqual(errs, [null]);
         });
 
         // Since the subscription moved to the front, a model_ready can arrive WHILE the
@@ -276,13 +283,15 @@ describe('Adapter logic', () => {
             ctx.pendingEvents = [];
 
             ctx.dss.emit('model_ready');
-            expect(ctx.restarts, 'restarting here would loop without ever writing a value').to.deep.equal([]);
-            expect(ctx.pendingModelReady, 'but it must not be forgotten either').to.equal(true);
+            assert.deepStrictEqual(ctx.restarts, [], 'restarting here would loop without ever writing a value');
+            assert.strictEqual(ctx.pendingModelReady, true, 'but it must not be forgotten either');
 
             ctx.replayStartupEvents();
-            expect(ctx.restarts, 'the structure read during that is stale, so it restarts after').to.deep.equal([
-                10000,
-            ]);
+            assert.deepStrictEqual(
+                ctx.restarts,
+                [10000],
+                'the structure read during that is stale, so it restarts after',
+            );
             ctx.dss.stop();
         });
 
@@ -295,7 +304,7 @@ describe('Adapter logic', () => {
             ctx.pendingEvents = null;
 
             ctx.dss.emit('model_ready');
-            expect(ctx.restarts).to.deep.equal([10000]);
+            assert.deepStrictEqual(ctx.restarts, [10000]);
             ctx.dss.stop();
         });
 
@@ -307,8 +316,8 @@ describe('Adapter logic', () => {
 
             const errs = [];
             ctx.ensureEventSubscription(err => errs.push(err));
-            expect(pending, 'the authoritative attempt starts a fresh subscription').to.have.lengthOf(2);
-            expect(ctx.restarts, 'restarting before a single value was written is a loop').to.deep.equal([]);
+            assert.strictEqual(pending.length, 2, 'the authoritative attempt starts a fresh subscription');
+            assert.deepStrictEqual(ctx.restarts, [], 'restarting before a single value was written is a loop');
         });
     });
 
@@ -320,16 +329,16 @@ describe('Adapter logic', () => {
         it('converts DSS strings to numbers', () => {
             const ctx = ctxWith({ 'apartment.sensors.outdoor.temperature': { common: { type: 'number' } } });
             const coerce = Digitalstrom.prototype.coerceStateValue.bind(ctx);
-            expect(coerce('apartment.sensors.outdoor.temperature', '18.5')).to.equal(18.5);
-            expect(coerce('apartment.sensors.outdoor.temperature', '-3')).to.equal(-3);
-            expect(coerce('apartment.sensors.outdoor.temperature', 21)).to.equal(21);
+            assert.strictEqual(coerce('apartment.sensors.outdoor.temperature', '18.5'), 18.5);
+            assert.strictEqual(coerce('apartment.sensors.outdoor.temperature', '-3'), -3);
+            assert.strictEqual(coerce('apartment.sensors.outdoor.temperature', 21), 21);
         });
 
         it('converts DSS strings to booleans', () => {
             const ctx = ctxWith({ 'apartment.states.daynight_indoors_state': { common: { type: 'boolean' } } });
             const coerce = Digitalstrom.prototype.coerceStateValue.bind(ctx);
-            expect(coerce('apartment.states.daynight_indoors_state', 'true')).to.equal(true);
-            expect(coerce('apartment.states.daynight_indoors_state', 'false')).to.equal(false);
+            assert.strictEqual(coerce('apartment.states.daynight_indoors_state', 'true'), true);
+            assert.strictEqual(coerce('apartment.states.daynight_indoors_state', 'false'), false);
         });
 
         it('uses the value mapping of the object for booleans', () => {
@@ -340,11 +349,11 @@ describe('Adapter logic', () => {
                 },
             });
             const coerce = Digitalstrom.prototype.coerceStateValue.bind(ctx);
-            expect(coerce('apartment.0.4.states.heating', 'active')).to.equal(true);
-            expect(coerce('apartment.0.4.states.heating', 'inactive')).to.equal(false);
+            assert.strictEqual(coerce('apartment.0.4.states.heating', 'active'), true);
+            assert.strictEqual(coerce('apartment.0.4.states.heating', 'inactive'), false);
             // an unmapped value must still end up as a boolean, never as a string
-            expect(coerce('apartment.0.4.states.heating', 'off')).to.equal(false);
-            expect(coerce('apartment.0.4.states.heating', 'on')).to.equal(true);
+            assert.strictEqual(coerce('apartment.0.4.states.heating', 'off'), false);
+            assert.strictEqual(coerce('apartment.0.4.states.heating', 'on'), true);
         });
 
         // A dSS20 1.19.13 answers zone.<id>.heating with "unknown" in all eight rooms of a
@@ -366,23 +375,24 @@ describe('Adapter logic', () => {
                 },
             });
             const coerce = Digitalstrom.prototype.coerceStateValue.bind(ctx);
-            expect(coerce('apartment.0.4.states.heating', 'unknown'), 'neither true nor false').to.equal(null);
-            expect(warnings, 'unknown is no stale vocabulary').to.deep.equal([]);
+            assert.strictEqual(coerce('apartment.0.4.states.heating', 'unknown'), null, 'neither true nor false');
+            assert.deepStrictEqual(warnings, [], 'unknown is no stale vocabulary');
             // the next word of the dSS sets the state again
-            expect(coerce('apartment.0.4.states.heating', 'active')).to.equal(true);
-            expect(coerce('apartment.0.4.states.heating', 'inactive')).to.equal(false);
+            assert.strictEqual(coerce('apartment.0.4.states.heating', 'active'), true);
+            assert.strictEqual(coerce('apartment.0.4.states.heating', 'inactive'), false);
         });
 
         it('writes "unknown" as null for a boolean state without a vocabulary as well', () => {
             // status.malfunction of a group: true would announce a malfunction nobody reported
             const id = 'apartment.groups.64.states.status.malfunction';
             const ctx = ctxWith({ [id]: { common: { type: 'boolean' }, native: {} } });
-            expect(Digitalstrom.prototype.coerceStateValue.call(ctx, id, 'unknown')).to.equal(null);
+            assert.strictEqual(Digitalstrom.prototype.coerceStateValue.call(ctx, id, 'unknown'), null);
         });
 
         it('keeps "unknown" as text for a state that carries the wording of the dSS', () => {
             const ctx = ctxWith({ 'devices.c1.d1.states.0': { common: { type: 'string' } } });
-            expect(Digitalstrom.prototype.coerceStateValue.call(ctx, 'devices.c1.d1.states.0', 'unknown')).to.equal(
+            assert.strictEqual(
+                Digitalstrom.prototype.coerceStateValue.call(ctx, 'devices.c1.d1.states.0', 'unknown'),
                 'unknown',
             );
         });
@@ -392,7 +402,7 @@ describe('Adapter logic', () => {
         it('keeps "unknown" as text for a user state', () => {
             const id = 'apartment.userStates.x';
             const ctx = ctxWith({ [id]: { common: { type: 'string' } } });
-            expect(Digitalstrom.prototype.coerceStateValue.call(ctx, id, 'unknown')).to.equal('unknown');
+            assert.strictEqual(Digitalstrom.prototype.coerceStateValue.call(ctx, id, 'unknown'), 'unknown');
         });
 
         it('still reports a word outside the vocabulary, once', () => {
@@ -409,28 +419,29 @@ describe('Adapter logic', () => {
                 },
             });
             const coerce = Digitalstrom.prototype.coerceStateValue.bind(ctx);
-            expect(coerce('apartment.0.4.states.heating', 'off')).to.equal(false);
-            expect(coerce('apartment.0.4.states.heating', 'off')).to.equal(false);
-            expect(warnings).to.have.lengthOf(1);
-            expect(warnings[0]).to.contain('"off"').and.to.contain('apartment.0.4.states.heating');
+            assert.strictEqual(coerce('apartment.0.4.states.heating', 'off'), false);
+            assert.strictEqual(coerce('apartment.0.4.states.heating', 'off'), false);
+            assert.strictEqual(warnings.length, 1);
+            assert.ok(warnings[0].includes('"off"'));
+            assert.ok(warnings[0].includes('apartment.0.4.states.heating'));
         });
 
         it('converts numbers to strings for string states', () => {
             const ctx = ctxWith({ 'some.state': { common: { type: 'string' } } });
-            expect(Digitalstrom.prototype.coerceStateValue.call(ctx, 'some.state', 5)).to.equal('5');
+            assert.strictEqual(Digitalstrom.prototype.coerceStateValue.call(ctx, 'some.state', 5), '5');
         });
 
         it('keeps null and undefined and passes unknown ids through', () => {
             const ctx = ctxWith({ 'a.number': { common: { type: 'number' } } });
             const coerce = Digitalstrom.prototype.coerceStateValue.bind(ctx);
-            expect(coerce('a.number', null)).to.equal(null);
-            expect(coerce('a.number', undefined)).to.equal(undefined);
-            expect(coerce('unknown.id', 'text')).to.equal('text');
+            assert.strictEqual(coerce('a.number', null), null);
+            assert.strictEqual(coerce('a.number', undefined), undefined);
+            assert.strictEqual(coerce('unknown.id', 'text'), 'text');
         });
 
         it('maps a non numeric string to null instead of NaN', () => {
             const ctx = ctxWith({ 'a.number': { common: { type: 'number' } } });
-            expect(Digitalstrom.prototype.coerceStateValue.call(ctx, 'a.number', 'n/a')).to.equal(null);
+            assert.strictEqual(Digitalstrom.prototype.coerceStateValue.call(ctx, 'a.number', 'n/a'), null);
         });
 
         it('converts only the value of a state object with timestamp', () => {
@@ -440,7 +451,7 @@ describe('Adapter logic', () => {
                 val: '54.4',
                 ts: 1700000000000,
             });
-            expect(res).to.deep.equal({ val: 54.4, ts: 1700000000000 });
+            assert.deepStrictEqual(res, { val: 54.4, ts: 1700000000000 });
         });
     });
 
@@ -456,7 +467,7 @@ describe('Adapter logic', () => {
         it('forwards a state change before the stop', () => {
             const ctx = changeContext();
             Digitalstrom.prototype.onStateChange.call(ctx, 'digitalstrom.0.x', { val: 5, ack: false });
-            expect(ctx.handled).to.deep.equal([['digitalstrom.0.x', 5]]);
+            assert.deepStrictEqual(ctx.handled, [['digitalstrom.0.x', 5]]);
         });
 
         it('does not turn a null into a command', () => {
@@ -467,21 +478,23 @@ describe('Adapter logic', () => {
                 val: null,
                 ack: false,
             });
-            expect(ctx.handled).to.deep.equal([]);
+            assert.deepStrictEqual(ctx.handled, []);
             Digitalstrom.prototype.onStateChange.call(ctx, 'digitalstrom.0.apartment.0.4.states.heating', {
                 val: false,
                 ack: false,
             });
-            expect(ctx.handled, 'a real false still is a command').to.deep.equal([
-                ['digitalstrom.0.apartment.0.4.states.heating', false],
-            ]);
+            assert.deepStrictEqual(
+                ctx.handled,
+                [['digitalstrom.0.apartment.0.4.states.heating', false]],
+                'a real false still is a command',
+            );
         });
 
         // Regression: the echo arrives as "digitalstrom.0.devices.X.PowerConsumption", the
         // structure tracks "devices.X.PowerConsumption". Stored under the full id, a value
         // another adapter wrote was never seen, and a skipped poll left it standing.
         it('tracks a foreign write under the id the structure uses', async () => {
-            const DSSStructure = require('../lib/dssStructure');
+            const { DSSStructure } = require('../build/lib/dssStructure');
             const writes = [];
             const struct = /** @type {any} */ (
                 new DSSStructure({
@@ -515,12 +528,15 @@ describe('Adapter logic', () => {
                 val: 999,
                 ack: true,
             });
-            expect(struct.publishedValues.has('digitalstrom.0.devices.meter1.PowerConsumption')).to.equal(false);
+            assert.strictEqual(struct.publishedValues.has('digitalstrom.0.devices.meter1.PowerConsumption'), false);
             await poll();
-            expect(writes.filter(w => w[0] === 'devices.meter1.PowerConsumption')).to.deep.equal([
-                ['devices.meter1.PowerConsumption', 0],
-                ['devices.meter1.PowerConsumption', 0],
-            ]);
+            assert.deepStrictEqual(
+                writes.filter(w => w[0] === 'devices.meter1.PowerConsumption'),
+                [
+                    ['devices.meter1.PowerConsumption', 0],
+                    ['devices.meter1.PowerConsumption', 0],
+                ],
+            );
         });
 
         it('logs a command at debug and an acknowledged value at silly', () => {
@@ -534,7 +550,7 @@ describe('Adapter logic', () => {
             };
             Digitalstrom.prototype.onStateChange.call(ctx, 'digitalstrom.0.x', { val: 5, ack: false });
             Digitalstrom.prototype.onStateChange.call(ctx, 'digitalstrom.0.info.apiActivity', { val: '{}', ack: true });
-            expect(lines).to.deep.equal([
+            assert.deepStrictEqual(lines, [
                 ['debug', 'state digitalstrom.0.x changed: 5 (ack = false)'],
                 ['silly', 'state digitalstrom.0.info.apiActivity changed: {} (ack = true)'],
             ]);
@@ -544,7 +560,7 @@ describe('Adapter logic', () => {
             const ctx = changeContext();
             ctx.stopping = true;
             Digitalstrom.prototype.onStateChange.call(ctx, 'digitalstrom.0.x', { val: 5, ack: false });
-            expect(ctx.handled, 'no new command may be started during the unload').to.deep.equal([]);
+            assert.deepStrictEqual(ctx.handled, [], 'no new command may be started during the unload');
         });
 
         it('ignores a state change after the adapter stopped', () => {
@@ -552,11 +568,11 @@ describe('Adapter logic', () => {
             ctx.stopping = true;
             ctx.stopped = true;
             Digitalstrom.prototype.onStateChange.call(ctx, 'digitalstrom.0.x', { val: 5, ack: false });
-            expect(ctx.handled).to.deep.equal([]);
+            assert.deepStrictEqual(ctx.handled, []);
         });
 
         it('stops the queue during the unload instead of only clearing it', done => {
-            const DSSQueue = require('../lib/dssQueue');
+            const { DSSQueue } = require('../build/lib/dssQueue');
             const queue = new DSSQueue({
                 logger: silentLog,
                 prioTimeouts: { high: 1, medium: 2, low: 3 },
@@ -570,7 +586,7 @@ describe('Adapter logic', () => {
                 stopGuardTimeout: 20,
             });
             Digitalstrom.prototype.stopAdapter.call(ctx, () => {
-                expect(queue.stopped, 'the queue must be closed after the unload').to.equal(true);
+                assert.strictEqual(queue.stopped, true, 'the queue must be closed after the unload');
                 // a late command must not reach the already closed DSS client
                 queue.pushQueryQueue(
                     'c1',
@@ -578,7 +594,7 @@ describe('Adapter logic', () => {
                     { dssClass: 'zone', dssFunction: 'callScene', params: {} },
                     'high',
                     err => {
-                        expect(err.shutdown).to.equal(true);
+                        assert.strictEqual(err.shutdown, true);
                         done();
                     },
                 );
@@ -622,7 +638,7 @@ describe('Adapter logic', () => {
             it(`keeps the objects for ${label}`, done => {
                 const ctx = deleteContext(value);
                 ctx.clearAdditionalObjects(() => {
-                    expect(ctx.deleted, `${label} must never delete objects`).to.deep.equal([]);
+                    assert.deepStrictEqual(ctx.deleted, [], `${label} must never delete objects`);
                     done();
                 });
             });
@@ -636,7 +652,7 @@ describe('Adapter logic', () => {
             it(`deletes the objects only for ${label}`, done => {
                 const ctx = deleteContext(value);
                 ctx.clearAdditionalObjects(() => {
-                    expect(ctx.deleted).to.deep.equal(['devices.a.b', 'devices.c.d']);
+                    assert.deepStrictEqual(ctx.deleted, ['devices.a.b', 'devices.c.d']);
                     done();
                 });
             });
@@ -662,31 +678,31 @@ describe('Adapter logic', () => {
                 validateCertificate: 'false',
             });
             ctx.normalizeConfig();
-            expect(ctx.config.deleteUnknownObjects).to.equal(false);
-            expect(ctx.config.initializeOutputValues).to.equal(false);
-            expect(ctx.config.usePresetValues).to.equal(false);
-            expect(ctx.config.validateCertificate).to.equal(false);
-            expect(ctx.warnings, 'a clean string value needs no warning').to.deep.equal([]);
+            assert.strictEqual(ctx.config.deleteUnknownObjects, false);
+            assert.strictEqual(ctx.config.initializeOutputValues, false);
+            assert.strictEqual(ctx.config.usePresetValues, false);
+            assert.strictEqual(ctx.config.validateCertificate, false);
+            assert.deepStrictEqual(ctx.warnings, [], 'a clean string value needs no warning');
         });
 
         it('applies the documented defaults when values are missing', () => {
             const ctx = configContext({});
             ctx.normalizeConfig();
-            expect(ctx.config.usePresetValues, 'default true').to.equal(true);
-            expect(ctx.config.initializeOutputValues, 'default true').to.equal(true);
-            expect(ctx.config.deleteUnknownObjects, 'destructive - default false').to.equal(false);
-            expect(ctx.config.validateCertificate, 'documented default false').to.equal(false);
-            expect(ctx.warnings, 'missing values are normal, no warning').to.deep.equal([]);
+            assert.strictEqual(ctx.config.usePresetValues, true, 'default true');
+            assert.strictEqual(ctx.config.initializeOutputValues, true, 'default true');
+            assert.strictEqual(ctx.config.deleteUnknownObjects, false, 'destructive - default false');
+            assert.strictEqual(ctx.config.validateCertificate, false, 'documented default false');
+            assert.deepStrictEqual(ctx.warnings, [], 'missing values are normal, no warning');
         });
 
         it('warns about uninterpretable values instead of failing silently', () => {
             const ctx = configContext({ validateCertificate: 'vielleicht', deleteUnknownObjects: {} });
             ctx.normalizeConfig();
-            expect(ctx.config.validateCertificate).to.equal(false);
-            expect(ctx.config.deleteUnknownObjects).to.equal(false);
-            expect(ctx.warnings).to.have.lengthOf(2);
-            expect(ctx.warnings.join('\n')).to.contain('validateCertificate');
-            expect(ctx.warnings.join('\n')).to.contain('deleteUnknownObjects');
+            assert.strictEqual(ctx.config.validateCertificate, false);
+            assert.strictEqual(ctx.config.deleteUnknownObjects, false);
+            assert.strictEqual(ctx.warnings.length, 2);
+            assert.ok(ctx.warnings.join('\n').includes('validateCertificate'));
+            assert.ok(ctx.warnings.join('\n').includes('deleteUnknownObjects'));
         });
 
         it('counts a named vDC channel read as an output read', () => {
@@ -704,10 +720,10 @@ describe('Adapter logic', () => {
             count('request', '/json/zone/callScene?id=4&sceneNumber=5');
 
             const outputReads = counted.filter(m => m === 'classic.outputReads').length;
-            expect(outputReads, 'all three spellings of an output read count').to.equal(3);
-            expect(counted.filter(m => m === 'classic.meterReads')).to.have.lengthOf(1);
-            expect(counted.filter(m => m === 'classic.commands')).to.have.lengthOf(1);
-            expect(counted.filter(m => m === 'classic.requests')).to.have.lengthOf(5);
+            assert.strictEqual(outputReads, 3, 'all three spellings of an output read count');
+            assert.strictEqual(counted.filter(m => m === 'classic.meterReads').length, 1);
+            assert.strictEqual(counted.filter(m => m === 'classic.commands').length, 1);
+            assert.strictEqual(counted.filter(m => m === 'classic.requests').length, 5);
         });
 
         it('keeps real booleans untouched', () => {
@@ -717,10 +733,10 @@ describe('Adapter logic', () => {
                 validateCertificate: true,
             });
             ctx.normalizeConfig();
-            expect(ctx.config.deleteUnknownObjects).to.equal(true);
-            expect(ctx.config.usePresetValues).to.equal(false);
-            expect(ctx.config.validateCertificate).to.equal(true);
-            expect(ctx.warnings).to.deep.equal([]);
+            assert.strictEqual(ctx.config.deleteUnknownObjects, true);
+            assert.strictEqual(ctx.config.usePresetValues, false);
+            assert.strictEqual(ctx.config.validateCertificate, true);
+            assert.deepStrictEqual(ctx.warnings, []);
         });
     });
 
@@ -755,7 +771,7 @@ describe('Adapter logic', () => {
                 },
                 /** @param {string} id */
                 getForeignObjectAsync: async id => {
-                    expect(id).to.equal('system.adapter.digitalstrom.0');
+                    assert.strictEqual(id, 'system.adapter.digitalstrom.0');
                     return storedNative ? { native: storedNative } : null;
                 },
                 /**
@@ -776,15 +792,16 @@ describe('Adapter logic', () => {
                 { host: '192.168.1.10', appToken: VALID_APP_TOKEN },
             );
             const migrated = await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx);
-            expect(migrated).to.equal(true);
-            expect(ctx.config.appToken).to.equal(VALID_APP_TOKEN);
-            expect(ctx.written).to.deep.equal([
+            assert.strictEqual(migrated, true);
+            assert.strictEqual(ctx.config.appToken, VALID_APP_TOKEN);
+            assert.deepStrictEqual(ctx.written, [
                 {
                     id: 'system.adapter.digitalstrom.0',
                     obj: { native: { appToken: `$/aes-192-cbc:iv:${VALID_APP_TOKEN}` } },
                 },
             ]);
-            expect(ctx.infos.join('\n')).to.contain('appToken').and.not.contain(VALID_APP_TOKEN);
+            assert.ok(ctx.infos.join('\n').includes('appToken'));
+            assert.ok(!ctx.infos.join('\n').includes(VALID_APP_TOKEN));
         });
 
         it('leaves a correctly encrypted token alone', async () => {
@@ -792,14 +809,14 @@ describe('Adapter logic', () => {
                 { host: '192.168.1.10', appToken: VALID_APP_TOKEN },
                 { host: '192.168.1.10', appToken: '$/aes-192-cbc:0011:2233' },
             );
-            expect(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx)).to.equal(false);
-            expect(ctx.written).to.deep.equal([]);
+            assert.strictEqual(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx), false);
+            assert.deepStrictEqual(ctx.written, []);
         });
 
         it('does nothing without a token', async () => {
             const ctx = createMigrationContext({ host: '192.168.1.10', appToken: '' }, { appToken: '' });
-            expect(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx)).to.equal(false);
-            expect(ctx.written).to.deep.equal([]);
+            assert.strictEqual(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx), false);
+            assert.deepStrictEqual(ctx.written, []);
         });
 
         it('does not touch a token that is unreadable in the stored object as well', async () => {
@@ -809,9 +826,9 @@ describe('Adapter logic', () => {
                 { host: '192.168.1.10', appToken: GARBLED },
                 { host: '192.168.1.10', appToken: '$/aes-192-cbc:0011:2233' },
             );
-            expect(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx)).to.equal(false);
-            expect(ctx.config.appToken).to.equal(GARBLED);
-            expect(ctx.written).to.deep.equal([]);
+            assert.strictEqual(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx), false);
+            assert.strictEqual(ctx.config.appToken, GARBLED);
+            assert.deepStrictEqual(ctx.written, []);
         });
 
         it('migrates the Smart Home API key the same way', async () => {
@@ -820,9 +837,9 @@ describe('Adapter logic', () => {
                 { host: '192.168.1.10', appToken: VALID_APP_TOKEN, smartHomeApiKey: GARBLED },
                 { host: '192.168.1.10', appToken: '$/aes-192-cbc:0011:2233', smartHomeApiKey: apiKey },
             );
-            expect(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx)).to.equal(true);
-            expect(ctx.config.smartHomeApiKey).to.equal(apiKey);
-            expect(ctx.written[0].obj).to.deep.equal({
+            assert.strictEqual(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx), true);
+            assert.strictEqual(ctx.config.smartHomeApiKey, apiKey);
+            assert.deepStrictEqual(ctx.written[0].obj, {
                 native: { smartHomeApiKey: `$/aes-192-cbc:iv:${apiKey}` },
             });
         });
@@ -832,8 +849,8 @@ describe('Adapter logic', () => {
             ctx.getForeignObjectAsync = async () => {
                 throw new Error('db not reachable');
             };
-            expect(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx)).to.equal(false);
-            expect(ctx.warns.join('\n')).to.contain('db not reachable');
+            assert.strictEqual(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx), false);
+            assert.ok(ctx.warns.join('\n').includes('db not reachable'));
         });
     });
 
@@ -856,7 +873,7 @@ describe('Adapter logic', () => {
 
         invalidHosts.forEach(([label, host]) => {
             it(`buildBaseUrl rejects ${label}`, () => {
-                expect(() => DSS.buildBaseUrl(/** @type {string} */ (host))).to.throw();
+                assert.throws(() => DSS.buildBaseUrl(/** @type {string} */ (host)));
             });
         });
 
@@ -894,16 +911,17 @@ describe('Adapter logic', () => {
                     const ctx = startContext(host);
                     ctx.log.errors = [];
                     ctx.errors = ctx.log.errors;
-                    expect(() => Digitalstrom.prototype.main.call(ctx)).to.not.throw();
+                    assert.doesNotThrow(() => Digitalstrom.prototype.main.call(ctx));
                     // no DSS client, no timers, no restart loop. An empty host is already
                     // rejected by the config check before the client is built, so dss stays unset.
-                    expect(
+                    assert.strictEqual(
                         ctx.dss === null || ctx.dss === undefined,
+                        true,
                         'no half initialized client must be kept',
-                    ).to.equal(true);
-                    expect(ctx.startupTimeout, 'no watchdog timer must be started').to.equal(undefined);
-                    expect(ctx.restarts, 'an invalid host must not trigger a restart loop').to.deep.equal([]);
-                    expect(ctx.states['info.connection'], 'connection must be reported as false').to.equal(false);
+                    );
+                    assert.strictEqual(ctx.startupTimeout, undefined, 'no watchdog timer must be started');
+                    assert.deepStrictEqual(ctx.restarts, [], 'an invalid host must not trigger a restart loop');
+                    assert.strictEqual(ctx.states['info.connection'], false, 'connection must be reported as false');
                 });
             });
 
@@ -913,9 +931,9 @@ describe('Adapter logic', () => {
                 // Same shape as a real token so only the host error is reported
                 ctx.config.appToken = 'deadbeef'.repeat(8);
                 Digitalstrom.prototype.main.call(ctx);
-                expect(ctx.log.errors).to.have.lengthOf(1);
-                expect(ctx.log.errors[0]).to.contain('only https and http are supported');
-                expect(ctx.log.errors[0]).to.not.contain('deadbeef');
+                assert.strictEqual(ctx.log.errors.length, 1);
+                assert.ok(ctx.log.errors[0].includes('only https and http are supported'));
+                assert.ok(!ctx.log.errors[0].includes('deadbeef'));
             });
 
             // A token js-controller could not decrypt comes back as garbage. Without this
@@ -926,10 +944,10 @@ describe('Adapter logic', () => {
                 ctx.config.appToken = '\u0012\u00a4garbled-token\u0099';
                 Digitalstrom.prototype.main.call(ctx);
                 const hint = ctx.log.errors.find(msg => msg.includes('does not look like a valid'));
-                expect(hint, 'the user must get an actionable message').to.be.a('string');
-                expect(hint).to.contain('enter the App-Token again');
+                assert.strictEqual(typeof hint, 'string', 'the user must get an actionable message');
+                assert.ok(hint.includes('enter the App-Token again'));
                 // The login is still attempted, the check never blocks the start
-                expect(ctx.dss, 'the client must still be created').to.not.equal(null);
+                assert.notStrictEqual(ctx.dss, null, 'the client must still be created');
                 ctx.dss.stop();
                 clearTimeout(ctx.startupTimeout);
                 // main() armed the activity publisher - on the bare ctx it would fire
@@ -938,20 +956,20 @@ describe('Adapter logic', () => {
             });
 
             it('accepts a real looking app token without complaining', () => {
-                expect(Digitalstrom.looksLikeAppToken('deadbeef'.repeat(8))).to.equal(true);
-                expect(Digitalstrom.looksLikeAppToken('ABCDEF0123456789'.repeat(2))).to.equal(true);
-                expect(Digitalstrom.looksLikeAppToken('garbled token'), 'spaces are impossible').to.equal(false);
-                expect(Digitalstrom.looksLikeAppToken('abc'), 'too short').to.equal(false);
-                expect(Digitalstrom.looksLikeAppToken(''), 'empty').to.equal(false);
-                expect(Digitalstrom.looksLikeAppToken(undefined)).to.equal(false);
+                assert.strictEqual(Digitalstrom.looksLikeAppToken('deadbeef'.repeat(8)), true);
+                assert.strictEqual(Digitalstrom.looksLikeAppToken('ABCDEF0123456789'.repeat(2)), true);
+                assert.strictEqual(Digitalstrom.looksLikeAppToken('garbled token'), false, 'spaces are impossible');
+                assert.strictEqual(Digitalstrom.looksLikeAppToken('abc'), false, 'too short');
+                assert.strictEqual(Digitalstrom.looksLikeAppToken(''), false, 'empty');
+                assert.strictEqual(Digitalstrom.looksLikeAppToken(undefined), false);
             });
 
             it('starts normally with a valid host', () => {
                 const ctx = startContext('192.168.1.10');
                 ctx.log.errors = [];
                 Digitalstrom.prototype.main.call(ctx);
-                expect(ctx.dss, 'a valid host must create the client').to.not.equal(null);
-                expect(ctx.log.errors).to.deep.equal([]);
+                assert.notStrictEqual(ctx.dss, null, 'a valid host must create the client');
+                assert.deepStrictEqual(ctx.log.errors, []);
                 ctx.dss.stop();
                 clearTimeout(ctx.startupTimeout);
                 clearInterval(ctx.apiActivityTimer);
@@ -979,12 +997,12 @@ describe('Adapter logic', () => {
             invalidHosts.forEach(([label, host]) => {
                 it(`answers the admin dialog instead of crashing with ${label}`, () => {
                     const ctx = messageContext(host);
-                    expect(() => Digitalstrom.prototype.onMessage.call(ctx, ctx.msg)).to.not.throw();
-                    expect(ctx.answers, 'the dialog must always get an answer').to.have.lengthOf(1);
-                    expect(ctx.answers[0].result).to.have.property('error');
-                    expect(ctx.answers[0].callback).to.deep.equal({ id: 1 });
+                    assert.doesNotThrow(() => Digitalstrom.prototype.onMessage.call(ctx, ctx.msg));
+                    assert.strictEqual(ctx.answers.length, 1, 'the dialog must always get an answer');
+                    assert.ok('error' in ctx.answers[0].result);
+                    assert.deepStrictEqual(ctx.answers[0].callback, { id: 1 });
                     // the password must never end up in the answer
-                    expect(JSON.stringify(ctx.answers[0].result)).to.not.contain('p@ss');
+                    assert.ok(!JSON.stringify(ctx.answers[0].result).includes('p@ss'));
                 });
             });
 
@@ -996,8 +1014,8 @@ describe('Adapter logic', () => {
                 });
                 Digitalstrom.prototype.onMessage.call(ctx, ctx.msg);
                 const all = logged.join('\n');
-                expect(all).to.not.contain('p@ss');
-                expect(all, 'the username is part of the credentials').to.not.contain('user');
+                assert.ok(!all.includes('p@ss'));
+                assert.ok(!all.includes('user'), 'the username is part of the credentials');
             });
         });
     });
@@ -1028,12 +1046,12 @@ describe('Adapter logic', () => {
 
             Digitalstrom.prototype.registerObjects.call(ctx);
 
-            expect(created).to.deep.equal([
+            assert.deepStrictEqual(created, [
                 ['apartment.0.4.states.heating', false],
                 ['apartment.sensors.outdoor.temperature', { val: 18.5, ts: 42 }],
             ]);
             // value/onChange must not end up in the created object
-            expect(dssObjects['apartment.0.4.states.heating']).to.not.have.property('value');
+            assert.ok(!('value' in dssObjects['apartment.0.4.states.heating']));
         });
 
         // Production export: 274 states had no common.write at all - the Hue channels,
@@ -1074,20 +1092,22 @@ describe('Adapter logic', () => {
 
             Digitalstrom.prototype.registerObjects.call(ctx);
 
-            expect(created['devices.m1.hue1.hue'].common.write, 'no handler - read-only').to.equal(false);
-            expect(created['devices.m1.ge1.brightness'].common.write).to.equal(true);
-            expect(created['devices.m1.ge1.brightness'].onChange, 'the handler still reaches the helper').to.equal(
+            assert.strictEqual(created['devices.m1.hue1.hue'].common.write, false, 'no handler - read-only');
+            assert.strictEqual(created['devices.m1.ge1.brightness'].common.write, true);
+            assert.strictEqual(
+                created['devices.m1.ge1.brightness'].onChange,
                 handler,
+                'the handler still reaches the helper',
             );
-            expect(created['apartment.states.presence'].common.write, 'an explicit flag stays').to.equal(false);
-            expect(created['devices.m1.ge1'].common, 'only states carry the flag').to.not.have.property('write');
+            assert.strictEqual(created['apartment.states.presence'].common.write, false, 'an explicit flag stays');
+            assert.ok(!('write' in created['devices.m1.ge1'].common), 'only states carry the flag');
         });
 
         // The handler of a light, a shade or a single channel device is hung onto the
         // generic output channel AFTER addStateObject - deciding the flag any earlier would
         // freeze it at false, because the objectHelper keeps an explicit value
         it('gives a real device structure an explicit and correct flag on every state', async () => {
-            const DSSStructure = require('../lib/dssStructure');
+            const { DSSStructure } = require('../build/lib/dssStructure');
             const EventEmitter = require('node:events');
             const struct = new DSSStructure({
                 dss: new EventEmitter(),
@@ -1166,29 +1186,29 @@ describe('Adapter logic', () => {
 
             const write = id => created[`devices.m1.${id}`].common.write;
             ['brightness', 'hue', 'saturation', 'colortemp', 'x', 'y'].forEach(channel =>
-                expect(write(`hue1.${channel}`), `multi channel vDC ${channel}`).to.equal(false),
+                assert.strictEqual(write(`hue1.${channel}`), false, `multi channel vDC ${channel}`),
             );
-            expect(write('lwv1.brightness'), 'single channel device').to.equal(true);
-            expect(write('ge1.brightness'), 'light').to.equal(true);
-            expect(write('ge1.state')).to.equal(true);
-            expect(write('gr1.shadePositionOutside'), 'shade').to.equal(true);
-            expect(write('gr1.shadeOpeningAngleOutside')).to.equal(true);
-            expect(write('gr1.shadePositionIndoor'), 'no handler for the indoor channels').to.equal(false);
-            expect(write('gr1.shadeOpeningAngleIndoor')).to.equal(false);
-            expect(write('gr1.sensors.0'), 'device sensor').to.equal(false);
-            expect(created['devices.m1.gr1.sensors.1'].common.role).to.equal('level.temperature');
-            expect(write('gr1.sensors.1'), 'a set point reported by a device').to.equal(false);
-            expect(write('sw1.powerLevel'), 'joker output without handler').to.equal(false);
-            expect(write('sw1.buttonClickType')).to.equal(false);
+            assert.strictEqual(write('lwv1.brightness'), true, 'single channel device');
+            assert.strictEqual(write('ge1.brightness'), true, 'light');
+            assert.strictEqual(write('ge1.state'), true);
+            assert.strictEqual(write('gr1.shadePositionOutside'), true, 'shade');
+            assert.strictEqual(write('gr1.shadeOpeningAngleOutside'), true);
+            assert.strictEqual(write('gr1.shadePositionIndoor'), false, 'no handler for the indoor channels');
+            assert.strictEqual(write('gr1.shadeOpeningAngleIndoor'), false);
+            assert.strictEqual(write('gr1.sensors.0'), false, 'device sensor');
+            assert.strictEqual(created['devices.m1.gr1.sensors.1'].common.role, 'level.temperature');
+            assert.strictEqual(write('gr1.sensors.1'), false, 'a set point reported by a device');
+            assert.strictEqual(write('sw1.powerLevel'), false, 'joker output without handler');
+            assert.strictEqual(write('sw1.buttonClickType'), false);
 
             Object.keys(created)
                 .filter(id => struct.dssObjects[id].type === 'state')
                 .forEach(id => {
                     const { common, onChange } = created[id];
-                    expect(common.write, `${id} needs an explicit flag`).to.be.a('boolean');
+                    assert.strictEqual(typeof common.write, 'boolean', `${id} needs an explicit flag`);
                     // A writable state nobody handles would swallow every write silently
                     if (common.write) {
-                        expect(onChange, `${id} is writable without a handler`).to.be.a('function');
+                        assert.strictEqual(typeof onChange, 'function', `${id} is writable without a handler`);
                     }
                 });
             struct.clearTimeouts();
@@ -1225,15 +1245,15 @@ describe('Adapter logic', () => {
 
             Digitalstrom.prototype.registerObjects.call(ctx);
 
-            expect(preserved).to.deep.equal({
+            assert.deepStrictEqual(preserved, {
                 'devices.m1': [],
                 'devices.m2': ['name'],
                 'devices.m3': ['name'],
                 'devices.m4': ['name'],
                 'apartment.0.5': [],
             });
-            expect(infos.filter(msg => msg.includes('corrected'))).to.have.lengthOf(2);
-            expect(infos.join('\n')).to.contain('"Schlafen &amp; Bad" to "Schlafen & Bad"');
+            assert.strictEqual(infos.filter(msg => msg.includes('corrected')).length, 2);
+            assert.ok(infos.join('\n').includes('"Schlafen &amp; Bad" to "Schlafen & Bad"'));
         });
     });
 
@@ -1243,7 +1263,7 @@ describe('Adapter logic', () => {
         // repair compared the stored name with what getCircuits answered - the very same
         // escaped text - and found nothing to do.
         it('repairs a stored name when getCircuits answers with the same codes', () => {
-            const DSSStructure = require('../lib/dssStructure');
+            const { DSSStructure } = require('../build/lib/dssStructure');
             const struct = /** @type {any} */ (
                 new DSSStructure({ dss: {}, dssQueue: {}, adapter: { log: silentLog, config: {} } })
             );
@@ -1266,31 +1286,38 @@ describe('Adapter logic', () => {
 
             Digitalstrom.prototype.registerObjects.call(ctx);
 
-            expect(preserved).to.deep.equal({
+            assert.deepStrictEqual(preserved, {
                 'devices.m1': [[], 'Büro & Duschbad'],
                 'devices.m2': [['name'], 'Wohnen, Flur & Garten'],
             });
-            expect(infos).to.contain('Name of devices.m1 corrected from "Büro &amp; Duschbad" to "Büro & Duschbad"');
+            assert.ok(infos.includes('Name of devices.m1 corrected from "Büro &amp; Duschbad" to "Büro & Duschbad"'));
         });
     });
 
     describe('isDssEscapedName', () => {
         it('decodes exactly what escapeHTML() of the dSS produced, in one pass', () => {
-            expect(Digitalstrom.decodeDssEntities('Wohnen, Flur &amp; Garten')).to.equal('Wohnen, Flur & Garten');
-            expect(Digitalstrom.decodeDssEntities('&quot;a&quot; &#039;b&#039; &lt;c&gt;')).to.equal(`"a" 'b' <c>`);
-            expect(Digitalstrom.decodeDssEntities('&amp;lt;'), 'a literal "&lt;" stays one').to.equal('&lt;');
-            expect(Digitalstrom.decodeDssEntities('A&nbsp;B'), 'the dSS never produced it').to.equal('A&nbsp;B');
-            expect(Digitalstrom.decodeDssEntities('Küche')).to.equal('Küche');
+            assert.strictEqual(Digitalstrom.decodeDssEntities('Wohnen, Flur &amp; Garten'), 'Wohnen, Flur & Garten');
+            assert.strictEqual(Digitalstrom.decodeDssEntities('&quot;a&quot; &#039;b&#039; &lt;c&gt;'), `"a" 'b' <c>`);
+            assert.strictEqual(Digitalstrom.decodeDssEntities('&amp;lt;'), '&lt;', 'a literal "&lt;" stays one');
+            assert.strictEqual(Digitalstrom.decodeDssEntities('A&nbsp;B'), 'A&nbsp;B', 'the dSS never produced it');
+            assert.strictEqual(Digitalstrom.decodeDssEntities('Küche'), 'Küche');
         });
 
         it('only accepts the escaped form of the current name', () => {
-            expect(Digitalstrom.isDssEscapedName('Schlafen &amp; Bad', 'Schlafen & Bad')).to.equal(true);
-            expect(Digitalstrom.isDssEscapedName('Schlafen &amp; Bad Scenes', 'Schlafen & Bad Scenes')).to.equal(true);
-            expect(Digitalstrom.isDssEscapedName('Schlafen & Bad', 'Schlafen & Bad'), 'already right').to.equal(false);
-            expect(Digitalstrom.isDssEscapedName('Mein Bad', 'Schlafen & Bad'), 'user rename').to.equal(false);
-            expect(Digitalstrom.isDssEscapedName('A & B', 'A &amp; B'), 'never towards the entity').to.equal(false);
-            expect(Digitalstrom.isDssEscapedName({ de: 'Bad &amp; WC' }, 'Bad & WC'), 'translated').to.equal(false);
-            expect(Digitalstrom.isDssEscapedName(undefined, 'Bad & WC'), 'new object').to.equal(false);
+            assert.strictEqual(Digitalstrom.isDssEscapedName('Schlafen &amp; Bad', 'Schlafen & Bad'), true);
+            assert.strictEqual(
+                Digitalstrom.isDssEscapedName('Schlafen &amp; Bad Scenes', 'Schlafen & Bad Scenes'),
+                true,
+            );
+            assert.strictEqual(
+                Digitalstrom.isDssEscapedName('Schlafen & Bad', 'Schlafen & Bad'),
+                false,
+                'already right',
+            );
+            assert.strictEqual(Digitalstrom.isDssEscapedName('Mein Bad', 'Schlafen & Bad'), false, 'user rename');
+            assert.strictEqual(Digitalstrom.isDssEscapedName('A & B', 'A &amp; B'), false, 'never towards the entity');
+            assert.strictEqual(Digitalstrom.isDssEscapedName({ de: 'Bad &amp; WC' }, 'Bad & WC'), false, 'translated');
+            assert.strictEqual(Digitalstrom.isDssEscapedName(undefined, 'Bad & WC'), false, 'new object');
         });
     });
 
@@ -1316,7 +1343,7 @@ describe('Adapter logic', () => {
             ctx.setInitialValues(() => {
                 // This is the only write at startup: objectHelper does not write a null
                 // initial value, and it replaces the true of the earlier versions
-                expect(written).to.deep.equal([['apartment.0.4.states.heating', null, true]]);
+                assert.deepStrictEqual(written, [['apartment.0.4.states.heating', null, true]]);
                 done();
             });
         });
@@ -1348,14 +1375,14 @@ describe('Adapter logic', () => {
         it('keeps clickType 0 instead of turning it into -1', done => {
             const { ctx, dss } = subscribedContext();
             Digitalstrom.prototype.initializeSubscriptions.call(ctx, err => {
-                expect(err).to.equal(null);
+                assert.strictEqual(err, null);
                 dss.emit('buttonClick', {
                     name: 'buttonClick',
                     source: { isDevice: true, dSUID: 'dev1' },
                     properties: { clickType: 0, holdCount: 0 },
                 });
-                expect(ctx.states['devices.m1.dev1.buttonClickType'], 'clickType 0 must stay 0').to.equal(0);
-                expect(ctx.states['devices.m1.dev1.buttonHoldCount']).to.equal(0);
+                assert.strictEqual(ctx.states['devices.m1.dev1.buttonClickType'], 0, 'clickType 0 must stay 0');
+                assert.strictEqual(ctx.states['devices.m1.dev1.buttonHoldCount'], 0);
                 dss.stop();
                 done();
             });
@@ -1371,7 +1398,7 @@ describe('Adapter logic', () => {
                     source: { zoneID: '4' },
                     properties: { sensorType: '9', sensorValueFloat: '21.5' },
                 });
-                expect(ctx.states['apartment.0.4.sensors.TemperatureValue']).to.equal(21.5);
+                assert.strictEqual(ctx.states['apartment.0.4.sensors.TemperatureValue'], 21.5);
                 dss.stop();
                 done();
             });
@@ -1391,12 +1418,13 @@ describe('Adapter logic', () => {
                         properties: { statename: 'zone.4.heating', state, value, oldvalue: '2' },
                     });
                 emit('unknown', '3');
-                expect(ctx.states, 'null is written, not dropped as "no value"').to.have.property(
-                    'apartment.0.4.states.heating',
+                assert.strictEqual(
+                    ctx.states['apartment.0.4.states.heating'],
                     null,
+                    'null is written, not dropped as "no value"',
                 );
                 emit('active', '1');
-                expect(ctx.states['apartment.0.4.states.heating']).to.equal(true);
+                assert.strictEqual(ctx.states['apartment.0.4.states.heating'], true);
                 dss.stop();
                 done();
             });
@@ -1410,7 +1438,7 @@ describe('Adapter logic', () => {
                     source: { isDevice: true, dSUID: 'dev1' },
                     properties: {},
                 });
-                expect(ctx.states['devices.m1.dev1.buttonClickType']).to.equal(-1);
+                assert.strictEqual(ctx.states['devices.m1.dev1.buttonClickType'], -1);
                 dss.stop();
                 done();
             });
@@ -1437,10 +1465,10 @@ describe('Adapter logic', () => {
                         source: {},
                     });
                 emit('active', '1', '2');
-                expect(ctx.states[id]).to.equal(true);
+                assert.strictEqual(ctx.states[id], true);
                 emit('inactive', '2', '1');
-                expect(ctx.states[id]).to.equal(false);
-                expect(ctx.unmappedBooleanStates.size, 'the vocabulary matches').to.equal(0);
+                assert.strictEqual(ctx.states[id], false);
+                assert.strictEqual(ctx.unmappedBooleanStates.size, 0, 'the vocabulary matches');
                 dss.stop();
                 done();
             });
@@ -1467,23 +1495,25 @@ describe('Adapter logic', () => {
                 emit('zone.zone4.group0.type9.passiveCooling', 'active');
                 emit('zone.zone4.group0.type9.passiveCooling', 'inactive');
                 const first = infos.filter(msg => msg.includes('zone.zone4.group0.type9.passiveCooling'));
-                expect(first, 'the first change names the state').to.have.length(1);
-                expect(first[0]).to.include('Unhandled State Change');
+                assert.strictEqual(first.length, 1, 'the first change names the state');
+                assert.ok(first[0].includes('Unhandled State Change'));
                 // A state the dSS added while the adapter runs gets its object at the next
                 // start - the line says so before it asks for an issue
-                expect(first[0]).to.include('next start');
-                expect(first[0].indexOf('next start')).to.be.below(first[0].indexOf('GitHub issue'));
+                assert.ok(first[0].includes('next start'));
+                assert.ok(first[0].indexOf('next start') < first[0].indexOf('GitHub issue'));
                 // eventLog() writes every event at debug as well, so only the log line counts
-                expect(
-                    debugs.filter(msg => msg.startsWith('Unhandled State Change: zone.zone4.')),
+                assert.strictEqual(
+                    debugs.filter(msg => msg.startsWith('Unhandled State Change: zone.zone4.')).length,
+                    1,
                     'the repeat goes to debug',
-                ).to.have.length(1);
+                );
                 emit('zone.zone2.group0.type9.passiveCooling', 'active');
-                expect(
-                    infos.filter(msg => msg.includes('zone.zone2.group0.type9.passiveCooling')),
+                assert.strictEqual(
+                    infos.filter(msg => msg.includes('zone.zone2.group0.type9.passiveCooling')).length,
+                    1,
                     'a different name gets its own line',
-                ).to.have.length(1);
-                expect(infos.filter(msg => msg.includes('Unhandled State Change'))).to.have.length(2);
+                );
+                assert.strictEqual(infos.filter(msg => msg.includes('Unhandled State Change')).length, 2);
                 dss.stop();
                 done();
             });
@@ -1518,8 +1548,11 @@ describe('Adapter logic', () => {
                         scriptID: 'system-addon-heating-controller',
                     },
                 });
-                expect(infos.filter(msg => msg.includes('Unhandled State Change'))).to.deep.equal([]);
-                expect(debugs.filter(msg => msg.startsWith('Unhandled State Change: '))).to.have.length(2);
+                assert.deepStrictEqual(
+                    infos.filter(msg => msg.includes('Unhandled State Change')),
+                    [],
+                );
+                assert.strictEqual(debugs.filter(msg => msg.startsWith('Unhandled State Change: ')).length, 2);
                 dss.stop();
                 done();
             });
@@ -1550,8 +1583,9 @@ describe('Adapter logic', () => {
                     });
                 emit('active');
                 emit('inactive');
-                expect(infos.filter(msg => msg.includes('operationmode.3.NotUsed'))).to.have.length(1);
-                expect(debugs.filter(msg => msg === 'Unhandled State Change: operationmode.3.NotUsed')).to.have.length(
+                assert.strictEqual(infos.filter(msg => msg.includes('operationmode.3.NotUsed')).length, 1);
+                assert.strictEqual(
+                    debugs.filter(msg => msg === 'Unhandled State Change: operationmode.3.NotUsed').length,
                     1,
                 );
                 dss.stop();
@@ -1560,10 +1594,10 @@ describe('Adapter logic', () => {
         });
 
         it('knows the helper states of the addons by name', () => {
-            expect(Digitalstrom.isAddonHelperState('9be5e52c9e465cd880b6b06494f9dcf600_open-tilded')).to.equal(true);
-            expect(Digitalstrom.isAddonHelperState('queue-active')).to.equal(true);
-            expect(Digitalstrom.isAddonHelperState('operationmode.3.NotUsed')).to.equal(false);
-            expect(Digitalstrom.isAddonHelperState('zone.zone4.group0.type9.passiveCooling')).to.equal(false);
+            assert.strictEqual(Digitalstrom.isAddonHelperState('9be5e52c9e465cd880b6b06494f9dcf600_open-tilded'), true);
+            assert.strictEqual(Digitalstrom.isAddonHelperState('queue-active'), true);
+            assert.strictEqual(Digitalstrom.isAddonHelperState('operationmode.3.NotUsed'), false);
+            assert.strictEqual(Digitalstrom.isAddonHelperState('zone.zone4.group0.type9.passiveCooling'), false);
         });
     });
 
@@ -1585,9 +1619,9 @@ describe('Adapter logic', () => {
 
             const ctx = createContext({ dss, dssStruct: { stateMap: {}, zoneDevices: {} } });
             Digitalstrom.prototype.initializeSubscriptions.call(ctx, err => {
-                expect(err, 'a failed subscription must be reported').to.be.an('error');
-                expect(err.message).to.contain('event subscriptions failed');
-                expect(err.message).to.contain(`of ${activeEvents.length}`);
+                assert.ok(err instanceof Error, 'a failed subscription must be reported');
+                assert.ok(err.message.includes('event subscriptions failed'));
+                assert.ok(err.message.includes(`of ${activeEvents.length}`));
                 dss.stop();
                 done();
             });
@@ -1599,7 +1633,7 @@ describe('Adapter logic', () => {
             dss.pollChannel = () => {};
             const ctx = createContext({ dss, dssStruct: { stateMap: {}, zoneDevices: {} } });
             Digitalstrom.prototype.initializeSubscriptions.call(ctx, err => {
-                expect(err).to.equal(null);
+                assert.strictEqual(err, null);
                 dss.stop();
                 done();
             });
@@ -1609,8 +1643,8 @@ describe('Adapter logic', () => {
             // Mirrors the startup path: on a subscription error info.connection stays false
             const ctx = createContext();
             ctx.setConnected(false);
-            expect(ctx.states['info.connection']).to.equal(false);
-            expect(ctx.connected).to.equal(false);
+            assert.strictEqual(ctx.states['info.connection'], false);
+            assert.strictEqual(ctx.connected, false);
         });
     });
 
@@ -1629,7 +1663,7 @@ describe('Adapter logic', () => {
             });
             Digitalstrom.prototype.restartAdapter.call(ctx, 1, 'of too many event polling errors (callScene)');
             await waitFor(() => stops.length > 0);
-            expect(stops).to.deep.equal([
+            assert.deepStrictEqual(stops, [
                 { exitCode: 156, reason: 'restarting because of too many event polling errors (callScene)' },
             ]);
         });
@@ -1649,7 +1683,7 @@ describe('Adapter logic', () => {
                 'the dSS re-initialized its apartment model (model_ready)',
             );
             await waitFor(() => terminated.length > 0);
-            expect(terminated).to.deep.equal([
+            assert.deepStrictEqual(terminated, [
                 ['restarting because the dSS re-initialized its apartment model (model_ready)', 156],
             ]);
         });
@@ -1664,7 +1698,7 @@ describe('Adapter logic', () => {
             });
             Digitalstrom.prototype.restartAdapter.call(ctx, 1, 'reading the DSS structure failed');
             await waitFor(() => terminated.length > 0);
-            expect(terminated).to.deep.equal([['restarting because reading the DSS structure failed', 156]]);
+            assert.deepStrictEqual(terminated, [['restarting because reading the DSS structure failed', 156]]);
         });
 
         // In compact mode js-controller 7.2.2 emits exit(code, reason), and the host logs a
@@ -1684,8 +1718,8 @@ describe('Adapter logic', () => {
             });
             Digitalstrom.prototype.restartAdapter.call(ctx, 1, 'of too many event polling errors (callScene)');
             await waitFor(() => stops.length > 0);
-            expect(stops).to.deep.equal([{ exitCode: 156, reason: undefined }]);
-            expect(infos).to.deep.equal(['restarting because of too many event polling errors (callScene)']);
+            assert.deepStrictEqual(stops, [{ exitCode: 156, reason: undefined }]);
+            assert.deepStrictEqual(infos, ['restarting because of too many event polling errors (callScene)']);
         });
 
         it('falls back to terminate() without a reason in compact mode', async () => {
@@ -1699,7 +1733,7 @@ describe('Adapter logic', () => {
             });
             Digitalstrom.prototype.restartAdapter.call(ctx, 1, 'reading the DSS structure failed');
             await waitFor(() => terminated.length > 0);
-            expect(terminated, 'a bare 156 would become the signal').to.deep.equal([[undefined, 156]]);
+            assert.deepStrictEqual(terminated, [[undefined, 156]], 'a bare 156 would become the signal');
         });
 
         // The second reason comes with the shorter delay: a second timer would fire first
@@ -1715,7 +1749,10 @@ describe('Adapter logic', () => {
             Digitalstrom.prototype.restartAdapter.call(ctx, 30, 'first');
             Digitalstrom.prototype.restartAdapter.call(ctx, 1, 'second');
             await waitFor(() => stops.length > 0);
-            expect(stops.map(params => params.reason)).to.deep.equal(['restarting because first']);
+            assert.deepStrictEqual(
+                stops.map(params => params.reason),
+                ['restarting because first'],
+            );
         });
     });
 
@@ -1745,7 +1782,7 @@ describe('Adapter logic', () => {
             const dss = {
                 stopped: false,
                 requestAsync: (dssClass, dssFunction) => {
-                    expect(`${dssClass}/${dssFunction}`).to.equal('apartment/getName');
+                    assert.strictEqual(`${dssClass}/${dssFunction}`, 'apartment/getName');
                     const next = answers[Math.min(checks++, answers.length - 1)];
                     if (next instanceof Promise) {
                         return next;
@@ -1781,19 +1818,21 @@ describe('Adapter logic', () => {
             Digitalstrom.prototype.waitForDss.call(ctx, name => started.push(name));
             await waitFor(() => started.length > 0);
 
-            expect(ctx.checks(), 'three failed checks and the answer').to.equal(4);
-            expect(started, 'the start continues exactly once').to.deep.equal([answer]);
-            expect(ctx.restarts, 'no process restart for an outage').to.deep.equal([]);
+            assert.strictEqual(ctx.checks(), 4, 'three failed checks and the answer');
+            assert.deepStrictEqual(started, [answer], 'the start continues exactly once');
+            assert.deepStrictEqual(ctx.restarts, [], 'no process restart for an outage');
             const errors = linesOf(ctx, 'error');
-            expect(errors, 'one error for the whole outage').to.have.lengthOf(1);
-            expect(errors[0]).to.contain('10.13.10.4').and.to.contain('ECONNREFUSED').and.to.contain('App-Token');
+            assert.strictEqual(errors.length, 1, 'one error for the whole outage');
+            assert.ok(errors[0].includes('10.13.10.4'));
+            assert.ok(errors[0].includes('ECONNREFUSED'));
+            assert.ok(errors[0].includes('App-Token'));
             // The line for the answer is info: somebody running at warn must not wait for it
-            expect(errors[0]).to.contain('logs at info level when the DSS answers again');
-            expect(linesOf(ctx, 'debug').filter(msg => msg.includes('still fails'))).to.have.lengthOf(2);
+            assert.ok(errors[0].includes('logs at info level when the DSS answers again'));
+            assert.strictEqual(linesOf(ctx, 'debug').filter(msg => msg.includes('still fails')).length, 2);
             const infos = linesOf(ctx, 'info');
-            expect(infos, 'one line when it is back').to.have.lengthOf(1);
-            expect(infos[0]).to.match(/answers again after \d+ s \(3 failed checks\)/);
-            expect(ctx.dssOutage, 'the outage is closed').to.equal(null);
+            assert.strictEqual(infos.length, 1, 'one line when it is back');
+            assert.match(infos[0], /answers again after \d+ s \(3 failed checks\)/);
+            assert.strictEqual(ctx.dssOutage, null, 'the outage is closed');
         });
 
         // A dSS that accepts the connection again but refuses the login needs somebody to act
@@ -1804,13 +1843,15 @@ describe('Adapter logic', () => {
             Digitalstrom.prototype.waitForDss.call(ctx, name => started.push(name));
             await waitFor(() => started.length > 0);
             const errors = linesOf(ctx, 'error');
-            expect(errors).to.have.lengthOf(2);
-            expect(errors[1]).to.contain('different error').and.to.contain('Login failed');
+            assert.strictEqual(errors.length, 2);
+            assert.ok(errors[1].includes('different error'));
+            assert.ok(errors[1].includes('Login failed'));
             // A refused login is an answer of the dSS - the line must not claim it is silent
-            expect(errors[1]).to.contain('refuses the login').and.to.contain('App-Token');
-            expect(errors[1]).to.not.contain('does not answer');
-            expect(linesOf(ctx, 'info')).to.have.lengthOf(1);
-            expect(linesOf(ctx, 'info')[0]).to.contain('(4 failed checks)');
+            assert.ok(errors[1].includes('refuses the login'));
+            assert.ok(errors[1].includes('App-Token'));
+            assert.ok(!errors[1].includes('does not answer'));
+            assert.strictEqual(linesOf(ctx, 'info').length, 1);
+            assert.ok(linesOf(ctx, 'info')[0].includes('(4 failed checks)'));
         });
 
         // loginApplication answered ok:false: the dSS was reached and refused the App-Token.
@@ -1823,12 +1864,14 @@ describe('Adapter logic', () => {
             Digitalstrom.prototype.waitForDss.call(ctx, name => started.push(name));
             await waitFor(() => started.length > 0);
             const errors = linesOf(ctx, 'error');
-            expect(errors).to.have.lengthOf(1);
-            expect(errors[0]).to.contain('refused the login').and.to.contain('App-Token').and.to.contain('10.13.10.4');
-            expect(errors[0]).to.not.contain('Cannot reach');
+            assert.strictEqual(errors.length, 1);
+            assert.ok(errors[0].includes('refused the login'));
+            assert.ok(errors[0].includes('App-Token'));
+            assert.ok(errors[0].includes('10.13.10.4'));
+            assert.ok(!errors[0].includes('Cannot reach'));
             const debug = linesOf(ctx, 'debug');
-            expect(debug.filter(msg => msg.includes('still fails'))).to.have.lengthOf(2);
-            expect(debug.join('\n')).to.not.contain('not reachable');
+            assert.strictEqual(debug.filter(msg => msg.includes('still fails')).length, 2);
+            assert.ok(!debug.join('\n').includes('not reachable'));
         });
 
         // A Raspberry Pi boots with the clock of its last shutdown (fake-hwclock), and NTP sets
@@ -1854,8 +1897,8 @@ describe('Adapter logic', () => {
                 Date.now = realNow;
             }
             const infos = linesOf(ctx, 'info');
-            expect(infos).to.have.lengthOf(1);
-            expect(infos[0]).to.match(/answers again after \d+ s \(1 failed check\)/);
+            assert.strictEqual(infos.length, 1);
+            assert.match(infos[0], /answers again after \d+ s \(1 failed check\)/);
         });
 
         it('says nothing extra when the dSS answers right away', async () => {
@@ -1864,8 +1907,8 @@ describe('Adapter logic', () => {
             const started = [];
             Digitalstrom.prototype.waitForDss.call(ctx, name => started.push(name));
             await waitFor(() => started.length > 0);
-            expect(ctx.lines).to.deep.equal([]);
-            expect(ctx.dssRetryTimeout).to.equal(null);
+            assert.deepStrictEqual(ctx.lines, []);
+            assert.strictEqual(ctx.dssRetryTimeout, null);
         });
 
         // A long delay on purpose: the check must end because the timer is gone, not
@@ -1879,11 +1922,11 @@ describe('Adapter logic', () => {
             const pendingRetry = ctx.dssRetryTimeout;
             try {
                 await new Promise(resolve => Digitalstrom.prototype.stopAdapter.call(ctx, resolve));
-                expect(ctx.dssRetryTimeout, 'the retry timer is gone').to.equal(null);
+                assert.strictEqual(ctx.dssRetryTimeout, null, 'the retry timer is gone');
                 // The retry timer firing anyway, or any other late caller
                 Digitalstrom.prototype.waitForDss.call(ctx, name => started.push(name));
-                expect(ctx.checks(), 'no check after the unload').to.equal(1);
-                expect(started).to.deep.equal([]);
+                assert.strictEqual(ctx.checks(), 1, 'no check after the unload');
+                assert.deepStrictEqual(started, []);
             } finally {
                 clearTimeout(pendingRetry);
             }
@@ -1901,9 +1944,9 @@ describe('Adapter logic', () => {
             abort(new Error('Client is stopped, not requesting /json/apartment/getName'));
             // One turn of the event loop runs every promise reaction that is due
             await new Promise(resolve => setImmediate(resolve));
-            expect(ctx.dssRetryTimeout, 'no retry after the unload').to.equal(null);
-            expect(ctx.dssOutage, 'no outage either').to.equal(null);
-            expect(linesOf(ctx, 'error')).to.deep.equal([]);
+            assert.strictEqual(ctx.dssRetryTimeout, null, 'no retry after the unload');
+            assert.strictEqual(ctx.dssOutage, null, 'no outage either');
+            assert.deepStrictEqual(linesOf(ctx, 'error'), []);
         });
 
         // Armed before the check, the 10 minute watchdog restarted the process during every
@@ -1922,10 +1965,10 @@ describe('Adapter logic', () => {
             });
             Digitalstrom.prototype.main.call(ctx);
             try {
-                expect(continueStart, 'main() waits for the dSS').to.be.a('function');
-                expect(ctx.startupTimeout, 'no watchdog while the dSS does not answer').to.equal(undefined);
+                assert.strictEqual(typeof continueStart, 'function', 'main() waits for the dSS');
+                assert.strictEqual(ctx.startupTimeout, undefined, 'no watchdog while the dSS does not answer');
                 continueStart(answer);
-                expect(ctx.startupTimeout, 'the watchdog runs once the dSS answered').to.not.equal(undefined);
+                assert.notStrictEqual(ctx.startupTimeout, undefined, 'the watchdog runs once the dSS answered');
             } finally {
                 clearTimeout(ctx.startupTimeout);
                 clearInterval(ctx.apiActivityTimer);
@@ -1934,12 +1977,12 @@ describe('Adapter logic', () => {
         });
 
         it('formats the outage duration for the log', () => {
-            expect(Digitalstrom.formatDuration(0)).to.equal('0 s');
-            expect(Digitalstrom.formatDuration(45400)).to.equal('45 s');
-            expect(Digitalstrom.formatDuration(300000)).to.equal('5 min');
-            expect(Digitalstrom.formatDuration(252000)).to.equal('4 min 12 s');
-            expect(Digitalstrom.formatDuration((8 * 60 + 37) * 60000 + 12000)).to.equal('8 h 37 min');
-            expect(Digitalstrom.formatDuration(2 * 3600000)).to.equal('2 h');
+            assert.strictEqual(Digitalstrom.formatDuration(0), '0 s');
+            assert.strictEqual(Digitalstrom.formatDuration(45400), '45 s');
+            assert.strictEqual(Digitalstrom.formatDuration(300000), '5 min');
+            assert.strictEqual(Digitalstrom.formatDuration(252000), '4 min 12 s');
+            assert.strictEqual(Digitalstrom.formatDuration((8 * 60 + 37) * 60000 + 12000), '8 h 37 min');
+            assert.strictEqual(Digitalstrom.formatDuration(2 * 3600000), '2 h');
         });
     });
 
@@ -1966,12 +2009,12 @@ describe('Adapter logic', () => {
             Digitalstrom.prototype.stopAdapter.call(ctx, () => secondCalls++);
 
             setTimeout(() => {
-                expect(firstCalls, 'first caller answered once').to.equal(1);
-                expect(secondCalls, 'second caller answered once').to.equal(1);
+                assert.strictEqual(firstCalls, 1, 'first caller answered once');
+                assert.strictEqual(secondCalls, 1, 'second caller answered once');
                 // A caller after the stop finished must still be answered
                 let lateCalls = 0;
                 Digitalstrom.prototype.stopAdapter.call(ctx, () => lateCalls++);
-                expect(lateCalls, 'late caller answered once').to.equal(1);
+                assert.strictEqual(lateCalls, 1, 'late caller answered once');
                 done();
             }, 120);
         });
@@ -1984,7 +2027,7 @@ describe('Adapter logic', () => {
             const ctx = stoppableContext(dss);
 
             Digitalstrom.prototype.stopAdapter.call(ctx, () => {
-                expect(dss.stopped, 'the DSS client must be closed by the guard path').to.equal(true);
+                assert.strictEqual(dss.stopped, true, 'the DSS client must be closed by the guard path');
                 done();
             });
         });
@@ -1996,7 +2039,7 @@ describe('Adapter logic', () => {
         it('never reports connected again after the stop', () => {
             const ctx = createContext();
             ctx.setConnected(true);
-            expect(ctx.states['info.connection']).to.equal(true);
+            assert.strictEqual(ctx.states['info.connection'], true);
 
             ctx.stopping = true;
             ctx.stopped = true;
@@ -2005,8 +2048,8 @@ describe('Adapter logic', () => {
 
             // A startup callback that only now reaches setConnected(true)
             ctx.setConnected(true);
-            expect(ctx.states['info.connection'], 'a stopped adapter must stay disconnected').to.equal(false);
-            expect(ctx.connected).to.equal(false);
+            assert.strictEqual(ctx.states['info.connection'], false, 'a stopped adapter must stay disconnected');
+            assert.strictEqual(ctx.connected, false);
         });
 
         it('starts no data polling after the stop', () => {
@@ -2023,15 +2066,15 @@ describe('Adapter logic', () => {
             });
             ctx.stopping = true;
             Digitalstrom.prototype.startDataPolling.call(ctx);
-            expect(meterReads, 'no meter read after the stop').to.equal(0);
-            expect(ctx.dataPollTimeout, 'and no new timer').to.equal(null);
+            assert.strictEqual(meterReads, 0, 'no meter read after the stop');
+            assert.strictEqual(ctx.dataPollTimeout, null, 'and no new timer');
         });
 
         it('schedules no restart after the stop', () => {
             const ctx = createContext({ restartTimeout: null });
             ctx.stopped = true;
             Digitalstrom.prototype.restartAdapter.call(ctx, 1000);
-            expect(ctx.restartTimeout, 'a stopped adapter must not restart itself').to.equal(null);
+            assert.strictEqual(ctx.restartTimeout, null, 'a stopped adapter must not restart itself');
         });
 
         it('closes an App-Token client that is still running during the unload', done => {
@@ -2044,8 +2087,8 @@ describe('Adapter logic', () => {
             ctx.tokenConnections.add(tokenClient);
 
             Digitalstrom.prototype.stopAdapter.call(ctx, () => {
-                expect(tokenClient.stopped, 'the token client must be closed by the unload').to.equal(true);
-                expect(ctx.tokenConnections.size, 'and must not be kept afterwards').to.equal(0);
+                assert.strictEqual(tokenClient.stopped, true, 'the token client must be closed by the unload');
+                assert.strictEqual(ctx.tokenConnections.size, 0, 'and must not be kept afterwards');
                 done();
             });
         });
@@ -2073,8 +2116,8 @@ describe('Adapter logic', () => {
                 ctx.tokenConnections.delete(tokenClient);
                 tokenClient.stop();
                 if (Digitalstrom.prototype.isStopping.call(ctx)) {
-                    expect(sent, 'no late sendTo into a closed admin dialog').to.deep.equal([]);
-                    expect(appToken).to.equal('token');
+                    assert.deepStrictEqual(sent, [], 'no late sendTo into a closed admin dialog');
+                    assert.strictEqual(appToken, 'token');
                     return done();
                 }
                 done(new Error('the stop barrier did not take effect'));
@@ -2098,8 +2141,8 @@ describe('Adapter logic', () => {
                 callback: { id: 1 },
                 message: { host: 'localhost', username: 'u', password: 'p' },
             });
-            expect(ctx.tokenConnections.size, 'no new client during the unload').to.equal(0);
-            expect(sent).to.deep.equal([]);
+            assert.strictEqual(ctx.tokenConnections.size, 0, 'no new client during the unload');
+            assert.deepStrictEqual(sent, []);
         });
     });
 
@@ -2156,14 +2199,18 @@ describe('Adapter logic', () => {
             const ctx = eventContext(dss);
             let earlyState;
             Digitalstrom.prototype.initializeSubscriptions.call(ctx, () => {
-                expect(earlyState, 'the early event must be applied before all subscriptions are done').to.equal(true);
+                assert.strictEqual(
+                    earlyState,
+                    true,
+                    'the early event must be applied before all subscriptions are done',
+                );
                 dss.stop();
                 done();
             });
 
             setTimeout(() => {
                 earlyState = ctx.states['apartment.zones.5.groups.1.scenes.Preset2'];
-                expect(earlyState, 'an early event must not be lost').to.equal(true);
+                assert.strictEqual(earlyState, true, 'an early event must not be lost');
                 slowSubscribes.forEach(resolve => resolve());
             }, 30);
         });
@@ -2180,7 +2227,7 @@ describe('Adapter logic', () => {
             };
             const ctx = eventContext(dss);
             Digitalstrom.prototype.initializeSubscriptions.call(ctx, () => {
-                expect(listenersAtFirstSubscribe, 'callScene must already have a listener').to.be.above(0);
+                assert.ok(listenersAtFirstSubscribe > 0, 'callScene must already have a listener');
                 dss.stop();
                 done();
             });
@@ -2194,8 +2241,8 @@ describe('Adapter logic', () => {
             Digitalstrom.prototype.initializeSubscriptions.call(ctx, () => {
                 const afterFirst = dss.listenerCount('callScene');
                 Digitalstrom.prototype.initializeSubscriptions.call(ctx, () => {
-                    expect(dss.listenerCount('callScene'), 'no duplicated handlers').to.equal(afterFirst);
-                    expect(afterFirst).to.equal(1);
+                    assert.strictEqual(dss.listenerCount('callScene'), afterFirst, 'no duplicated handlers');
+                    assert.strictEqual(afterFirst, 1);
                     dss.stop();
                     done();
                 });
@@ -2283,12 +2330,12 @@ describe('Adapter logic', () => {
             const { dss, writes } = momentaryContext();
             const stop = w => w[0] === 'devices.m1.dev1.scenes.Stop';
             deviceScene(dss, '15');
-            expect(writes, 'true first, the release must not overtake it').to.deep.include([
-                'devices.m1.dev1.scenes.Stop',
-                true,
-            ]);
+            assert.ok(
+                writes.some(w => isDeepStrictEqual(w, ['devices.m1.dev1.scenes.Stop', true])),
+                'true first, the release must not overtake it',
+            );
             await waitFor(() => writes.some(w => stop(w) && w[1] === false));
-            expect(writes.filter(stop)).to.deep.equal([
+            assert.deepStrictEqual(writes.filter(stop), [
                 ['devices.m1.dev1.scenes.Stop', true],
                 ['devices.m1.dev1.scenes.Stop', false],
             ]);
@@ -2307,8 +2354,8 @@ describe('Adapter logic', () => {
             // A second release would arrive after the first, so give one more window a
             // chance to produce it before claiming there was only one
             await new Promise(resolve => setTimeout(resolve, 30));
-            expect(writes.filter(released), 'the release is re-armed, not queued three times').to.have.lengthOf(1);
-            expect(writes[writes.length - 1][1], 'and it is the last thing that happens').to.equal(false);
+            assert.strictEqual(writes.filter(released).length, 1, 'the release is re-armed, not queued three times');
+            assert.strictEqual(writes[writes.length - 1][1], false, 'and it is the last thing that happens');
             dss.stop();
         });
 
@@ -2318,9 +2365,10 @@ describe('Adapter logic', () => {
             const { dss, writes } = momentaryContext();
             deviceScene(dss, '14');
             setTimeout(() => {
-                expect(writes.filter(w => w[0] === 'devices.m1.dev1.scenes.Maximum')).to.deep.equal([
-                    ['devices.m1.dev1.scenes.Maximum', true],
-                ]);
+                assert.deepStrictEqual(
+                    writes.filter(w => w[0] === 'devices.m1.dev1.scenes.Maximum'),
+                    [['devices.m1.dev1.scenes.Maximum', true]],
+                );
                 dss.stop();
                 done();
             }, 40);
@@ -2337,9 +2385,11 @@ describe('Adapter logic', () => {
             });
             setTimeout(() => {
                 const scene = writes.filter(w => w[0] === 'apartment.0.5.48.scenes.CoolingNight');
-                expect(scene, 'a cooling mode is not a momentary command').to.deep.equal([
-                    ['apartment.0.5.48.scenes.CoolingNight', true],
-                ]);
+                assert.deepStrictEqual(
+                    scene,
+                    [['apartment.0.5.48.scenes.CoolingNight', true]],
+                    'a cooling mode is not a momentary command',
+                );
                 dss.stop();
                 done();
             }, 40);
@@ -2350,9 +2400,11 @@ describe('Adapter logic', () => {
             deviceScene(dss, '15');
             setTimeout(() => {
                 const sceneId = writes.filter(w => w[0] === 'devices.m1.dev1.scenes.sceneId');
-                expect(sceneId, 'only the boolean pulses, the number stays').to.deep.equal([
-                    ['devices.m1.dev1.scenes.sceneId', '15'],
-                ]);
+                assert.deepStrictEqual(
+                    sceneId,
+                    [['devices.m1.dev1.scenes.sceneId', '15']],
+                    'only the boolean pulses, the number stays',
+                );
                 dss.stop();
                 done();
             }, 40);
@@ -2406,8 +2458,8 @@ describe('Adapter logic', () => {
                 const { dss, infos, unmapped } = loggingContext();
                 groupScene(dss, '65534', '48', '0');
                 groupScene(dss, '2186', '48', '0');
-                expect(infos).to.deep.equal([]);
-                expect(unmapped()).to.deep.equal([
+                assert.deepStrictEqual(infos, []);
+                assert.deepStrictEqual(unmapped(), [
                     'callScene without scene state: zone 65534, group 48, scene 0 - this room has no scene objects for that group',
                     'callScene without scene state: zone 2186, group 48, scene 0 - this room has no scene objects for that group',
                 ]);
@@ -2418,8 +2470,8 @@ describe('Adapter logic', () => {
             it('keeps a command scene on group level at debug', () => {
                 const { dss, infos, unmapped } = loggingContext();
                 groupScene(dss, '2274', '2', '15');
-                expect(infos).to.deep.equal([]);
-                expect(unmapped()).to.deep.equal([
+                assert.deepStrictEqual(infos, []);
+                assert.deepStrictEqual(unmapped(), [
                     'callScene without scene state: zone 2274, group 2, scene 15 - a command scene, only devices have a state for it',
                 ]);
                 dss.stop();
@@ -2430,11 +2482,11 @@ describe('Adapter logic', () => {
                 groupScene(dss, '5', '48', '2');
                 groupScene(dss, '5', '48', '2');
                 deviceScene(dss, '5');
-                expect(infos).to.have.lengthOf(2);
-                expect(infos[0]).to.contain('zone 5, group 48, scene 2');
-                expect(infos[1]).to.contain('device dev1, scene 5');
-                expect(unmapped()).to.deep.equal(['callScene without scene state: zone 5, group 48, scene 2']);
-                expect(infos.join('\n')).to.not.contain('INVALID');
+                assert.strictEqual(infos.length, 2);
+                assert.ok(infos[0].includes('zone 5, group 48, scene 2'));
+                assert.ok(infos[1].includes('device dev1, scene 5'));
+                assert.deepStrictEqual(unmapped(), ['callScene without scene state: zone 5, group 48, scene 2']);
+                assert.ok(!infos.join('\n').includes('INVALID'));
                 dss.stop();
             });
         });
@@ -2456,10 +2508,11 @@ describe('Adapter logic', () => {
             Digitalstrom.prototype.registerEventHandlers.call(ctx, ['callScene']);
             callScene(dss, '5', '0');
             setTimeout(() => {
-                expect(deviceEvents.map(e => e[0]).sort(), 'both devices of the room must be refreshed').to.deep.equal([
-                    'dev1',
-                    'dev2',
-                ]);
+                assert.deepStrictEqual(
+                    deviceEvents.map(e => e[0]).sort(),
+                    ['dev1', 'dev2'],
+                    'both devices of the room must be refreshed',
+                );
                 dss.stop();
                 done();
             }, 10);
@@ -2470,7 +2523,7 @@ describe('Adapter logic', () => {
             Digitalstrom.prototype.registerEventHandlers.call(ctx, ['callScene']);
             callScene(dss, '5', '1');
             setTimeout(() => {
-                expect(deviceEvents).to.deep.equal([['dev1', '0']]);
+                assert.deepStrictEqual(deviceEvents, [['dev1', '0']]);
                 dss.stop();
                 done();
             }, 10);
@@ -2484,10 +2537,14 @@ describe('Adapter logic', () => {
             setTimeout(() => {
                 const perDevice = {};
                 deviceEvents.forEach(e => (perDevice[e[0]] = (perDevice[e[0]] || 0) + 1));
-                expect(perDevice, 'a device in several groups must not be handled twice').to.deep.equal({
-                    dev1: 1,
-                    dev2: 1,
-                });
+                assert.deepStrictEqual(
+                    perDevice,
+                    {
+                        dev1: 1,
+                        dev2: 1,
+                    },
+                    'a device in several groups must not be handled twice',
+                );
                 dss.stop();
                 done();
             }, 10);
@@ -2501,7 +2558,7 @@ describe('Adapter logic', () => {
             Digitalstrom.prototype.registerEventHandlers.call(ctx, ['callScene']);
             callScene(dss, '5', '1');
             setTimeout(() => {
-                expect(deviceEvents, 'the preset values must still be applied').to.deep.equal([['dev1', '0']]);
+                assert.deepStrictEqual(deviceEvents, [['dev1', '0']], 'the preset values must still be applied');
                 dss.stop();
                 done();
             }, 10);
@@ -2512,7 +2569,7 @@ describe('Adapter logic', () => {
             Digitalstrom.prototype.registerEventHandlers.call(ctx, ['callScene']);
             callScene(dss, '5', '0');
             setTimeout(() => {
-                expect(deviceEvents.length, 'exactly one event per device, not one per group').to.equal(2);
+                assert.strictEqual(deviceEvents.length, 2, 'exactly one event per device, not one per group');
                 dss.stop();
                 done();
             }, 10);
@@ -2554,9 +2611,9 @@ describe('Adapter logic', () => {
                 properties: { clickType: '7', holdCount: '3' },
             });
             setTimeout(() => {
-                expect(ctx.states['devices.m1.dev1.button']).to.equal(true);
-                expect(ctx.states['devices.m1.dev1.buttonClickType'], 'must be the number 7').to.equal(7);
-                expect(ctx.states['devices.m1.dev1.buttonHoldCount']).to.equal(3);
+                assert.strictEqual(ctx.states['devices.m1.dev1.button'], true);
+                assert.strictEqual(ctx.states['devices.m1.dev1.buttonClickType'], 7, 'must be the number 7');
+                assert.strictEqual(ctx.states['devices.m1.dev1.buttonHoldCount'], 3);
                 dss.stop();
                 done();
             }, 10);
@@ -2574,9 +2631,9 @@ describe('Adapter logic', () => {
                 source: { isDevice: true, dSUID: 'dev1' },
                 properties: { clickType: '7', holdCount: '3' },
             });
-            expect(ctx.states['devices.m1.dev1.button'], 'true first').to.equal(true);
+            assert.strictEqual(ctx.states['devices.m1.dev1.button'], true, 'true first');
             await waitFor(() => ctx.states['devices.m1.dev1.button'] === false);
-            expect(ctx.states['devices.m1.dev1.buttonClickType'], 'the click type is not a moment').to.equal(7);
+            assert.strictEqual(ctx.states['devices.m1.dev1.buttonClickType'], 7, 'the click type is not a moment');
             dss.stop();
         });
 
@@ -2589,8 +2646,8 @@ describe('Adapter logic', () => {
                 properties: { clickType: 0 },
             });
             setTimeout(() => {
-                expect(ctx.states['devices.m1.dev1.buttonClickType'], 'clickType 0 stays 0').to.equal(0);
-                expect(ctx.states['devices.m1.dev1.buttonHoldCount'], 'default 0').to.equal(0);
+                assert.strictEqual(ctx.states['devices.m1.dev1.buttonClickType'], 0, 'clickType 0 stays 0');
+                assert.strictEqual(ctx.states['devices.m1.dev1.buttonHoldCount'], 0, 'default 0');
                 dss.stop();
                 done();
             }, 10);
@@ -2601,18 +2658,20 @@ describe('Adapter logic', () => {
             delete ctx.dssStruct.stateMap['dev1.0.buttonClickType'];
             delete ctx.dssStruct.stateMap['dev1.0.buttonHoldCount'];
             Digitalstrom.prototype.registerEventHandlers.call(ctx, ['buttonClick']);
-            expect(() =>
+            assert.doesNotThrow(() =>
                 dss.emit('buttonClick', {
                     name: 'buttonClick',
                     source: { isDevice: true, dSUID: 'dev1' },
                     properties: { clickType: '7' },
                 }),
-            ).to.not.throw();
+            );
             setTimeout(() => {
-                expect(ctx.states['devices.m1.dev1.button']).to.equal(true);
-                expect(Object.keys(ctx.states), 'no write with an undefined id').to.deep.equal([
-                    'devices.m1.dev1.button',
-                ]);
+                assert.strictEqual(ctx.states['devices.m1.dev1.button'], true);
+                assert.deepStrictEqual(
+                    Object.keys(ctx.states),
+                    ['devices.m1.dev1.button'],
+                    'no write with an undefined id',
+                );
                 dss.stop();
                 done();
             }, 10);
@@ -2652,11 +2711,12 @@ describe('Adapter logic', () => {
                 properties: { zoneID: '2', groupID: '48', sceneID: '1', callOrigin: '-1' },
             });
             setTimeout(() => {
-                expect(ctx.states['apartment.0.2.48.scenes.HeatingComfort'], 'the scene itself').to.equal(true);
-                expect(
+                assert.strictEqual(ctx.states['apartment.0.2.48.scenes.HeatingComfort'], true, 'the scene itself');
+                assert.strictEqual(
                     ctx.states['apartment.0.2.temperatureControl.OperationMode'],
+                    1,
                     'the readable mode must follow as a number',
-                ).to.equal(1);
+                );
                 dss.stop();
                 done();
             }, 10);
@@ -2672,7 +2732,7 @@ describe('Adapter logic', () => {
                 properties: { zoneID: '2', groupID: '1', sceneID: '1', callOrigin: '-1' },
             });
             setTimeout(() => {
-                expect(ctx.states['apartment.0.2.temperatureControl.OperationMode']).to.equal(undefined);
+                assert.strictEqual(ctx.states['apartment.0.2.temperatureControl.OperationMode'], undefined);
                 dss.stop();
                 done();
             }, 10);
@@ -2682,13 +2742,13 @@ describe('Adapter logic', () => {
             const { ctx, dss } = tempContext();
             delete ctx.dssStruct.stateMap['2.48.operationMode'];
             Digitalstrom.prototype.registerEventHandlers.call(ctx, ['callScene']);
-            expect(() =>
+            assert.doesNotThrow(() =>
                 dss.emit('callScene', {
                     name: 'callScene',
                     source: { isGroup: true },
                     properties: { zoneID: '2', groupID: '48', sceneID: '1', callOrigin: '-1' },
                 }),
-            ).to.not.throw();
+            );
             setTimeout(() => {
                 dss.stop();
                 done();
@@ -2730,15 +2790,17 @@ describe('Adapter logic', () => {
             const ctx = resyncContext(dss, { 5.1: 5, 5.2: 0 });
             Digitalstrom.prototype.initializeSubscriptions.call(ctx, () => {
                 Digitalstrom.prototype.resyncSceneStates.call(ctx, () => {
-                    expect(
+                    assert.strictEqual(
                         ctx.states['apartment.zones.5.groups.1.scenes.Preset1'],
+                        true,
                         'the scene missed during the startup must be applied',
-                    ).to.equal(true);
-                    expect(
+                    );
+                    assert.strictEqual(
                         ctx.states['apartment.zones.5.groups.1.scenes.Preset2'],
+                        false,
                         'and the old one must be released',
-                    ).to.equal(false);
-                    expect(ctx.lastScenes['5.1'], 'the bookkeeping must follow').to.equal('5');
+                    );
+                    assert.strictEqual(ctx.lastScenes['5.1'], '5', 'the bookkeeping must follow');
                     dss.stop();
                     done();
                 });
@@ -2752,7 +2814,7 @@ describe('Adapter logic', () => {
             const ctx = resyncContext(dss, { 5.1: 17, 5.2: 0 });
             Digitalstrom.prototype.initializeSubscriptions.call(ctx, () => {
                 Digitalstrom.prototype.resyncSceneStates.call(ctx, () => {
-                    expect(ctx.states, 'an unchanged scene must not produce a write').to.deep.equal({});
+                    assert.deepStrictEqual(ctx.states, {}, 'an unchanged scene must not produce a write');
                     dss.stop();
                     done();
                 });
@@ -2763,8 +2825,8 @@ describe('Adapter logic', () => {
             const dss = new DSS({ host: 'localhost', appToken: 'app', logger: silentLog });
             const ctx = resyncContext(dss, { 5.1: 17, 5.2: 0 });
             Digitalstrom.prototype.resyncSceneStates.call(ctx, () => {
-                expect(ctx.dssQueue.asked.map(a => a.key).sort()).to.deep.equal(['5.1', '5.2']);
-                ctx.dssQueue.asked.forEach(a => expect(a.prio, 'must never delay a user command').to.equal('low'));
+                assert.deepStrictEqual(ctx.dssQueue.asked.map(a => a.key).sort(), ['5.1', '5.2']);
+                ctx.dssQueue.asked.forEach(a => assert.strictEqual(a.prio, 'low', 'must never delay a user command'));
                 dss.stop();
                 done();
             });
@@ -2775,7 +2837,7 @@ describe('Adapter logic', () => {
             const ctx = resyncContext(dss, {});
             ctx.stopping = true;
             Digitalstrom.prototype.resyncSceneStates.call(ctx, () => {
-                expect(ctx.dssQueue.asked, 'no request during the unload').to.deep.equal([]);
+                assert.deepStrictEqual(ctx.dssQueue.asked, [], 'no request during the unload');
                 dss.stop();
                 done();
             });

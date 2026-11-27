@@ -1,6 +1,6 @@
-const { expect } = require('chai');
+const assert = require('node:assert');
 
-const SmartHomeOutputSync = require('../lib/dssSmartHomeSync');
+const { SmartHomeOutputSync } = require('../build/lib/dssSmartHomeSync');
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const { waitFor } = require('./lib/helpers');
@@ -126,17 +126,17 @@ describe('Smart Home output sync', function () {
             applyNativeLightValue: value => lightValues.push(value),
         };
         const shade = SHADE();
-        expect(sync.requestDeviceSync(shade, ['shadePositionOutside'])).to.equal(true);
-        expect(sync.requestDeviceSync(light, ['brightness'])).to.equal(true);
+        assert.strictEqual(sync.requestDeviceSync(shade, ['shadePositionOutside']), true);
+        assert.strictEqual(sync.requestDeviceSync(light, ['brightness']), true);
         await delay(100);
 
-        expect(statusCalls, 'both devices share one request').to.equal(1);
-        expect(structure.written).to.deep.equal([{ id: 'devices.m1.shade1.shadePositionOutside', value: 32 }]);
-        expect(structure.initialObjectValues['devices.m1.shade1.shadePositionOutside']).to.equal(32);
+        assert.strictEqual(statusCalls, 1, 'both devices share one request');
+        assert.deepStrictEqual(structure.written, [{ id: 'devices.m1.shade1.shadePositionOutside', value: 32 }]);
+        assert.strictEqual(structure.initialObjectValues['devices.m1.shade1.shadePositionOutside'], 32);
         // 79.2156862745098 % are exactly 202 in the native 0..255 scale of the light
         // helper, which also maintains the boolean .state of the light
-        expect(lightValues).to.deep.equal([202]);
-        expect(structure.classicReads).to.have.lengthOf(0);
+        assert.deepStrictEqual(lightValues, [202]);
+        assert.strictEqual(structure.classicReads.length, 0);
     });
 
     // Waehrend ein Rollladen faehrt, fehlt das value-Feld im Status. Fehlend heisst
@@ -161,12 +161,12 @@ describe('Smart Home output sync', function () {
 
         sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
         await delay(35);
-        expect(structure.written, 'no value while the blind moves').to.have.lengthOf(0);
+        assert.strictEqual(structure.written.length, 0, 'no value while the blind moves');
 
         await delay(60);
-        expect(statusCalls, 'a follow-up asked again').to.equal(2);
-        expect(structure.written).to.deep.equal([{ id: 'devices.m1.shade1.shadePositionOutside', value: 65 }]);
-        expect(structure.classicReads).to.have.lengthOf(0);
+        assert.strictEqual(statusCalls, 2, 'a follow-up asked again');
+        assert.deepStrictEqual(structure.written, [{ id: 'devices.m1.shade1.shadePositionOutside', value: 65 }]);
+        assert.strictEqual(structure.classicReads.length, 0);
     });
 
     it('falls back to the classic read once the follow-ups are exhausted', async () => {
@@ -183,10 +183,10 @@ describe('Smart Home output sync', function () {
 
         // report: false - a single undeliverable channel does not put the classic
         // path in charge, so info.outputApi stays untouched
-        expect(structure.classicReads).to.deep.equal([
+        assert.deepStrictEqual(structure.classicReads, [
             { dSUID: 'shade1', outputType: 'shadePositionOutside', prio: 'medium', report: false },
         ]);
-        expect(structure.written).to.have.lengthOf(0);
+        assert.strictEqual(structure.written.length, 0);
     });
 
     it('falls back immediately and pauses itself when the status request fails', async () => {
@@ -201,17 +201,20 @@ describe('Smart Home output sync', function () {
         sync.requestDeviceSync(shade, ['shadePositionOutside', 'shadeOpeningAngleOutside']);
         await delay(60);
 
-        expect(structure.classicReads.map(read => read.outputType).sort()).to.deep.equal([
+        assert.deepStrictEqual(structure.classicReads.map(read => read.outputType).sort(), [
             'shadeOpeningAngleOutside',
             'shadePositionOutside',
         ]);
         // Here the classic path really takes over - these reads DO report
-        expect(structure.classicReads.every(read => read.report)).to.equal(true);
-        expect(structure.warnings, 'the fallback is said once').to.have.lengthOf(1);
-        expect(structure.warnings[0]).to.contain('classic API');
+        assert.strictEqual(
+            structure.classicReads.every(read => read.report),
+            true,
+        );
+        assert.strictEqual(structure.warnings.length, 1, 'the fallback is said once');
+        assert.ok(structure.warnings[0].includes('classic API'));
         // During the backoff every new trigger goes classic right away
-        expect(sync.isAvailable()).to.equal(false);
-        expect(sync.requestDeviceSync(shade, ['shadePositionOutside'])).to.equal(false);
+        assert.strictEqual(sync.isAvailable(), false);
+        assert.strictEqual(sync.requestDeviceSync(shade, ['shadePositionOutside']), false);
     });
 
     // Boolean-Kanaele (airLouverAuto & Co) sind gegen die neue API nicht verifiziert.
@@ -232,8 +235,8 @@ describe('Smart Home output sync', function () {
         );
         await delay(60);
 
-        expect(structure.written).to.have.lengthOf(0);
-        expect(structure.classicReads).to.deep.equal([
+        assert.strictEqual(structure.written.length, 0);
+        assert.deepStrictEqual(structure.classicReads, [
             { dSUID: 'vent1', outputType: 'airLouverAuto', prio: 'medium', report: false },
         ]);
     });
@@ -248,7 +251,7 @@ describe('Smart Home output sync', function () {
         await delay(250);
 
         // Never applied, so after the follow-ups the classic read has the last word
-        expect(structure.classicReads).to.deep.equal([
+        assert.deepStrictEqual(structure.classicReads, [
             { dSUID: 'shade1', outputType: 'shadePositionOutside', prio: 'medium', report: false },
         ]);
     });
@@ -274,18 +277,19 @@ describe('Smart Home output sync', function () {
 
         sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
         await delay(40);
-        expect(statusCalls, 'the first read is on its way').to.equal(1);
+        assert.strictEqual(statusCalls, 1, 'the first read is on its way');
         // The blind starts moving AGAIN while the answer is in flight
         sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
         // ... and the in-flight answer carries the position from before that move
         resolveFirst({ included: { dsDevices: [statusDevice('shade1', { shadePositionOutside: 10 })] } });
         await delay(80);
 
-        expect(statusCalls, 'a second read serves the second trigger').to.equal(2);
-        expect(
+        assert.strictEqual(statusCalls, 2, 'a second read serves the second trigger');
+        assert.deepStrictEqual(
             structure.written.map(write => write.value),
+            [55],
             'the stale 10 must never be written',
-        ).to.deep.equal([55]);
+        );
     });
 
     it('pulls a far follow-up timer forward for a fresh trigger', async () => {
@@ -312,7 +316,7 @@ describe('Smart Home output sync', function () {
 
         sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
         await delay(40);
-        expect(statusCalls).to.equal(1);
+        assert.strictEqual(statusCalls, 1);
         // The follow-up timer is armed for 5 s - the light must not wait for it
         const lightValues = [];
         sync.requestDeviceSync(
@@ -324,8 +328,8 @@ describe('Smart Home output sync', function () {
             ['brightness'],
         );
         await delay(60);
-        expect(statusCalls, 'the fresh trigger pulled the read forward').to.equal(2);
-        expect(lightValues).to.deep.equal([Math.round(50 * 2.55)]);
+        assert.strictEqual(statusCalls, 2, 'the fresh trigger pulled the read forward');
+        assert.deepStrictEqual(lightValues, [Math.round(50 * 2.55)]);
     });
 
     // Manche Kanaele beantwortet der Status STRUKTURELL nie (gemessen: die Outputs von
@@ -347,19 +351,19 @@ describe('Smart Home output sync', function () {
         await waitFor(() => structure.classicReads.length === 1);
         sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
         await waitFor(() => structure.classicReads.length === 2);
-        expect(statusCalls, 'two full follow-up budgets were burned').to.equal(6);
+        assert.strictEqual(statusCalls, 6, 'two full follow-up budgets were burned');
 
         // The third trigger goes classic immediately - no debounce, no status request
-        expect(sync.requestDeviceSync(SHADE(), ['shadePositionOutside'])).to.equal(true);
-        expect(structure.classicReads).to.have.lengthOf(3);
-        expect(structure.classicReads[2]).to.deep.equal({
+        assert.strictEqual(sync.requestDeviceSync(SHADE(), ['shadePositionOutside']), true);
+        assert.strictEqual(structure.classicReads.length, 3);
+        assert.deepStrictEqual(structure.classicReads[2], {
             dSUID: 'shade1',
             outputType: 'shadePositionOutside',
             prio: 'medium',
             report: false,
         });
         await delay(150);
-        expect(statusCalls, 'the learned channel costs no further status request').to.equal(6);
+        assert.strictEqual(statusCalls, 6, 'the learned channel costs no further status request');
     });
 
     it('forgets a learned gap once the status answers the channel again', async () => {
@@ -376,8 +380,8 @@ describe('Smart Home output sync', function () {
         });
 
         sync.undeliverable.set('shade1|shadePositionOutside', sync.now());
-        expect(sync.requestDeviceSync(SHADE(), ['shadePositionOutside']), 'learned goes classic').to.equal(true);
-        expect(structure.classicReads).to.have.lengthOf(1);
+        assert.strictEqual(sync.requestDeviceSync(SHADE(), ['shadePositionOutside']), true, 'learned goes classic');
+        assert.strictEqual(structure.classicReads.length, 1);
 
         // The next status answer (fetched for the light) carries the value - unlearned
         sync.requestDeviceSync(
@@ -393,8 +397,8 @@ describe('Smart Home output sync', function () {
         // ... so the next trigger goes through the status again
         sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
         await waitFor(() => structure.written.length === 1);
-        expect(structure.written).to.deep.equal([{ id: 'devices.m1.shade1.shadePositionOutside', value: 40 }]);
-        expect(structure.classicReads, 'no second classic read').to.have.lengthOf(1);
+        assert.deepStrictEqual(structure.written, [{ id: 'devices.m1.shade1.shadePositionOutside', value: 40 }]);
+        assert.strictEqual(structure.classicReads.length, 1, 'no second classic read');
     });
 
     // Live gemessen (dSS20 1.19.13, 01.09.2026): ein fahrender Rollladen laesst value
@@ -444,24 +448,24 @@ describe('Smart Home output sync', function () {
                 travellingStatus().included.dsDevices[0].attributes.functionBlocks[0].outputs[0],
                 START + (END - START) / 2,
             );
-            expect(Math.round(/** @type {number} */ (half))).to.equal(50);
+            assert.strictEqual(Math.round(/** @type {number} */ (half)), 50);
         });
 
         it('holds the start position when the clock runs before the travel', () => {
             const output = travellingStatus().included.dsDevices[0].attributes.functionBlocks[0].outputs[0];
-            expect(SmartHomeOutputSync.travelPosition(output, START - 60000)).to.equal(100);
+            assert.strictEqual(SmartHomeOutputSync.travelPosition(output, START - 60000), 100);
         });
 
         // Am Ziel klemmen hiesse behaupten, der Rollladen sei angekommen - live gesehen
         // stand dadurch 2,1 s zu frueh die 100 im State, obwohl er noch fuhr
         it('writes nothing once the announced end has passed', () => {
             const output = travellingStatus().included.dsDevices[0].attributes.functionBlocks[0].outputs[0];
-            expect(SmartHomeOutputSync.travelPosition(output, END), 'genau am Ende').to.equal(undefined);
-            expect(SmartHomeOutputSync.travelPosition(output, END + 60000), 'danach').to.equal(undefined);
+            assert.strictEqual(SmartHomeOutputSync.travelPosition(output, END), undefined, 'genau am Ende');
+            assert.strictEqual(SmartHomeOutputSync.travelPosition(output, END + 60000), undefined, 'danach');
             // Kurz davor wird noch interpoliert - und eben NICHT auf das Ziel 0 gerundet
             // (100 -> 0 in 24,8 s, eine Sekunde vor Schluss also 4)
             const nearly = SmartHomeOutputSync.travelPosition(output, END - 1000);
-            expect(Math.round(/** @type {number} */ (nearly))).to.equal(4);
+            assert.strictEqual(Math.round(/** @type {number} */ (nearly)), 4);
         });
 
         // Nach dem angekuendigten Ende muss die naechste Abfrage SCHNELL kommen, sonst
@@ -488,19 +492,25 @@ describe('Smart Home output sync', function () {
             sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
             await waitFor(() => structure.written.length === 1, 3000);
 
-            expect(statusCalls, 'die Nachlese lief im Debounce-Takt, nicht im 5-s-Takt').to.equal(3);
-            expect(structure.written, 'nur der echte Endwert steht im State').to.deep.equal([
-                { id: 'devices.m1.shade1.shadePositionOutside', value: 100 },
-            ]);
+            assert.strictEqual(statusCalls, 3, 'die Nachlese lief im Debounce-Takt, nicht im 5-s-Takt');
+            assert.deepStrictEqual(
+                structure.written,
+                [{ id: 'devices.m1.shade1.shadePositionOutside', value: 100 }],
+                'nur der echte Endwert steht im State',
+            );
             sync.stop();
         });
 
         it('ignores an output that is not travelling', () => {
-            expect(SmartHomeOutputSync.travelPosition({ id: 'x', value: 5, status: 'ok' }, START)).to.equal(undefined);
-            expect(
+            assert.strictEqual(
+                SmartHomeOutputSync.travelPosition({ id: 'x', value: 5, status: 'ok' }, START),
+                undefined,
+            );
+            assert.strictEqual(
                 SmartHomeOutputSync.travelPosition({ id: 'x', status: 'moving', initialValue: 100 }, START),
+                undefined,
                 'without a target and a window there is nothing to compute',
-            ).to.equal(undefined);
+            );
         });
 
         // Der ganze Zweck: der State folgt der Fahrt, bleibt aber offen, bis der
@@ -527,12 +537,14 @@ describe('Smart Home output sync', function () {
             sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
             await waitFor(() => structure.written.length === 1);
 
-            expect(statusCalls).to.equal(1);
-            expect(structure.written, 'die halbe Strecke steht im State').to.deep.equal([
-                { id: 'devices.m1.shade1.shadePositionOutside', value: 50 },
-            ]);
-            expect(sync.pending.has('shade1'), 'der Kanal bleibt offen bis zum Endwert').to.equal(true);
-            expect(structure.classicReads, 'kein Fallback waehrend der Fahrt').to.have.lengthOf(0);
+            assert.strictEqual(statusCalls, 1);
+            assert.deepStrictEqual(
+                structure.written,
+                [{ id: 'devices.m1.shade1.shadePositionOutside', value: 50 }],
+                'die halbe Strecke steht im State',
+            );
+            assert.strictEqual(sync.pending.has('shade1'), true, 'der Kanal bleibt offen bis zum Endwert');
+            assert.strictEqual(structure.classicReads.length, 0, 'kein Fallback waehrend der Fahrt');
             sync.stop();
         });
 
@@ -555,9 +567,9 @@ describe('Smart Home output sync', function () {
             await waitFor(() => statusCalls >= 3);
 
             const entry = /** @type {any} */ (sync.pending.get('shade1'));
-            expect(entry, 'noch offen').to.not.equal(undefined);
-            expect(entry.attempts, 'kein verbrauchter Versuch').to.equal(0);
-            expect(structure.classicReads).to.have.lengthOf(0);
+            assert.notStrictEqual(entry, undefined, 'noch offen');
+            assert.strictEqual(entry.attempts, 0, 'kein verbrauchter Versuch');
+            assert.strictEqual(structure.classicReads.length, 0);
             sync.stop();
         });
     });
@@ -582,10 +594,13 @@ describe('Smart Home output sync', function () {
         );
         await delay(60);
 
-        expect(structure.written.sort((a, b) => a.id.localeCompare(b.id))).to.deep.equal([
-            { id: 'devices.m1.hue1.x', value: 2235 },
-            { id: 'devices.m1.hue1.y', value: 3921 },
-        ]);
+        assert.deepStrictEqual(
+            structure.written.sort((a, b) => a.id.localeCompare(b.id)),
+            [
+                { id: 'devices.m1.hue1.x', value: 2235 },
+                { id: 'devices.m1.hue1.y', value: 3921 },
+            ],
+        );
     });
 
     // Wuerde die ganze Anlage gelernt (degradierte 200-Antworten ohne Werte), liefe nie
@@ -609,17 +624,17 @@ describe('Smart Home output sync', function () {
         // Fresh entry: still classic, no status request
         sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
         await delay(60);
-        expect(statusCalls).to.equal(0);
-        expect(structure.classicReads).to.have.lengthOf(1);
+        assert.strictEqual(statusCalls, 0);
+        assert.strictEqual(structure.classicReads.length, 1);
 
         // The entry is older than the interval now - the next trigger probes the status,
         // the answer carries a value and heals the learning for good
         sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
         await waitFor(() => structure.written.length === 1);
-        expect(statusCalls, 'the probe went through the status').to.equal(1);
-        expect(structure.written).to.deep.equal([{ id: 'devices.m1.shade1.shadePositionOutside', value: 70 }]);
-        expect(sync.undeliverable.size).to.equal(0);
-        expect(structure.classicReads, 'no second classic read').to.have.lengthOf(1);
+        assert.strictEqual(statusCalls, 1, 'the probe went through the status');
+        assert.deepStrictEqual(structure.written, [{ id: 'devices.m1.shade1.shadePositionOutside', value: 70 }]);
+        assert.strictEqual(sync.undeliverable.size, 0);
+        assert.strictEqual(structure.classicReads.length, 1, 'no second classic read');
     });
 
     // Die stuendliche Probe eines gelernten Kanals kostete das volle Folgebudget: vier
@@ -644,8 +659,8 @@ describe('Smart Home output sync', function () {
         sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
 
         await waitFor(() => sync.undeliverable.has('shade1|shadePositionOutside'));
-        expect(statusCalls, 'one unanswered status is answer enough for a probe').to.equal(1);
-        expect(sync.pending.size, 'and the entry is done, not waiting for three more').to.equal(0);
+        assert.strictEqual(statusCalls, 1, 'one unanswered status is answer enough for a probe');
+        assert.strictEqual(sync.pending.size, 0, 'and the entry is done, not waiting for three more');
     });
 
     // Sobald ein echter Auslöser dazukommt, ist der Eintrag keine blosse Frage mehr
@@ -669,7 +684,7 @@ describe('Smart Home output sync', function () {
         sync.requestDeviceSync(SHADE(), ['shadeOpeningAngleOutside']);
 
         await waitFor(() => statusCalls >= 3, 2000);
-        expect(statusCalls, 'a real trigger is worth the full follow-up budget').to.be.at.least(3);
+        assert.ok(statusCalls >= 3, 'a real trigger is worth the full follow-up budget');
     });
 
     // Der dSS meldet die eine class-64-Shade-Bank nur unter den ...Outside-Ids, obwohl
@@ -697,11 +712,14 @@ describe('Smart Home output sync', function () {
         );
         await delay(60);
 
-        expect(structure.written.sort((a, b) => a.id.localeCompare(b.id))).to.deep.equal([
-            { id: 'devices.m1.umr1.shadeOpeningAngleIndoor', value: 25 },
-            { id: 'devices.m1.umr1.shadePositionIndoor', value: 100 },
-        ]);
-        expect(structure.classicReads).to.have.lengthOf(0);
+        assert.deepStrictEqual(
+            structure.written.sort((a, b) => a.id.localeCompare(b.id)),
+            [
+                { id: 'devices.m1.umr1.shadeOpeningAngleIndoor', value: 25 },
+                { id: 'devices.m1.umr1.shadePositionIndoor', value: 100 },
+            ],
+        );
+        assert.strictEqual(structure.classicReads.length, 0);
     });
 
     // Eine geschaltete Steckdose (SW-KL200) deklariert powerLevel, der Status meldet
@@ -745,18 +763,21 @@ describe('Smart Home output sync', function () {
         );
         await delay(60);
 
-        expect(structure.written.sort((a, b) => a.id.localeCompare(b.id))).to.deep.equal([
-            { id: 'devices.m1.socket1.powerLevel', value: 100 },
-            { id: 'devices.m1.socket1.powerState', value: 2 },
-        ]);
-        expect(structure.classicReads).to.have.lengthOf(0);
+        assert.deepStrictEqual(
+            structure.written.sort((a, b) => a.id.localeCompare(b.id)),
+            [
+                { id: 'devices.m1.socket1.powerLevel', value: 100 },
+                { id: 'devices.m1.socket1.powerState', value: 2 },
+            ],
+        );
+        assert.strictEqual(structure.classicReads.length, 0);
     });
 
     // Nicht nur das Fake: die ECHTE DSSStructure muss den Sync anlegen und ihre
     // Szenen-/Initial-Pfade wirklich hindurch routen
     it('is wired into the real structure', async () => {
         const { EventEmitter } = require('node:events');
-        const DSSStructure = require('../lib/dssStructure');
+        const { DSSStructure } = require('../build/lib/dssStructure');
         const classicReads = [];
         const infoStates = [];
         let statusCalls = 0;
@@ -815,14 +836,17 @@ describe('Smart Home output sync', function () {
         );
         await delay(80);
 
-        expect(statusCalls, 'the initial reads went through ONE status request').to.equal(1);
-        expect(classicReads, 'no classic read was queued').to.have.lengthOf(0);
+        assert.strictEqual(statusCalls, 1, 'the initial reads went through ONE status request');
+        assert.strictEqual(classicReads.length, 0, 'no classic read was queued');
         // Die Arbeitsteilung ist sichtbar: info.outputApi zeigt den liefernden Weg
-        expect(infoStates).to.deep.equal([{ id: 'info.outputApi', value: 'smarthome', ack: true }]);
-        expect(written.sort((a, b) => a.id.localeCompare(b.id))).to.deep.equal([
-            { id: angleId, value: 50 },
-            { id: positionId, value: 32 },
-        ]);
+        assert.deepStrictEqual(infoStates, [{ id: 'info.outputApi', value: 'smarthome', ack: true }]);
+        assert.deepStrictEqual(
+            written.sort((a, b) => a.id.localeCompare(b.id)),
+            [
+                { id: angleId, value: 50 },
+                { id: positionId, value: 32 },
+            ],
+        );
         struct.clearTimeouts();
     });
 
@@ -830,7 +854,7 @@ describe('Smart Home output sync', function () {
     // uebergebene Einzel-Reads (report: false) melden nicht, direkte klassische
     // Reads melden weiterhin
     it('keeps info.outputApi untouched for a classic read without report', async () => {
-        const DSSStructure = require('../lib/dssStructure');
+        const { DSSStructure } = require('../build/lib/dssStructure');
         const infoStates = [];
         const struct = /** @type {any} */ (
             new DSSStructure({
@@ -852,11 +876,11 @@ describe('Smart Home output sync', function () {
 
         struct.queueClassicOutputRead(dev, 'shadePositionOutside', 'medium', { report: false });
         await delay(20);
-        expect(infoStates, 'no report without the flag').to.have.lengthOf(0);
+        assert.strictEqual(infoStates.length, 0, 'no report without the flag');
 
         struct.queueClassicOutputRead(dev, 'shadePositionOutside', 'medium');
         await delay(20);
-        expect(infoStates).to.deep.equal([{ id: 'info.outputApi', value: 'classic', ack: true }]);
+        assert.deepStrictEqual(infoStates, [{ id: 'info.outputApi', value: 'classic', ack: true }]);
     });
 
     it('does nothing after stop()', async () => {
@@ -871,15 +895,15 @@ describe('Smart Home output sync', function () {
         sync.requestDeviceSync(SHADE(), ['shadePositionOutside']);
         sync.stop();
         await delay(80);
-        expect(statusCalls).to.equal(0);
-        expect(structure.classicReads).to.have.lengthOf(0);
+        assert.strictEqual(statusCalls, 0);
+        assert.strictEqual(structure.classicReads.length, 0);
     });
 });
 
 describe('Scene names and zone temperature through the Smart Home API', function () {
     this.timeout(10000);
 
-    const DSSStructure = require('../lib/dssStructure');
+    const { DSSStructure } = require('../build/lib/dssStructure');
     const silentLog = { silly: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
     /**
@@ -912,7 +936,7 @@ describe('Scene names and zone temperature through the Smart Home API', function
             }),
         });
         struct.loadScenarioNames(() => {
-            expect(struct.scenarioNames).to.deep.equal({ '1.1.17': 'Hell', '4.48.5': 'Bad warm' });
+            assert.deepStrictEqual(struct.scenarioNames, { '1.1.17': 'Hell', '4.48.5': 'Bad warm' });
             done();
         });
     });
@@ -924,7 +948,7 @@ describe('Scene names and zone temperature through the Smart Home API', function
             },
         });
         struct.loadScenarioNames(() => {
-            expect(struct.scenarioNames).to.deep.equal({});
+            assert.deepStrictEqual(struct.scenarioNames, {});
             done();
         });
     });
@@ -957,8 +981,8 @@ describe('Scene names and zone temperature through the Smart Home API', function
             },
         });
 
-        expect(count).to.equal(2);
-        expect(written).to.deep.equal([
+        assert.strictEqual(count, 2);
+        assert.deepStrictEqual(written, [
             { id: 'apartment.0.4.sensors.NominalValue', value: 21.5 },
             { id: 'apartment.0.4.sensors.ControlValue', value: 40 },
         ]);
@@ -983,13 +1007,13 @@ describe('Scene names and zone temperature through the Smart Home API', function
             c: { dSUID: 'c' },
         };
 
-        expect(struct.reconcileOutputValues(), 'the first notification reconciles').to.equal(true);
-        expect(requests, 'only devices with output channels').to.deep.equal(['a']);
+        assert.strictEqual(struct.reconcileOutputValues(), true, 'the first notification reconciles');
+        assert.deepStrictEqual(requests, ['a'], 'only devices with output channels');
         nowValue = 500;
-        expect(struct.reconcileOutputValues(), 'inside the interval nothing happens').to.equal(false);
+        assert.strictEqual(struct.reconcileOutputValues(), false, 'inside the interval nothing happens');
         nowValue = 1500;
-        expect(struct.reconcileOutputValues(), 'after the interval it reconciles again').to.equal(true);
-        expect(requests).to.deep.equal(['a', 'a']);
+        assert.strictEqual(struct.reconcileOutputValues(), true, 'after the interval it reconciles again');
+        assert.deepStrictEqual(requests, ['a', 'a']);
     });
 });
 
@@ -997,7 +1021,7 @@ describe('Activity counters', function () {
     // Zwei absichtlich scheiternde Verbindungsaufbauten - auf langsamen CI-Runnern
     // kann das laenger dauern als die 2 s Mocha-Standard-Timeout
     this.timeout(10000);
-    const ActivityCounter = require('../lib/activityCounter');
+    const { ActivityCounter } = require('../build/lib/activityCounter');
 
     it('sums per metric over the rolling window and forgets the rest', () => {
         let nowValue = 0;
@@ -1007,13 +1031,13 @@ describe('Activity counters', function () {
         counter.count('smarthome.requests');
         nowValue = 5 * 60 * 1000;
         counter.count('classic.events');
-        expect(counter.snapshot()).to.deep.equal({ 'classic.events': 3, 'smarthome.requests': 1 });
+        assert.deepStrictEqual(counter.snapshot(), { 'classic.events': 3, 'smarthome.requests': 1 });
 
         // Nach elf Minuten sind die ersten Eimer aus dem Fenster gefallen
         nowValue = 11 * 60 * 1000;
-        expect(counter.snapshot()).to.deep.equal({ 'classic.events': 1, 'smarthome.requests': 0 });
+        assert.deepStrictEqual(counter.snapshot(), { 'classic.events': 1, 'smarthome.requests': 0 });
         nowValue = 16 * 60 * 1000;
-        expect(counter.snapshot()).to.deep.equal({ 'classic.events': 0, 'smarthome.requests': 0 });
+        assert.deepStrictEqual(counter.snapshot(), { 'classic.events': 0, 'smarthome.requests': 0 });
     });
 
     it('covers exactly the window it announces, not a bucket less', () => {
@@ -1027,15 +1051,15 @@ describe('Activity counters', function () {
         // Eine halbe Minute nach Ablauf der zehn Minuten liegt die Haelfte der ersten
         // Minute noch im Fenster - frueher fiel der ganze Eimer schlagartig heraus
         nowValue = 10 * 60 * 1000 + 30 * 1000;
-        expect(counter.snapshot()['classic.requests'], 'der Randeimer zaehlt anteilig').to.equal(30);
+        assert.strictEqual(counter.snapshot()['classic.requests'], 30, 'der Randeimer zaehlt anteilig');
 
         // Und exakt nach elf Minuten ist er vollstaendig draussen
         nowValue = 11 * 60 * 1000;
-        expect(counter.snapshot()['classic.requests']).to.equal(0);
+        assert.strictEqual(counter.snapshot()['classic.requests'], 0);
     });
 
     it('is announced by both clients for every request', async () => {
-        const DSSSmartHome = require('../lib/dssSmartHome');
+        const { DSSSmartHome } = require('../build/lib/dssSmartHome');
         const seen = [];
         const client = new DSSSmartHome({
             host: 'http://127.0.0.1:1',
@@ -1045,11 +1069,11 @@ describe('Activity counters', function () {
         // Der Request scheitert (nichts lauscht auf Port 1) - gezaehlt wird VOR dem Senden
         await client.getMeteringValues().catch(() => {});
         client.stop();
-        expect(seen).to.deep.equal([['request', '/api/v1/apartment/meterings/values']]);
+        assert.deepStrictEqual(seen, [['request', '/api/v1/apartment/meterings/values']]);
 
         // Und der klassische Client, aus dessen Hook der Status-Tab die Ereignis- und
         // Befehls-Zaehler speist - derselbe Trick, gezaehlt wird ebenfalls VOR dem Senden
-        const DSS = require('../lib/dss');
+        const { DSS } = require('../build/lib/dss');
         const seenClassic = [];
         const classic = new DSS({
             host: 'http://127.0.0.1:1',
@@ -1058,6 +1082,6 @@ describe('Activity counters', function () {
         });
         await classic.httpRequest('/json/apartment/getName').catch(() => {});
         classic.stop();
-        expect(seenClassic).to.deep.equal([['request', '/json/apartment/getName']]);
+        assert.deepStrictEqual(seenClassic, [['request', '/json/apartment/getName']]);
     });
 });
