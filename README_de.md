@@ -365,6 +365,11 @@ Der vollständige Changelog inklusive der Historie von Apollon77 steht in der en
   jetzt automatisch übernommen und verschlüsselt abgelegt, statt neu eingegeben werden zu müssen
 * (GermanBluefox) Die Entwickler-Skripte unter `scripts/`, mit denen die Smart Home API erkundet wurde, sind entfernt
   (sie waren nicht Teil des Pakets)
+* (GermanBluefox) Der Adapter wurde auf TypeScript umgestellt: Die Quellen liegen in `src/` und werden nach `build/`
+  übersetzt, `tasks.ts` baut Backend und Admin-Oberfläche, die Tests nutzen `node:assert` statt chai, und der
+  Workflow verwendet die ioBroker-Testing-Actions mit npm Trusted Publishing
+* (GermanBluefox) Die Installation direkt von GitHub ist nicht mehr möglich (`common.nogit`), weil das Paket erst
+  gebaut werden muss. Installiert wird wie gewohnt über npm
 
 ### 2.4.27 (2026-10-09)
 

@@ -241,6 +241,11 @@ MIT license; the original copyright notice is kept unchanged in [LICENSE](LICENS
   taken over and stored encrypted automatically instead of having to be entered again
 * (GermanBluefox) Removed the development scripts under `scripts/` that were only used to explore the
   Smart Home API (they were not part of the package)
+* (GermanBluefox) The adapter was refactored to TypeScript: the sources are in `src/` and are compiled to
+  `build/`, `tasks.ts` builds the backend and the admin interface, the tests use `node:assert` instead of
+  chai, and the workflow uses the ioBroker testing actions with npm trusted publishing
+* (GermanBluefox) Installing the adapter directly from GitHub is no longer possible (`common.nogit`), because the
+  package has to be built first. Install it from npm as usual
 
 ### 2.4.27 (2026-10-09)
 
