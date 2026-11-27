@@ -356,7 +356,7 @@ unverändert erhalten.
 Der vollständige Changelog inklusive der Historie von Apollon77 steht in der englischen Fassung:
 [README.md](README.md#changelog). Hier die Einträge der gepflegten Versionen auf Deutsch.
 
-### **WORK IN PROGRESS**
+### 3.0.0 (2026-11-27)
 
 * Der gepflegte Fork (https://github.com/mrandreschmitz/ioBroker.digitalstrom) wurde in dieses
   Repository zurückgeführt. Die Repository-Adressen zeigen wieder hierher, das Sentry-Plugin ist
