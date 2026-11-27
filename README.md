@@ -246,6 +246,8 @@ MIT license; the original copyright notice is kept unchanged in [LICENSE](LICENS
   chai, and the workflow uses the ioBroker testing actions with npm trusted publishing
 * (GermanBluefox) Installing the adapter directly from GitHub is no longer possible (`common.nogit`), because the
   package has to be built first. Install it from npm as usual
+* (GermanBluefox) When the dSS answers a structure request without an error text, the log now shows its answer
+  instead of "[object Object]"
 
 ### 2.4.27 (2026-10-09)
 

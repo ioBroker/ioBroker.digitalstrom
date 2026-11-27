@@ -762,9 +762,6 @@ export class DSSStructure {
         );
     }
 
-    // TODO(refactoring): an answer without message and status_code ends up in these error
-    // texts as "[object Object]" - JSON.stringify(res) would show what the DSS sent.
-    /* eslint-disable @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-template-expressions -- the error texts stay as they were until the TODO above is done */
     initClassicStructure(callback: StructureCallback): void {
         this.dss.requestAsync('apartment', 'getStructure').then(
             res => {
@@ -772,7 +769,9 @@ export class DSSStructure {
                     return void (
                         callback &&
                         setImmediate(() =>
-                            callback(`Error on apartment/getStructure: ${res.message || res.status_code || res}`),
+                            callback(
+                                `Error on apartment/getStructure: ${res?.message || res?.status_code || JSON.stringify(res)}`,
+                            ),
                         )
                     );
                 }
@@ -784,7 +783,9 @@ export class DSSStructure {
                         if (!res || !res.ok || !res.result || !res.result.circuits) {
                             return void (
                                 callback &&
-                                callback(`Error on apartment/getCircuits: ${res.message || res.status_code || res}`)
+                                callback(
+                                    `Error on apartment/getCircuits: ${res?.message || res?.status_code || JSON.stringify(res)}`,
+                                )
                             );
                         }
                         this.apartmentCircuits = res.result.circuits;
@@ -797,7 +798,7 @@ export class DSSStructure {
                                         callback &&
                                         callback(
                                             `Error on apartment/getSensorValues: ${
-                                                res.message || res.status_code || res
+                                                res?.message || res?.status_code || JSON.stringify(res)
                                             }`,
                                         )
                                     );
@@ -812,7 +813,7 @@ export class DSSStructure {
                                                 callback &&
                                                 callback(
                                                     `Error on apartment/getTemperatureControlStatus: ${
-                                                        res.message || res.status_code || res
+                                                        res?.message || res?.status_code || JSON.stringify(res)
                                                     }`,
                                                 )
                                             );
@@ -835,7 +836,9 @@ export class DSSStructure {
                                                             callback &&
                                                             callback(
                                                                 `Error on query user-defined-states: ${
-                                                                    res.message || res.status_code || res
+                                                                    res?.message ||
+                                                                    res?.status_code ||
+                                                                    JSON.stringify(res)
                                                                 }`,
                                                             )
                                                         );
@@ -862,7 +865,9 @@ export class DSSStructure {
                                                                         callback &&
                                                                         callback(
                                                                             `Error on query states: ${
-                                                                                res.message || res.status_code || res
+                                                                                res?.message ||
+                                                                                res?.status_code ||
+                                                                                JSON.stringify(res)
                                                                             }`,
                                                                         )
                                                                     );
@@ -887,9 +892,9 @@ export class DSSStructure {
                                                                                     callback &&
                                                                                     callback(
                                                                                         `Error on query user actions: ${
-                                                                                            res.message ||
-                                                                                            res.status_code ||
-                                                                                            res
+                                                                                            res?.message ||
+                                                                                            res?.status_code ||
+                                                                                            JSON.stringify(res)
                                                                                         }`,
                                                                                     )
                                                                                 );
@@ -922,9 +927,11 @@ export class DSSStructure {
                                                                                                 callback &&
                                                                                                 callback(
                                                                                                     `Error on apartment/getReachableGroups: ${
-                                                                                                        res.message ||
-                                                                                                        res.status_code ||
-                                                                                                        res
+                                                                                                        res?.message ||
+                                                                                                        res?.status_code ||
+                                                                                                        JSON.stringify(
+                                                                                                            res,
+                                                                                                        )
                                                                                                     }`,
                                                                                                 )
                                                                                             );
@@ -1036,7 +1043,6 @@ export class DSSStructure {
             },
         );
     }
-    /* eslint-enable @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-template-expressions */
 
     convertObject(data: any, nameField: string, prefilled?: Record<string, any>): Record<string, any> {
         const res = prefilled || {};

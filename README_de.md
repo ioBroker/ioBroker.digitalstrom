@@ -370,6 +370,8 @@ Der vollständige Changelog inklusive der Historie von Apollon77 steht in der en
   Workflow verwendet die ioBroker-Testing-Actions mit npm Trusted Publishing
 * (GermanBluefox) Die Installation direkt von GitHub ist nicht mehr möglich (`common.nogit`), weil das Paket erst
   gebaut werden muss. Installiert wird wie gewohnt über npm
+* (GermanBluefox) Antwortet der dSS auf eine Strukturabfrage ohne Fehlertext, zeigt das Log jetzt seine Antwort statt
+  „[object Object]“
 
 ### 2.4.27 (2026-10-09)
 
