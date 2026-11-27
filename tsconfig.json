@@ -1,49 +1,28 @@
-// Type checking configuration. Nothing is compiled from here.
-//
-// The project is free of type errors: `npm run typecheck` (tsc --noEmit) is part of the
-// CI pipeline and must stay green. strict and checkJs are enabled, the types are declared
-// with JSDoc - see the AdapterError and DssResponse typedefs in lib/configUtils.js.
+// Root tsconfig: type checking of the adapter sources and of tasks.ts, nothing is emitted
+// here. The compilation is configured in tsconfig.build.json.
 {
     "compileOnSave": true,
+    "extends": "@tsconfig/node22/tsconfig.json",
     "compilerOptions": {
-        // do not compile anything, this file is just to configure type checking
         "noEmit": true,
-
-        // check JS files
-        "allowJs": true,
-        "checkJs": true,
-
-        // node20, not node16: this adapter requires Node 22, and from Node 22.12 a CommonJS
-        // file may require() an ES module. chai and its two plugins are ESM since version 5,
-        // and node16 rejects every require() of them although it works at runtime.
-        // The resolution has no node20 of its own, nodenext is its current equivalent.
-        "module": "node20",
-        "moduleResolution": "nodenext",
-        // this is necessary for the automatic typing of the adapter config
-        "resolveJsonModule": true,
-
-        // The types of the dependencies are not part of this project. Checking them would
-        // only report errors that cannot be fixed here - the project code itself stays
-        // fully checked.
+        "allowJs": false,
         "skipLibCheck": true,
-
-        // Without this the mocha/chai globals of the tests are not found
-        "types": ["node", "mocha", "chai"],
-
-        // Set this to false if you want to disable the very strict rules (not recommended)
+        "noEmitOnError": true,
+        "outDir": "./build/",
+        "removeComments": false,
+        "module": "Node16",
+        "moduleResolution": "node16",
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
         "strict": true,
-        // Or enable some of those features for more fine-grained control
-        // "strictNullChecks": true,
-        // "strictPropertyInitialization": true,
-        // "strictBindCallApply": true,
-        "noImplicitAny": false,
-        // "noUnusedLocals": true,
-        // "noUnusedParameters": true,
-
-        // Node 22 is the minimum supported runtime, so the ES2022 library (Error.cause,
-        // Array.at, ...) is available
-        "target": "es2022"
+        "strictNullChecks": true,
+        "strictPropertyInitialization": true,
+        "target": "es2022",
+        "sourceMap": true,
+        "inlineSourceMap": false,
+        "useUnknownInCatchVariables": false,
+        "types": ["@iobroker/types", "@types/node"]
     },
-    "include": ["**/*.js", "**/*.d.ts"],
-    "exclude": ["node_modules/**", "admin/**", "src-admin/**"]
+    "include": ["src/**/*.ts", "tasks.ts"],
+    "exclude": ["build/**", "node_modules/**", "admin/**", "src-admin/**", "test/**"]
 }

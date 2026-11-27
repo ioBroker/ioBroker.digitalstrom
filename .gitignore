@@ -21,3 +21,10 @@ ds-probe/
 # digitalSTROM documentation - copyrighted, stays local
 API-dss-json.pdf
 *.pdf
+
+# Build output: the adapter is installed from npm only (common.nogit), the package is built
+# by "npm run build" in the CI
+build
+*.tsbuildinfo
+admin/index.html
+admin/assets/

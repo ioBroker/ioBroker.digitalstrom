@@ -181,6 +181,7 @@
         },
         "type": "iot-systems",
         "compact": true,
+        "nogit": true,
         "messagebox": true,
         "defaultObjectsWarnLimit": 10000,
         "stopTimeout": 5000,
