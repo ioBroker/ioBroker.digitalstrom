@@ -18,6 +18,6 @@ admin/i18n/*/flat.txt
 # Probe output: contains the API key and the complete apartment structure
 ds-probe/
 
-# digitalSTROM-Dokumentation - urheberrechtlich geschuetzt, bleibt lokal
+# digitalSTROM documentation - copyrighted, stays local
 API-dss-json.pdf
 *.pdf

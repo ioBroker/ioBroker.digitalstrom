@@ -237,6 +237,8 @@ MIT license; the original copyright notice is kept unchanged in [LICENSE](LICENS
 * The maintained fork (https://github.com/mrandreschmitz/ioBroker.digitalstrom) was brought back
   into this repository. Repository URLs point here again, the Sentry plugin is configured again,
   and the release workflow publishes to npm again
+* (GermanBluefox) Updating from 2.3.0 keeps the App-Token: 2.3.0 stored it in plain text, it is now
+  taken over and stored encrypted automatically instead of having to be entered again
 
 ### 2.4.27 (2026-10-09)
 

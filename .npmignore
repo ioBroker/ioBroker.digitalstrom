@@ -46,7 +46,7 @@ prettier.config.mjs
 .prettierignore
 .releaseconfig.json
 
-# digitalSTROM-Dokumentation - urheberrechtlich geschuetzt, bleibt lokal
+# digitalSTROM documentation - copyrighted, stays local
 API-dss-json.pdf
 *.pdf
 

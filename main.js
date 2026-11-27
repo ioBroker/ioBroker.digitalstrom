@@ -232,7 +232,58 @@ class Digitalstrom extends utils.Adapter {
      * Is called when databases are connected and adapter received configuration.
      */
     async onReady() {
+        await this.migratePlainTextSecrets();
         this.main();
+    }
+
+    /**
+     * Up to 2.3.0 the App-Token was stored in plain text, because io-package.json did not list
+     * it in `encryptedNative`. Now it does, so js-controller "decrypts" such a plain value on
+     * start and hands over garbage - every installation updated from 2.3.0 would lose its login.
+     *
+     * If the value from js-controller is no token but the raw stored value is one, the raw
+     * value is the plain text token of an older version: it is used for this run and written
+     * back encrypted. An encrypted value never looks like a hex string, so a correctly stored
+     * token is never touched. Writing the instance object makes js-controller restart the
+     * instance, which then reads the encrypted value.
+     *
+     * @returns {Promise<boolean>} true if a value was migrated
+     */
+    async migratePlainTextSecrets() {
+        const fields = ['appToken', 'smartHomeApiKey'].filter(
+            name => this.config[name] && !Digitalstrom.looksLikeAppToken(this.config[name]),
+        );
+        if (!fields.length) {
+            return false;
+        }
+        const id = `system.adapter.${this.namespace}`;
+        try {
+            const obj = await this.getForeignObjectAsync(id);
+            /** @type {Record<string, string>} */
+            const native = {};
+            fields.forEach(name => {
+                const raw = obj && obj.native ? obj.native[name] : undefined;
+                if (typeof raw === 'string' && Digitalstrom.looksLikeAppToken(raw)) {
+                    this.config[name] = raw.trim();
+                    native[name] = this.encrypt(raw.trim());
+                }
+            });
+            const migrated = Object.keys(native);
+            if (!migrated.length) {
+                return false;
+            }
+            this.log.info(
+                `Storing the ${migrated.join(' and ')} of an older adapter version encrypted now. ` +
+                    'The instance restarts once for that.',
+            );
+            await this.extendForeignObjectAsync(id, { native });
+            return true;
+        } catch (err) {
+            this.log.warn(
+                `Could not migrate the stored credentials to encrypted storage: ${configUtils.errorMessage(err)}`,
+            );
+            return false;
+        }
     }
 
     /**

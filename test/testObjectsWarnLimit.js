@@ -833,7 +833,9 @@ describe('Objects warn limit (admin dialog)', () => {
             await monitor.start();
             const words = readJson(lang);
             const changes = [];
-            const html = renderToStaticMarkup(
+            // @types/react 19 (pulled in by MUI) types createElement() of a class component as a
+            // CElement that it no longer accepts as ReactNode, although react 18 renders it fine
+            const element = /** @type {any} */ (
                 React.createElement(Settings, {
                     native: { dataPollInterval: 100 },
                     onChange: (...args) => changes.push(args),
@@ -843,8 +845,9 @@ describe('Objects warn limit (admin dialog)', () => {
                     initialTab: tab,
                     lang,
                     warnLimit: { snapshot: monitor.snapshot, draft, draftBase: 5000, saveError: '' },
-                }),
+                })
             );
+            const html = renderToStaticMarkup(element);
             monitor.dispose();
             // MUI renders its styles inline into the markup - they are not text
             const text = html

@@ -361,6 +361,8 @@ Der vollständige Changelog inklusive der Historie von Apollon77 steht in der en
 * Der gepflegte Fork (https://github.com/mrandreschmitz/ioBroker.digitalstrom) wurde in dieses
   Repository zurückgeführt. Die Repository-Adressen zeigen wieder hierher, das Sentry-Plugin ist
   wieder eingerichtet, und der Release-Workflow veröffentlicht wieder auf npm
+* (GermanBluefox) Beim Update von 2.3.0 bleibt das App-Token erhalten: 2.3.0 hat es im Klartext gespeichert, es wird
+  jetzt automatisch übernommen und verschlüsselt abgelegt, statt neu eingegeben werden zu müssen
 
 ### 2.4.27 (2026-10-09)
 

@@ -724,6 +724,119 @@ describe('Adapter logic', () => {
         });
     });
 
+    describe('migratePlainTextSecrets', () => {
+        // What js-controller hands over when it "decrypts" a value that was stored in plain text
+        const GARBLED = '\u0013\u0007Q\u0001garbled';
+
+        /**
+         * @param {Record<string, any>} config config as js-controller delivers it
+         * @param {Record<string, any>|null} storedNative native of the stored instance object
+         * @returns {Record<string, any>} fake adapter context
+         */
+        function createMigrationContext(config, storedNative) {
+            /** @type {any[]} */
+            const written = [];
+            /** @type {string[]} */
+            const infos = [];
+            /** @type {string[]} */
+            const warns = [];
+            return createContext({
+                namespace: 'digitalstrom.0',
+                config,
+                written,
+                infos,
+                warns,
+                log: {
+                    ...silentLog,
+                    /** @param {unknown} msg */
+                    info: msg => infos.push(String(msg)),
+                    /** @param {unknown} msg */
+                    warn: msg => warns.push(String(msg)),
+                },
+                /** @param {string} id */
+                getForeignObjectAsync: async id => {
+                    expect(id).to.equal('system.adapter.digitalstrom.0');
+                    return storedNative ? { native: storedNative } : null;
+                },
+                /**
+                 * @param {string} id
+                 * @param {any} obj
+                 */
+                extendForeignObjectAsync: async (id, obj) => {
+                    written.push({ id, obj });
+                },
+                /** @param {string} value */
+                encrypt: value => `$/aes-192-cbc:iv:${value}`,
+            });
+        }
+
+        it('re-encrypts the plain text token of 2.3.0 and uses it right away', async () => {
+            const ctx = createMigrationContext(
+                { host: '192.168.1.10', appToken: GARBLED },
+                { host: '192.168.1.10', appToken: VALID_APP_TOKEN },
+            );
+            const migrated = await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx);
+            expect(migrated).to.equal(true);
+            expect(ctx.config.appToken).to.equal(VALID_APP_TOKEN);
+            expect(ctx.written).to.deep.equal([
+                {
+                    id: 'system.adapter.digitalstrom.0',
+                    obj: { native: { appToken: `$/aes-192-cbc:iv:${VALID_APP_TOKEN}` } },
+                },
+            ]);
+            expect(ctx.infos.join('\n')).to.contain('appToken').and.not.contain(VALID_APP_TOKEN);
+        });
+
+        it('leaves a correctly encrypted token alone', async () => {
+            const ctx = createMigrationContext(
+                { host: '192.168.1.10', appToken: VALID_APP_TOKEN },
+                { host: '192.168.1.10', appToken: '$/aes-192-cbc:0011:2233' },
+            );
+            expect(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx)).to.equal(false);
+            expect(ctx.written).to.deep.equal([]);
+        });
+
+        it('does nothing without a token', async () => {
+            const ctx = createMigrationContext({ host: '192.168.1.10', appToken: '' }, { appToken: '' });
+            expect(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx)).to.equal(false);
+            expect(ctx.written).to.deep.equal([]);
+        });
+
+        it('does not touch a token that is unreadable in the stored object as well', async () => {
+            // e.g. a backup restored on another host: the stored value is encrypted with a
+            // different secret - only the plausibility check of main() can help then
+            const ctx = createMigrationContext(
+                { host: '192.168.1.10', appToken: GARBLED },
+                { host: '192.168.1.10', appToken: '$/aes-192-cbc:0011:2233' },
+            );
+            expect(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx)).to.equal(false);
+            expect(ctx.config.appToken).to.equal(GARBLED);
+            expect(ctx.written).to.deep.equal([]);
+        });
+
+        it('migrates the Smart Home API key the same way', async () => {
+            const apiKey = 'f00dcafe'.repeat(8);
+            const ctx = createMigrationContext(
+                { host: '192.168.1.10', appToken: VALID_APP_TOKEN, smartHomeApiKey: GARBLED },
+                { host: '192.168.1.10', appToken: '$/aes-192-cbc:0011:2233', smartHomeApiKey: apiKey },
+            );
+            expect(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx)).to.equal(true);
+            expect(ctx.config.smartHomeApiKey).to.equal(apiKey);
+            expect(ctx.written[0].obj).to.deep.equal({
+                native: { smartHomeApiKey: `$/aes-192-cbc:iv:${apiKey}` },
+            });
+        });
+
+        it('only warns if the instance object cannot be read', async () => {
+            const ctx = createMigrationContext({ host: '192.168.1.10', appToken: GARBLED }, null);
+            ctx.getForeignObjectAsync = async () => {
+                throw new Error('db not reachable');
+            };
+            expect(await Digitalstrom.prototype.migratePlainTextSecrets.call(ctx)).to.equal(false);
+            expect(ctx.warns.join('\n')).to.contain('db not reachable');
+        });
+    });
+
     describe('invalid host handling', () => {
         // Every one of these makes the DSS constructor throw synchronously
         const invalidHosts = [
