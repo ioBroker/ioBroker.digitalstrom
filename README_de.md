@@ -363,6 +363,8 @@ Der vollständige Changelog inklusive der Historie von Apollon77 steht in der en
   wieder eingerichtet, und der Release-Workflow veröffentlicht wieder auf npm
 * (GermanBluefox) Beim Update von 2.3.0 bleibt das App-Token erhalten: 2.3.0 hat es im Klartext gespeichert, es wird
   jetzt automatisch übernommen und verschlüsselt abgelegt, statt neu eingegeben werden zu müssen
+* (GermanBluefox) Die Entwickler-Skripte unter `scripts/`, mit denen die Smart Home API erkundet wurde, sind entfernt
+  (sie waren nicht Teil des Pakets)
 
 ### 2.4.27 (2026-10-09)
 

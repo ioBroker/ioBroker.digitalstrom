@@ -239,6 +239,8 @@ MIT license; the original copyright notice is kept unchanged in [LICENSE](LICENS
   and the release workflow publishes to npm again
 * (GermanBluefox) Updating from 2.3.0 keeps the App-Token: 2.3.0 stored it in plain text, it is now
   taken over and stored encrypted automatically instead of having to be entered again
+* (GermanBluefox) Removed the development scripts under `scripts/` that were only used to explore the
+  Smart Home API (they were not part of the package)
 
 ### 2.4.27 (2026-10-09)
 
